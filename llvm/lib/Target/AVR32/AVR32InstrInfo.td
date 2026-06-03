@@ -343,6 +343,7 @@ def MULrrr : FullRegRegReg<0b000000100100, "mul">;
 def MULS_Drrr : FullRegRegReg<0b000001000100, "muls.d">;
 def MULU_Drrr : FullRegRegReg<0b000001100100, "mulu.d">;
 def MUSFRr : CompactRegNoOut<0b010111010011, "musfr">;
+def MUSTRr : CompactReg<0b010111010010, "mustr">;
 def MTDRi : FullDebugRegReg<0b111001111011, "mtdr">;
 def MTSRi : FullSysRegReg<0b111000111011, "mtsr">;
 def NEGr : CompactReg<0b010111000011, "neg">;

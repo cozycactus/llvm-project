@@ -310,7 +310,7 @@ bool AVR32AsmParser::parseInstruction(ParseInstructionInfo &Info,
   } else if (Name == "abs" || Name == "acr" || Name == "brev" ||
              Name == "casts.b" || Name == "casts.h" || Name == "castu.h" ||
              Name == "castu.b" || Name == "com" || Name == "icall" ||
-             Name == "musfr" ||
+             Name == "musfr" || Name == "mustr" ||
              Name == "neg" || Name == "retal" || Name == "retcc" ||
              Name == "retcs" || Name == "reteq" || Name == "reths" ||
              Name == "retge" || Name == "retgt" || Name == "rethi" ||
