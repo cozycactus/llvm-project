@@ -289,6 +289,8 @@ TEST(AVR32TargetInfo, LookupTarget) {
   EXPECT_EQ(MII->get(AVR32::RSUBrr).getSize(), 2u);
   EXPECT_EQ(MII->get(AVR32::SATADD_Wrrr).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::SATSUB_Hrrr).getSize(), 4u);
+  EXPECT_EQ(MII->get(AVR32::SATSUB_Wrrr).getSize(), 4u);
+  EXPECT_EQ(MII->get(AVR32::SATSUB_Wrri16).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::SBCrrr).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::SBRri).getSize(), 2u);
   EXPECT_EQ(MII->get(AVR32::SCALL).getSize(), 2u);
@@ -1906,6 +1908,40 @@ TEST(AVR32TargetInfo, LookupTarget) {
   EXPECT_EQ(static_cast<uint8_t>(Code[2]), 0x03);
   EXPECT_EQ(static_cast<uint8_t>(Code[3]), 0xc1);
 
+  MCInst SatsubW;
+  SatsubW.setOpcode(AVR32::SATSUB_Wrrr);
+  SatsubW.addOperand(MCOperand::createReg(AVR32::R1));
+  SatsubW.addOperand(MCOperand::createReg(AVR32::R2));
+  SatsubW.addOperand(MCOperand::createReg(AVR32::R3));
+
+  Code.clear();
+  Fixups.clear();
+  MCE->encodeInstruction(SatsubW, Code, Fixups, *STI);
+
+  EXPECT_TRUE(Fixups.empty());
+  ASSERT_EQ(Code.size(), 4u);
+  EXPECT_EQ(static_cast<uint8_t>(Code[0]), 0xe4);
+  EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0x03);
+  EXPECT_EQ(static_cast<uint8_t>(Code[2]), 0x01);
+  EXPECT_EQ(static_cast<uint8_t>(Code[3]), 0xc1);
+
+  MCInst SatsubWImm;
+  SatsubWImm.setOpcode(AVR32::SATSUB_Wrri16);
+  SatsubWImm.addOperand(MCOperand::createReg(AVR32::R1));
+  SatsubWImm.addOperand(MCOperand::createReg(AVR32::R2));
+  SatsubWImm.addOperand(MCOperand::createImm(-1));
+
+  Code.clear();
+  Fixups.clear();
+  MCE->encodeInstruction(SatsubWImm, Code, Fixups, *STI);
+
+  EXPECT_TRUE(Fixups.empty());
+  ASSERT_EQ(Code.size(), 4u);
+  EXPECT_EQ(static_cast<uint8_t>(Code[0]), 0xe4);
+  EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0xd1);
+  EXPECT_EQ(static_cast<uint8_t>(Code[2]), 0xff);
+  EXPECT_EQ(static_cast<uint8_t>(Code[3]), 0xff);
+
   MCInst Sbc;
   Sbc.setOpcode(AVR32::SBCrrr);
   Sbc.addOperand(MCOperand::createReg(AVR32::R1));
@@ -3090,6 +3126,20 @@ TEST(AVR32TargetInfo, LookupTarget) {
   EXPECT_EQ(Printed, "\tsatsub.h\tr1, r2, r3");
 
   Printed.clear();
+  raw_string_ostream SatsubWOS(Printed);
+  InstPrinter->printInst(&SatsubW, /*Address=*/0, /*Annot=*/"", *STI,
+                         SatsubWOS);
+  SatsubWOS.flush();
+  EXPECT_EQ(Printed, "\tsatsub.w\tr1, r2, r3");
+
+  Printed.clear();
+  raw_string_ostream SatsubWImmOS(Printed);
+  InstPrinter->printInst(&SatsubWImm, /*Address=*/0, /*Annot=*/"", *STI,
+                         SatsubWImmOS);
+  SatsubWImmOS.flush();
+  EXPECT_EQ(Printed, "\tsatsub.w\tr1, r2, -1");
+
+  Printed.clear();
   raw_string_ostream SbcOS(Printed);
   InstPrinter->printInst(&Sbc, /*Address=*/0, /*Annot=*/"", *STI, SbcOS);
   SbcOS.flush();
@@ -3355,7 +3405,8 @@ TEST(AVR32TargetInfo, LookupTarget) {
   SubRegImmSrcMgr.AddNewSourceBuffer(
       MemoryBuffer::getMemBuffer(
           "sub r1, r2, -1\nsub r1, r2, r3 << 2\nsatadd.w r1, r2, r3\n"
-          "satsub.h r1, r2, r3\n"),
+          "satsub.h r1, r2, r3\nsatsub.w r1, r2, r3\n"
+          "satsub.w r1, r2, -1\n"),
       SMLoc());
 
   MCContext SubRegImmParseCtx(TT, *MAI, *MRI, *STI, &SubRegImmSrcMgr);

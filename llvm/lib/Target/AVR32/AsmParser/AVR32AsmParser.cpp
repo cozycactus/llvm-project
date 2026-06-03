@@ -239,6 +239,8 @@ private:
   bool parseRegisterCommaRegisterCommaRegister(OperandVector &Operands);
   bool parseRegisterCommaRegisterCommaRegisterOrImmediate(
       OperandVector &Operands);
+  bool parseRegisterCommaRegisterCommaRegisterOrImmediateOperand(
+      OperandVector &Operands);
   bool parseSubOperands(
       OperandVector &Operands);
   bool parseRegisterCommaImmediate(OperandVector &Operands);
@@ -349,6 +351,9 @@ bool AVR32AsmParser::parseInstruction(ParseInstructionInfo &Info,
       Name == "muls.d" || Name == "mulu.d" || Name == "satadd.w" ||
       Name == "satsub.h" || Name == "sbc") {
     if (parseRegisterCommaRegisterCommaRegister(Operands))
+      return true;
+  } else if (Name == "satsub.w") {
+    if (parseRegisterCommaRegisterCommaRegisterOrImmediateOperand(Operands))
       return true;
   } else if (Name == "subal" || Name == "subcc" || Name == "subcs" ||
              Name == "subeq" || Name == "subge" || Name == "subgt" ||
@@ -556,6 +561,17 @@ bool AVR32AsmParser::parseRegisterCommaRegisterCommaRegisterOrImmediate(
     return Error(StartLoc, "invalid register name");
 
   if (parseImmediateOperand(Operands))
+    return true;
+  return false;
+}
+
+bool AVR32AsmParser::parseRegisterCommaRegisterCommaRegisterOrImmediateOperand(
+    OperandVector &Operands) {
+  if (parseRegisterCommaRegister(Operands))
+    return true;
+  if (!parseOptionalToken(AsmToken::Comma))
+    return Error(getLexer().getLoc(), "expected comma");
+  if (parseRegisterOrImmediateOperand(Operands))
     return true;
   return false;
 }
