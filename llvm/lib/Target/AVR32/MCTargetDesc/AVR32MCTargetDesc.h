@@ -15,8 +15,10 @@
 namespace llvm {
 
 class MCAsmBackend;
+class MCCodeEmitter;
 class MCContext;
 class MCFixup;
+class MCInstrInfo;
 class MCObjectTargetWriter;
 class MCRegisterInfo;
 class MCSubtargetInfo;
@@ -29,8 +31,18 @@ MCAsmBackend *createAVR32MCAsmBackend(const Target &T,
                                       const MCRegisterInfo &MRI,
                                       const MCTargetOptions &Options);
 
+MCCodeEmitter *createAVR32MCCodeEmitter(const MCInstrInfo &MCII,
+                                        MCContext &Ctx);
+
 std::unique_ptr<MCObjectTargetWriter> createAVR32ELFObjectWriter(uint8_t OSABI);
 
 } // end namespace llvm
+
+#define GET_REGINFO_ENUM
+#include "../AVR32GenRegisterInfo.inc"
+
+#define GET_INSTRINFO_ENUM
+#define GET_INSTRINFO_MC_HELPER_DECLS
+#include "../AVR32GenInstrInfo.inc"
 
 #endif

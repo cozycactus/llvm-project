@@ -7,9 +7,14 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/BinaryFormat/ELF.h"
+#include "MCTargetDesc/AVR32MCTargetDesc.h"
 #include "llvm/MC/MCAsmBackend.h"
 #include "llvm/MC/MCAsmInfo.h"
+#include "llvm/MC/MCCodeEmitter.h"
+#include "llvm/MC/MCContext.h"
 #include "llvm/MC/MCELFObjectWriter.h"
+#include "llvm/MC/MCFixup.h"
+#include "llvm/MC/MCInst.h"
 #include "llvm/MC/MCInstrInfo.h"
 #include "llvm/MC/MCObjectWriter.h"
 #include "llvm/MC/MCRegisterInfo.h"
@@ -52,7 +57,11 @@ TEST(AVR32TargetInfo, LookupTarget) {
   EXPECT_EQ(MAI->getCommentString(), StringRef("#"));
 
   std::unique_ptr<MCInstrInfo> MII(TheTarget->createMCInstrInfo());
-  EXPECT_NE(MII.get(), nullptr);
+  ASSERT_NE(MII.get(), nullptr);
+  EXPECT_EQ(MII->get(AVR32::NOP).getSize(), 2u);
+  EXPECT_EQ(MRI->getEncodingValue(AVR32::SP), 13u);
+  EXPECT_EQ(MRI->getEncodingValue(AVR32::LR), 14u);
+  EXPECT_EQ(MRI->getEncodingValue(AVR32::PC), 15u);
 
   std::unique_ptr<MCSubtargetInfo> STI(
       TheTarget->createMCSubtargetInfo(TT, "", ""));
@@ -70,6 +79,23 @@ TEST(AVR32TargetInfo, LookupTarget) {
   ASSERT_NE(ELFWriter, nullptr);
   EXPECT_EQ(ELFWriter->getEMachine(), ELF::EM_AVR32);
   EXPECT_FALSE(ELFWriter->is64Bit());
+
+  MCContext Ctx(TT, *MAI, *MRI, *STI);
+  std::unique_ptr<MCCodeEmitter> MCE(
+      TheTarget->createMCCodeEmitter(*MII, Ctx));
+  ASSERT_NE(MCE.get(), nullptr);
+
+  MCInst Nop;
+  Nop.setOpcode(AVR32::NOP);
+
+  SmallVector<char, 2> Code;
+  SmallVector<MCFixup, 0> Fixups;
+  MCE->encodeInstruction(Nop, Code, Fixups, *STI);
+
+  EXPECT_TRUE(Fixups.empty());
+  ASSERT_EQ(Code.size(), 2u);
+  EXPECT_EQ(static_cast<uint8_t>(Code[0]), 0xd7);
+  EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0x03);
 }
 
 } // namespace

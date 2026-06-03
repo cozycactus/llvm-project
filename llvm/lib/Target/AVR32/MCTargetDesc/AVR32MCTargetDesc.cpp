@@ -19,28 +19,38 @@
 
 using namespace llvm;
 
+#define GET_INSTRINFO_MC_DESC
+#define ENABLE_INSTR_PREDICATE_VERIFIER
+#include "../AVR32GenInstrInfo.inc"
+
+#define GET_SUBTARGETINFO_MC_DESC
+#include "../AVR32GenSubtargetInfo.inc"
+
+#define GET_REGINFO_MC_DESC
+#include "../AVR32GenRegisterInfo.inc"
+
 static MCAsmInfo *createAVR32MCAsmInfo(const MCRegisterInfo &MRI,
                                        const Triple &TT,
                                        const MCTargetOptions &Options) {
   return new AVR32MCAsmInfo(Options);
 }
 
-static MCInstrInfo *createAVR32MCInstrInfo() { return new MCInstrInfo(); }
+static MCInstrInfo *createAVR32MCInstrInfo() {
+  MCInstrInfo *X = new MCInstrInfo();
+  InitAVR32MCInstrInfo(X);
+  return X;
+}
 
 static MCRegisterInfo *createAVR32MCRegisterInfo(const Triple &TT) {
-  return new MCRegisterInfo();
+  MCRegisterInfo *X = new MCRegisterInfo();
+  InitAVR32MCRegisterInfo(X, AVR32::LR);
+  return X;
 }
 
 static MCSubtargetInfo *createAVR32MCSubtargetInfo(const Triple &TT,
                                                    StringRef CPU,
                                                    StringRef FS) {
-  return new MCSubtargetInfo(TT, CPU, CPU, FS, /*ProcNames=*/{},
-                             /*ProcFeatures=*/{}, /*ProcDesc=*/{},
-                             /*WriteProcResTable=*/nullptr,
-                             /*WriteLatencyTable=*/nullptr,
-                             /*ReadAdvanceTable=*/nullptr,
-                             /*Stages=*/nullptr, /*OperandCycles=*/nullptr,
-                             /*ForwardingPaths=*/nullptr);
+  return createAVR32MCSubtargetInfoImpl(TT, CPU, /*TuneCPU=*/CPU, FS);
 }
 
 extern "C" LLVM_ABI LLVM_EXTERNAL_VISIBILITY void
@@ -51,5 +61,6 @@ LLVMInitializeAVR32TargetMC() {
   TargetRegistry::RegisterMCInstrInfo(T, createAVR32MCInstrInfo);
   TargetRegistry::RegisterMCRegInfo(T, createAVR32MCRegisterInfo);
   TargetRegistry::RegisterMCSubtargetInfo(T, createAVR32MCSubtargetInfo);
+  TargetRegistry::RegisterMCCodeEmitter(T, createAVR32MCCodeEmitter);
   TargetRegistry::RegisterMCAsmBackend(T, createAVR32MCAsmBackend);
 }
