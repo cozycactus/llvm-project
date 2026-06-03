@@ -28,6 +28,11 @@ def UImm5AsmOperand : AsmOperandClass {
   let RenderMethod = "addImmOperands";
 }
 
+def UImm8AsmOperand : AsmOperandClass {
+  let Name = "UImm8";
+  let RenderMethod = "addImmOperands";
+}
+
 def simm6 : Operand<i32>, ImmLeaf<i32, [{ return Imm >= -32 && Imm < 32; }]> {
   let ParserMatchClass = SImm6AsmOperand;
 }
@@ -43,6 +48,10 @@ def simm21 : Operand<i32>,
 
 def uimm5 : Operand<i32>, ImmLeaf<i32, [{ return Imm >= 0 && Imm < 32; }]> {
   let ParserMatchClass = UImm5AsmOperand;
+}
+
+def uimm8 : Operand<i32>, ImmLeaf<i32, [{ return Imm >= 0 && Imm < 256; }]> {
+  let ParserMatchClass = UImm8AsmOperand;
 }
 
 def NOP : AVR32Inst<0b1101011100000011, (outs), (ins), "nop">;
@@ -176,6 +185,15 @@ class FullRegImmNoOut<bits<4> Op, string Mnemonic>
   let Inst{15-0} = Imm{15-0};
 }
 
+class FullImm8NoOut<bits<16> Op, string Mnemonic>
+    : AVR32Inst32<(outs), (ins uimm8:$Imm), Mnemonic#"\t$Imm"> {
+  bits<8> Imm;
+
+  let Inst{31-16} = Op;
+  let Inst{15-8} = 0;
+  let Inst{7-0} = Imm;
+}
+
 class MovRI<bits<4> Prefix, string Mnemonic>
     : AVR32Inst<0, (outs GPR:$Rd), (ins simm8:$Imm),
                 Mnemonic#"\t$Rd, $Imm"> {
@@ -262,6 +280,7 @@ def RSUBrr : CompactRegReg<0b00010, "rsub">;
 def SBCrrr : FullRegRegReg<0b000000010100, "sbc">;
 def SCALL : AVR32Inst<0b1101011100110011, (outs), (ins), "scall">;
 def SCRr : CompactReg<0b010111000001, "scr">;
+def SLEEPi : FullImm8NoOut<0b1110001101100000, "sleep">;
 def SSRFi : CompactImm<0b1101001, "ssrf">;
 def SUBrr : CompactRegReg<0b00001, "sub">;
 def SWAP_BHr : CompactReg<0b010111001100, "swap.bh">;

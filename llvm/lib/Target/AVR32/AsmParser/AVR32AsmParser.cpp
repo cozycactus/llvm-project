@@ -89,6 +89,13 @@ public:
     return Const && isUInt<5>(Const->getValue());
   }
 
+  bool isUImm8() const {
+    if (Kind != Immediate)
+      return false;
+    auto *Const = dyn_cast<MCConstantExpr>(Imm);
+    return Const && isUInt<8>(Const->getValue());
+  }
+
   void print(raw_ostream &OS, const MCAsmInfo &MAI) const override {
     if (Kind == Token)
       OS << "Token " << Tok;
@@ -271,6 +278,9 @@ bool AVR32AsmParser::parseInstruction(ParseInstructionInfo &Info,
         parseRegisterOperand(Operands))
       return true;
   } else if (Name == "csrf" || Name == "ssrf") {
+    if (parseImmediateOperand(Operands))
+      return true;
+  } else if (Name == "sleep") {
     if (parseImmediateOperand(Operands))
       return true;
   } else if (Name == "abs" || Name == "acr" || Name == "brev" ||
