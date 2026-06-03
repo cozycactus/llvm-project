@@ -238,6 +238,7 @@ def MULU_Drrr : FullRegRegReg<0b000001100100, "mulu.d">;
 def MUSFRr : CompactRegNoOut<0b010111010011, "musfr">;
 def NEGr : CompactReg<0b010111000011, "neg">;
 def ORrr : CompactRegReg<0b00100, "or">;
+def RETE : AVR32Inst<0b1101011000000011, (outs), (ins), "rete">;
 def RETJ : AVR32Inst<0b1101011000110011, (outs), (ins), "retj">;
 def ROLr : CompactReg<0b010111001111, "rol">;
 def RORr : CompactReg<0b010111010000, "ror">;
