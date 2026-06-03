@@ -1662,6 +1662,8 @@ def ORQSrrr : CondRRR<0b1110, 0b0011, "orqs">;
 def ORrr : CompactRegReg<0b00100, "or">;
 def PREF : FullMemDisp16<0b111100100001, "pref">;
 def PSADrrr : FullRegRegReg<0b001001000000, "psad">;
+def PSUB_Brrr : FullRegRegReg<0b001000110001, "psub.b">;
+def PSUB_Hrrr : FullRegRegReg<0b001000000001, "psub.h">;
 def POPJC : AVR32Inst<0b1101011100010011, (outs), (ins), "popjc">;
 def PUSHJC : AVR32Inst<0b1101011100100011, (outs), (ins), "pushjc">;
 let isBarrier = 1, isReturn = 1, isTerminator = 1 in {
