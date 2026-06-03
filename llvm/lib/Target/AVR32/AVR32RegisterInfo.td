@@ -21,3 +21,8 @@ def PC : AVR32Reg<15, "pc", ["PC", "r15", "R15"]>, DwarfRegNum<[15]>;
 
 def GPR : RegisterClass<"AVR32", [i32], 32,
                          (add (sequence "R%u", 0, 12), SP, LR, PC)>;
+
+def GPRNoSP : RegisterClass<"AVR32", [i32], 32,
+                             (add (sequence "R%u", 0, 12), LR, PC)>;
+
+def SPOnly : RegisterClass<"AVR32", [i32], 32, (add SP)>;

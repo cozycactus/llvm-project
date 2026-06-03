@@ -23,6 +23,11 @@ def SImm21AsmOperand : AsmOperandClass {
   let RenderMethod = "addImmOperands";
 }
 
+def SubSPImmAsmOperand : AsmOperandClass {
+  let Name = "SubSPImm";
+  let RenderMethod = "addImmOperands";
+}
+
 def UImm5AsmOperand : AsmOperandClass {
   let Name = "UImm5";
   let RenderMethod = "addImmOperands";
@@ -69,6 +74,13 @@ def simm8 : Operand<i32>, ImmLeaf<i32, [{ return Imm >= -128 && Imm < 128; }]> {
 def simm21 : Operand<i32>,
              ImmLeaf<i32, [{ return Imm >= -1048576 && Imm < 1048576; }]> {
   let ParserMatchClass = SImm21AsmOperand;
+}
+
+def subspimm : Operand<i32>,
+               ImmLeaf<i32, [{ return Imm >= -512 && Imm <= 508 &&
+                                      Imm % 4 == 0; }]> {
+  let ParserMatchClass = SubSPImmAsmOperand;
+  let EncoderMethod = "getShifted2OpValue";
 }
 
 def uimm5 : Operand<i32>, ImmLeaf<i32, [{ return Imm >= 0 && Imm < 32; }]> {
@@ -173,6 +185,28 @@ class CompactRegImmNoOut<bits<6> Op, string Mnemonic>
 
   let Inst{15-10} = Op;
   let Inst{9-4} = Imm;
+  let Inst{3-0} = Rd;
+}
+
+class CompactRegSImm8<bits<4> Prefix, string Mnemonic>
+    : AVR32Inst<0, (outs GPRNoSP:$Rd), (ins simm8:$Imm),
+                Mnemonic#"\t$Rd, $Imm"> {
+  bits<4> Rd;
+  bits<8> Imm;
+
+  let Inst{15-12} = Prefix;
+  let Inst{11-4} = Imm;
+  let Inst{3-0} = Rd;
+}
+
+class CompactSPSubImm<string Mnemonic>
+    : AVR32Inst<0, (outs SPOnly:$Rd), (ins subspimm:$Imm),
+                Mnemonic#"\t$Rd, $Imm"> {
+  bits<4> Rd;
+  bits<8> Imm;
+
+  let Inst{15-12} = 0b0010;
+  let Inst{11-4} = Imm;
   let Inst{3-0} = Rd;
 }
 
@@ -777,6 +811,8 @@ def SUBFHIri : SubfCondRI<0b1011, "subfhi">;
 def SUBFVSri : SubfCondRI<0b1100, "subfvs">;
 def SUBFVCri : SubfCondRI<0b1101, "subfvc">;
 def SUBFQSri : SubfCondRI<0b1110, "subfqs">;
+def SUBSPri8 : CompactSPSubImm<"sub">;
+def SUBri8 : CompactRegSImm8<0b0010, "sub">;
 def SUBri21 : FullRegImm<0b0001, "sub">;
 def SUBrr : CompactRegReg<0b00001, "sub">;
 def SWAP_BHr : CompactReg<0b010111001100, "swap.bh">;

@@ -75,6 +75,14 @@ public:
     return Const && isInt<21>(Const->getValue());
   }
 
+  bool isSubSPImm() const {
+    if (Kind != Immediate)
+      return false;
+    auto *Const = dyn_cast<MCConstantExpr>(Imm);
+    return Const && Const->getValue() >= -512 && Const->getValue() <= 508 &&
+           Const->getValue() % 4 == 0;
+  }
+
   bool isSImm6() const {
     if (Kind != Immediate)
       return false;
