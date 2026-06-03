@@ -17,11 +17,17 @@
 #include "llvm/MC/MCInst.h"
 #include "llvm/MC/MCInstrInfo.h"
 #include "llvm/MC/MCInstPrinter.h"
+#include "llvm/MC/MCObjectFileInfo.h"
 #include "llvm/MC/MCObjectWriter.h"
+#include "llvm/MC/MCParser/MCAsmParser.h"
+#include "llvm/MC/MCParser/MCTargetAsmParser.h"
 #include "llvm/MC/MCRegisterInfo.h"
+#include "llvm/MC/MCStreamer.h"
 #include "llvm/MC/MCSubtargetInfo.h"
 #include "llvm/MC/MCTargetOptions.h"
 #include "llvm/MC/TargetRegistry.h"
+#include "llvm/Support/MemoryBuffer.h"
+#include "llvm/Support/SourceMgr.h"
 #include "llvm/Support/TargetSelect.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Target/TargetMachine.h"
@@ -37,6 +43,7 @@ namespace {
 TEST(AVR32TargetInfo, LookupTarget) {
   LLVMInitializeAVR32TargetInfo();
   LLVMInitializeAVR32TargetMC();
+  LLVMInitializeAVR32AsmParser();
 
   Triple TT("avr32-unknown-unknown");
   std::string Error;
@@ -110,6 +117,24 @@ TEST(AVR32TargetInfo, LookupTarget) {
   InstPrinter->printInst(&Nop, /*Address=*/0, /*Annot=*/"", *STI, OS);
   OS.flush();
   EXPECT_EQ(Printed, "\tnop");
+
+  SourceMgr SrcMgr;
+  SrcMgr.AddNewSourceBuffer(MemoryBuffer::getMemBuffer("nop\n"), SMLoc());
+
+  MCContext ParseCtx(TT, *MAI, *MRI, *STI, &SrcMgr);
+  std::unique_ptr<MCObjectFileInfo> MOFI(
+      TheTarget->createMCObjectFileInfo(ParseCtx, /*PIC=*/false));
+  ParseCtx.setObjectFileInfo(MOFI.get());
+
+  std::unique_ptr<MCStreamer> Streamer(
+      TheTarget->createNullStreamer(ParseCtx));
+  std::unique_ptr<MCAsmParser> Parser(
+      createMCAsmParser(SrcMgr, ParseCtx, *Streamer, *MAI));
+  std::unique_ptr<MCTargetAsmParser> TargetParser(
+      TheTarget->createMCAsmParser(*STI, *Parser, *MII));
+  ASSERT_NE(TargetParser.get(), nullptr);
+  Parser->setTargetParser(*TargetParser);
+  EXPECT_FALSE(Parser->Run(/*NoInitialTextSection=*/false));
 }
 
 } // namespace

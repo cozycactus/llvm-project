@@ -23,4 +23,5 @@ add_llvm_component_library(LLVMAVR32
 )
 
 add_subdirectory(MCTargetDesc)
+add_subdirectory(AsmParser)
 add_subdirectory(TargetInfo)
