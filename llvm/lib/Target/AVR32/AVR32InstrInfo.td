@@ -18,6 +18,11 @@ def SImm8AsmOperand : AsmOperandClass {
   let RenderMethod = "addImmOperands";
 }
 
+def SImm11AsmOperand : AsmOperandClass {
+  let Name = "SImm11";
+  let RenderMethod = "addImmOperands";
+}
+
 def SImm16AsmOperand : AsmOperandClass {
   let Name = "SImm16";
   let RenderMethod = "addImmOperands";
@@ -154,6 +159,11 @@ def simm6 : Operand<i32>, ImmLeaf<i32, [{ return Imm >= -32 && Imm < 32; }]> {
 
 def simm8 : Operand<i32>, ImmLeaf<i32, [{ return Imm >= -128 && Imm < 128; }]> {
   let ParserMatchClass = SImm8AsmOperand;
+}
+
+def simm11 : Operand<i32>,
+             ImmLeaf<i32, [{ return Imm >= -1024 && Imm < 1024; }]> {
+  let ParserMatchClass = SImm11AsmOperand;
 }
 
 def simm16 : Operand<i32>,
@@ -597,6 +607,19 @@ class FullMemDisp16<bits<12> Op, string Mnemonic>
   let Inst{31-20} = Op;
   let Inst{19-16} = Rp;
   let Inst{15-0} = Disp;
+}
+
+class FullMemDisp11UImm5<bits<12> Op, string Mnemonic>
+    : AVR32Inst32<(outs), (ins GPR:$Rp, simm11:$Disp, uimm5:$Op5),
+                  Mnemonic#"\t${Rp}[$Disp], $Op5"> {
+  bits<4> Rp;
+  bits<11> Disp;
+  bits<5> Op5;
+
+  let Inst{31-20} = Op;
+  let Inst{19-16} = Rp;
+  let Inst{15-11} = Op5;
+  let Inst{10-0} = Disp;
 }
 
 class FullLoadPairIndexShift<bits<10> Op, string Mnemonic>
@@ -1470,6 +1493,7 @@ def BREVr : CompactReg<0b010111001001, "brev">;
 def BSTri : FullRegUImm5NoOut<0b111011111011, "bst">;
 def BREAKPOINT : AVR32Inst<0b1101011001110011, (outs), (ins), "breakpoint">;
 def CBRri : CompactRegUImm5NoOut<0b1110, "cbr">;
+def CACHE : FullMemDisp11UImm5<0b111101000001, "cache">;
 def CASTS_Br : CompactReg<0b010111000110, "casts.b">;
 def CASTS_Hr : CompactReg<0b010111001000, "casts.h">;
 def CASTU_Br : CompactReg<0b010111000101, "castu.b">;

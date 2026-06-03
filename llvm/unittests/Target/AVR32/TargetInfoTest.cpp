@@ -123,6 +123,7 @@ TEST(AVR32TargetInfo, LookupTarget) {
   EXPECT_EQ(MII->get(AVR32::BSTri).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::BREAKPOINT).getSize(), 2u);
   EXPECT_EQ(MII->get(AVR32::CBRri).getSize(), 2u);
+  EXPECT_EQ(MII->get(AVR32::CACHE).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::CASTS_Br).getSize(), 2u);
   EXPECT_EQ(MII->get(AVR32::CASTS_Hr).getSize(), 2u);
   EXPECT_EQ(MII->get(AVR32::CASTU_Br).getSize(), 2u);
@@ -983,6 +984,23 @@ TEST(AVR32TargetInfo, LookupTarget) {
   ASSERT_EQ(Code.size(), 2u);
   EXPECT_EQ(static_cast<uint8_t>(Code[0]), 0xa1);
   EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0xd1);
+
+  MCInst Cache;
+  Cache.setOpcode(AVR32::CACHE);
+  Cache.addOperand(MCOperand::createReg(AVR32::R1));
+  Cache.addOperand(MCOperand::createImm(-1));
+  Cache.addOperand(MCOperand::createImm(1));
+
+  Code.clear();
+  Fixups.clear();
+  MCE->encodeInstruction(Cache, Code, Fixups, *STI);
+
+  EXPECT_TRUE(Fixups.empty());
+  ASSERT_EQ(Code.size(), 4u);
+  EXPECT_EQ(static_cast<uint8_t>(Code[0]), 0xf4);
+  EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0x11);
+  EXPECT_EQ(static_cast<uint8_t>(Code[2]), 0x0f);
+  EXPECT_EQ(static_cast<uint8_t>(Code[3]), 0xff);
 
   MCInst Breakpoint;
   Breakpoint.setOpcode(AVR32::BREAKPOINT);
@@ -4163,6 +4181,12 @@ TEST(AVR32TargetInfo, LookupTarget) {
   EXPECT_EQ(Printed, "\tcbr\tr1, 1");
 
   Printed.clear();
+  raw_string_ostream CacheOS(Printed);
+  InstPrinter->printInst(&Cache, /*Address=*/0, /*Annot=*/"", *STI, CacheOS);
+  CacheOS.flush();
+  EXPECT_EQ(Printed, "\tcache\tr1[-1], 1");
+
+  Printed.clear();
   raw_string_ostream BreakpointOS(Printed);
   InstPrinter->printInst(&Breakpoint, /*Address=*/0, /*Annot=*/"", *STI,
                          BreakpointOS);
@@ -5562,7 +5586,7 @@ TEST(AVR32TargetInfo, LookupTarget) {
 
   SourceMgr PrefSrcMgr;
   PrefSrcMgr.AddNewSourceBuffer(
-      MemoryBuffer::getMemBuffer("pref r1[-1]\n"), SMLoc());
+      MemoryBuffer::getMemBuffer("cache r1[-1], 1\npref r1[-1]\n"), SMLoc());
 
   MCContext PrefParseCtx(TT, *MAI, *MRI, *STI, &PrefSrcMgr);
   std::unique_ptr<MCObjectFileInfo> PrefMOFI(
