@@ -241,7 +241,7 @@ bool AVR32AsmParser::parseInstruction(ParseInstructionInfo &Info,
     if (parseRegisterCommaRegister(Operands))
       return true;
     if (parseOptionalToken(AsmToken::Comma) &&
-        parseRegisterOperand(Operands))
+        parseRegisterOrImmediateOperand(Operands))
       return true;
   } else if (Name == "add" || Name == "and" || Name == "andn" ||
              Name == "eor" || Name == "or" || Name == "rsub" ||
