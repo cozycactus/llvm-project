@@ -58,6 +58,7 @@ class MovRR<bits<4> Cond, string Mnemonic>
 }
 
 def ADDrr : CompactRegReg<0b00000, "add">;
+def ANDNrr : CompactRegReg<0b01000, "andn">;
 def ANDrr : CompactRegReg<0b00110, "and">;
 def EORrr : CompactRegReg<0b00101, "eor">;
 def MOVrr : MovRR<0b1111, "mov">;
