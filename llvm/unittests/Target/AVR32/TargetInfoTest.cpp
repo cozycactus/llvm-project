@@ -320,6 +320,8 @@ TEST(AVR32TargetInfo, LookupTarget) {
   EXPECT_EQ(MII->get(AVR32::SRVCr).getSize(), 2u);
   EXPECT_EQ(MII->get(AVR32::SRVSr).getSize(), 2u);
   EXPECT_EQ(MII->get(AVR32::SSRFi).getSize(), 2u);
+  EXPECT_EQ(MII->get(AVR32::ST_B_PostInc).getSize(), 2u);
+  EXPECT_EQ(MII->get(AVR32::ST_B_PreDec).getSize(), 2u);
   EXPECT_EQ(MII->get(AVR32::SUBALrrr).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::SUBCCrrr).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::SUBCSrrr).getSize(), 4u);
@@ -2045,6 +2047,34 @@ TEST(AVR32TargetInfo, LookupTarget) {
   EXPECT_EQ(static_cast<uint8_t>(Code[0]), 0xa1);
   EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0xb1);
 
+  MCInst StBPostInc;
+  StBPostInc.setOpcode(AVR32::ST_B_PostInc);
+  StBPostInc.addOperand(MCOperand::createReg(AVR32::R1));
+  StBPostInc.addOperand(MCOperand::createReg(AVR32::R2));
+
+  Code.clear();
+  Fixups.clear();
+  MCE->encodeInstruction(StBPostInc, Code, Fixups, *STI);
+
+  EXPECT_TRUE(Fixups.empty());
+  ASSERT_EQ(Code.size(), 2u);
+  EXPECT_EQ(static_cast<uint8_t>(Code[0]), 0x02);
+  EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0xc2);
+
+  MCInst StBPreDec;
+  StBPreDec.setOpcode(AVR32::ST_B_PreDec);
+  StBPreDec.addOperand(MCOperand::createReg(AVR32::R1));
+  StBPreDec.addOperand(MCOperand::createReg(AVR32::R2));
+
+  Code.clear();
+  Fixups.clear();
+  MCE->encodeInstruction(StBPreDec, Code, Fixups, *STI);
+
+  EXPECT_TRUE(Fixups.empty());
+  ASSERT_EQ(Code.size(), 2u);
+  EXPECT_EQ(static_cast<uint8_t>(Code[0]), 0x02);
+  EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0xf2);
+
   MCInst Scall;
   Scall.setOpcode(AVR32::SCALL);
 
@@ -3250,6 +3280,20 @@ TEST(AVR32TargetInfo, LookupTarget) {
   EXPECT_EQ(Printed, "\tsbr\tr1, 1");
 
   Printed.clear();
+  raw_string_ostream StBPostIncOS(Printed);
+  InstPrinter->printInst(&StBPostInc, /*Address=*/0, /*Annot=*/"", *STI,
+                         StBPostIncOS);
+  StBPostIncOS.flush();
+  EXPECT_EQ(Printed, "\tst.b\tr1++, r2");
+
+  Printed.clear();
+  raw_string_ostream StBPreDecOS(Printed);
+  InstPrinter->printInst(&StBPreDec, /*Address=*/0, /*Annot=*/"", *STI,
+                         StBPreDecOS);
+  StBPreDecOS.flush();
+  EXPECT_EQ(Printed, "\tst.b\t--r1, r2");
+
+  Printed.clear();
   raw_string_ostream ScallOS(Printed);
   InstPrinter->printInst(&Scall, /*Address=*/0, /*Annot=*/"", *STI, ScallOS);
   ScallOS.flush();
@@ -3522,6 +3566,25 @@ TEST(AVR32TargetInfo, LookupTarget) {
   ASSERT_NE(SubRegImmTargetParser.get(), nullptr);
   SubRegImmParser->setTargetParser(*SubRegImmTargetParser);
   EXPECT_FALSE(SubRegImmParser->Run(/*NoInitialTextSection=*/false));
+
+  SourceMgr StoreSrcMgr;
+  StoreSrcMgr.AddNewSourceBuffer(
+      MemoryBuffer::getMemBuffer("st.b r1++, r2\nst.b --r1, r2\n"), SMLoc());
+
+  MCContext StoreParseCtx(TT, *MAI, *MRI, *STI, &StoreSrcMgr);
+  std::unique_ptr<MCObjectFileInfo> StoreMOFI(
+      TheTarget->createMCObjectFileInfo(StoreParseCtx, /*PIC=*/false));
+  StoreParseCtx.setObjectFileInfo(StoreMOFI.get());
+
+  std::unique_ptr<MCStreamer> StoreStreamer(
+      TheTarget->createNullStreamer(StoreParseCtx));
+  std::unique_ptr<MCAsmParser> StoreParser(
+      createMCAsmParser(StoreSrcMgr, StoreParseCtx, *StoreStreamer, *MAI));
+  std::unique_ptr<MCTargetAsmParser> StoreTargetParser(
+      TheTarget->createMCAsmParser(*STI, *StoreParser, *MII));
+  ASSERT_NE(StoreTargetParser.get(), nullptr);
+  StoreParser->setTargetParser(*StoreTargetParser);
+  EXPECT_FALSE(StoreParser->Run(/*NoInitialTextSection=*/false));
 }
 
 } // namespace

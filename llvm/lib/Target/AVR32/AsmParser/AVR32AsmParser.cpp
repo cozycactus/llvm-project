@@ -244,6 +244,7 @@ private:
   bool parseRegisterShiftRightImmediateCommaImmediate(OperandVector &Operands);
   bool parseSubOperands(
       OperandVector &Operands);
+  bool parseStoreByteOperands(OperandVector &Operands);
   bool parseRegisterCommaImmediate(OperandVector &Operands);
   bool parseRegisterCommaImmediateOptionalCOH(OperandVector &Operands);
   bool parseRegisterCommaRegisterOrImmediate(OperandVector &Operands);
@@ -431,6 +432,9 @@ bool AVR32AsmParser::parseInstruction(ParseInstructionInfo &Info,
       return true;
   } else if (Name == "incjosp" || Name == "sleep" || Name == "sync") {
     if (parseImmediateOperand(Operands))
+      return true;
+  } else if (Name == "st.b") {
+    if (parseStoreByteOperands(Operands))
       return true;
   } else if (Name == "eorh" || Name == "eorl" || Name == "mfdr" ||
              Name == "mfsr" || Name == "movh" || Name == "orh" ||
@@ -626,6 +630,31 @@ bool AVR32AsmParser::parseSubOperands(OperandVector &Operands) {
     return Error(StartLoc, "invalid register name");
 
   if (parseImmediateOperand(Operands))
+    return true;
+  return false;
+}
+
+bool AVR32AsmParser::parseStoreByteOperands(OperandVector &Operands) {
+  if (parseOptionalToken(AsmToken::Minus)) {
+    SMLoc MinusLoc = getLexer().getLoc();
+    if (!parseOptionalToken(AsmToken::Minus))
+      return Error(getLexer().getLoc(), "expected --");
+    Operands.push_back(AVR32Operand::createToken("--", MinusLoc));
+    if (parseRegisterOperand(Operands))
+      return true;
+  } else {
+    if (parseRegisterOperand(Operands))
+      return true;
+    SMLoc PlusLoc = getLexer().getLoc();
+    if (!parseOptionalToken(AsmToken::Plus) ||
+        !parseOptionalToken(AsmToken::Plus))
+      return Error(PlusLoc, "expected ++");
+    Operands.push_back(AVR32Operand::createToken("++", PlusLoc));
+  }
+
+  if (!parseOptionalToken(AsmToken::Comma))
+    return Error(getLexer().getLoc(), "expected comma");
+  if (parseRegisterOperand(Operands))
     return true;
   return false;
 }
