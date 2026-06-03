@@ -537,6 +537,22 @@ class FullLoadCondDisp9Shift2<bits<4> Cond, string Mnemonic>
   let Inst{8-0} = Disp;
 }
 
+class FullLoadCondDisp9<bits<4> Cond, string Mnemonic>
+    : AVR32Inst32<(outs GPR:$Rd), (ins GPR:$Rp, uimm9:$Disp),
+                  Mnemonic#"\t$Rd, ${Rp}[$Disp]"> {
+  bits<4> Rd;
+  bits<4> Rp;
+  bits<9> Disp;
+
+  let Inst{31-29} = 0b111;
+  let Inst{28-25} = Rd;
+  let Inst{24-20} = 0b11111;
+  let Inst{19-16} = Rp;
+  let Inst{15-12} = Cond;
+  let Inst{11-9} = 0b100;
+  let Inst{8-0} = Disp;
+}
+
 class FullStoreHalfwordPairDisp8
     : AVR32Inst32<(outs), (ins GPR:$Rp, uimm8shift2:$Disp, GPR:$Rx,
                                halfpart:$XPart, GPR:$Ry, halfpart:$YPart),
@@ -814,6 +830,24 @@ def LD_UB_PreDec : CompactLoadPreDec<0b10111, "ld.ub">;
 def LD_UB_Disp3 : CompactLoadDisp3<"ld.ub">;
 def LD_UB_Disp16 : FullLoadDisp16<0b10011, "ld.ub">;
 def LD_UB_IndexShift : FullLoadIndexShift<0b0000011100, "ld.ub">;
+def LD_UB_AL_Disp9 : FullLoadCondDisp9<0b1111, "ld.ubal">;
+def LD_UB_EQ_Disp9 : FullLoadCondDisp9<0b0000, "ld.ubeq">;
+def LD_UB_NE_Disp9 : FullLoadCondDisp9<0b0001, "ld.ubne">;
+def LD_UB_CC_Disp9 : FullLoadCondDisp9<0b0010, "ld.ubcc">;
+def LD_UB_HS_Disp9 : FullLoadCondDisp9<0b0010, "ld.ubhs">;
+def LD_UB_CS_Disp9 : FullLoadCondDisp9<0b0011, "ld.ubcs">;
+def LD_UB_LO_Disp9 : FullLoadCondDisp9<0b0011, "ld.ublo">;
+def LD_UB_GE_Disp9 : FullLoadCondDisp9<0b0100, "ld.ubge">;
+def LD_UB_LT_Disp9 : FullLoadCondDisp9<0b0101, "ld.ublt">;
+def LD_UB_MI_Disp9 : FullLoadCondDisp9<0b0110, "ld.ubmi">;
+def LD_UB_PL_Disp9 : FullLoadCondDisp9<0b0111, "ld.ubpl">;
+def LD_UB_LS_Disp9 : FullLoadCondDisp9<0b1000, "ld.ubls">;
+def LD_UB_GT_Disp9 : FullLoadCondDisp9<0b1001, "ld.ubgt">;
+def LD_UB_LE_Disp9 : FullLoadCondDisp9<0b1010, "ld.uble">;
+def LD_UB_HI_Disp9 : FullLoadCondDisp9<0b1011, "ld.ubhi">;
+def LD_UB_VS_Disp9 : FullLoadCondDisp9<0b1100, "ld.ubvs">;
+def LD_UB_VC_Disp9 : FullLoadCondDisp9<0b1101, "ld.ubvc">;
+def LD_UB_QS_Disp9 : FullLoadCondDisp9<0b1110, "ld.ubqs">;
 
 class FullRegRegNoOut<bits<16> Op, string Mnemonic>
     : AVR32Inst32<(outs), (ins GPR:$Rd, GPR:$Rs),
