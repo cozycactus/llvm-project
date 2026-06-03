@@ -302,9 +302,15 @@ bool AVR32AsmParser::parseInstruction(ParseInstructionInfo &Info,
         parseRegisterOrImmediateOperand(Operands))
       return true;
   } else if (Name == "add" || Name == "and" || Name == "andn" ||
-             Name == "clz" ||
-             Name == "eor" || Name == "or" || Name == "rsub" ||
-             Name == "sub" || Name == "tst") {
+             Name == "clz" || Name == "eor" || Name == "moval" ||
+             Name == "movcc" || Name == "movcs" || Name == "moveq" ||
+             Name == "movge" || Name == "movgt" || Name == "movhi" ||
+             Name == "movhs" || Name == "movle" || Name == "movlo" ||
+             Name == "movls" || Name == "movlt" || Name == "movmi" ||
+             Name == "movne" || Name == "movpl" || Name == "movqs" ||
+             Name == "movvc" || Name == "movvs" ||
+             Name == "or" || Name == "rsub" || Name == "sub" ||
+             Name == "tst") {
     if (parseRegisterCommaRegister(Operands))
       return true;
   } else if (Name == "andh" || Name == "andl") {
