@@ -77,6 +77,7 @@ TEST(AVR32TargetInfo, LookupTarget) {
   EXPECT_EQ(MII->get(AVR32::BREVr).getSize(), 2u);
   EXPECT_EQ(MII->get(AVR32::CASTS_Br).getSize(), 2u);
   EXPECT_EQ(MII->get(AVR32::CASTS_Hr).getSize(), 2u);
+  EXPECT_EQ(MII->get(AVR32::CASTU_Br).getSize(), 2u);
   EXPECT_EQ(MII->get(AVR32::CASTU_Hr).getSize(), 2u);
   EXPECT_EQ(MII->get(AVR32::COMr).getSize(), 2u);
   EXPECT_EQ(MII->get(AVR32::EORrr).getSize(), 2u);
@@ -237,6 +238,19 @@ TEST(AVR32TargetInfo, LookupTarget) {
   ASSERT_EQ(Code.size(), 2u);
   EXPECT_EQ(static_cast<uint8_t>(Code[0]), 0x5c);
   EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0x81);
+
+  MCInst CastuB;
+  CastuB.setOpcode(AVR32::CASTU_Br);
+  CastuB.addOperand(MCOperand::createReg(AVR32::R1));
+
+  Code.clear();
+  Fixups.clear();
+  MCE->encodeInstruction(CastuB, Code, Fixups, *STI);
+
+  EXPECT_TRUE(Fixups.empty());
+  ASSERT_EQ(Code.size(), 2u);
+  EXPECT_EQ(static_cast<uint8_t>(Code[0]), 0x5c);
+  EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0x51);
 
   MCInst CastuH;
   CastuH.setOpcode(AVR32::CASTU_Hr);
@@ -513,6 +527,12 @@ TEST(AVR32TargetInfo, LookupTarget) {
   EXPECT_EQ(Printed, "\tcasts.h\tr1");
 
   Printed.clear();
+  raw_string_ostream CastuBOS(Printed);
+  InstPrinter->printInst(&CastuB, /*Address=*/0, /*Annot=*/"", *STI, CastuBOS);
+  CastuBOS.flush();
+  EXPECT_EQ(Printed, "\tcastu.b\tr1");
+
+  Printed.clear();
   raw_string_ostream CastuHOS(Printed);
   InstPrinter->printInst(&CastuH, /*Address=*/0, /*Annot=*/"", *STI, CastuHOS);
   CastuHOS.flush();
@@ -611,7 +631,7 @@ TEST(AVR32TargetInfo, LookupTarget) {
   SourceMgr SrcMgr;
   SrcMgr.AddNewSourceBuffer(
       MemoryBuffer::getMemBuffer(
-          "nop\nfrs\nabs r1\nacr r1\nadd r1, r2\nand r1, r2\nandn r1, r2\nbrev r1\ncasts.b r1\ncasts.h r1\ncastu.h r1\ncom r1\nneg r1\neor r1, r2\nor r1, r2\nrol r1\nror r1\nrsub r1, r2\nscr r1\nsub r1, r2\nswap.bh r1\nswap.b r1\nswap.h r1\nmov r1, r2\nmov r1, -1\n"),
+          "nop\nfrs\nabs r1\nacr r1\nadd r1, r2\nand r1, r2\nandn r1, r2\nbrev r1\ncasts.b r1\ncasts.h r1\ncastu.b r1\ncastu.h r1\ncom r1\nneg r1\neor r1, r2\nor r1, r2\nrol r1\nror r1\nrsub r1, r2\nscr r1\nsub r1, r2\nswap.bh r1\nswap.b r1\nswap.h r1\nmov r1, r2\nmov r1, -1\n"),
       SMLoc());
 
   MCContext ParseCtx(TT, *MAI, *MRI, *STI, &SrcMgr);
