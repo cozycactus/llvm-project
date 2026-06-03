@@ -1368,3 +1368,4 @@ def TLBS : AVR32Inst<0b1101011001010011, (outs), (ins), "tlbs">;
 def TLBW : AVR32Inst<0b1101011001100011, (outs), (ins), "tlbw">;
 def TNBZr : CompactRegNoOut<0b010111001110, "tnbz">;
 def TSTrr : CompactRegRegNoOut<0b00111, "tst">;
+def XCHGrrr : FullRegRegReg<0b000010110100, "xchg">;
