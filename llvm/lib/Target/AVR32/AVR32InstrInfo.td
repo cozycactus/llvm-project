@@ -581,6 +581,22 @@ class FullLoadCondDisp9<bits<4> Cond, string Mnemonic>
   let Inst{8-0} = Disp;
 }
 
+class FullLoadCondDisp9Sub<bits<4> Cond, bits<3> Sub, string Mnemonic>
+    : AVR32Inst32<(outs GPR:$Rd), (ins GPR:$Rp, uimm9:$Disp),
+                  Mnemonic#"\t$Rd, ${Rp}[$Disp]"> {
+  bits<4> Rd;
+  bits<4> Rp;
+  bits<9> Disp;
+
+  let Inst{31-29} = 0b111;
+  let Inst{28-25} = Rd;
+  let Inst{24-20} = 0b11111;
+  let Inst{19-16} = Rp;
+  let Inst{15-12} = Cond;
+  let Inst{11-9} = Sub;
+  let Inst{8-0} = Disp;
+}
+
 class FullLoadCondDisp9Shift1<bits<4> Cond, string Mnemonic>
     : AVR32Inst32<(outs GPR:$Rd), (ins GPR:$Rp, uimm9shift1:$Disp),
                   Mnemonic#"\t$Rd, ${Rp}[$Disp]"> {
@@ -887,6 +903,24 @@ def LD_W_VC_Disp9 : FullLoadCondDisp9Shift2<0b1101, "ld.wvc">;
 def LD_W_QS_Disp9 : FullLoadCondDisp9Shift2<0b1110, "ld.wqs">;
 def LD_SB_Disp16 : FullLoadDisp16<0b10010, "ld.sb">;
 def LD_SB_IndexShift : FullLoadIndexShift<0b0000011000, "ld.sb">;
+def LD_SB_AL_Disp9 : FullLoadCondDisp9Sub<0b1111, 0b011, "ld.sbal">;
+def LD_SB_EQ_Disp9 : FullLoadCondDisp9Sub<0b0000, 0b011, "ld.sbeq">;
+def LD_SB_NE_Disp9 : FullLoadCondDisp9Sub<0b0001, 0b011, "ld.sbne">;
+def LD_SB_CC_Disp9 : FullLoadCondDisp9Sub<0b0010, 0b011, "ld.sbcc">;
+def LD_SB_HS_Disp9 : FullLoadCondDisp9Sub<0b0010, 0b011, "ld.sbhs">;
+def LD_SB_CS_Disp9 : FullLoadCondDisp9Sub<0b0011, 0b011, "ld.sbcs">;
+def LD_SB_LO_Disp9 : FullLoadCondDisp9Sub<0b0011, 0b011, "ld.sblo">;
+def LD_SB_GE_Disp9 : FullLoadCondDisp9Sub<0b0100, 0b011, "ld.sbge">;
+def LD_SB_LT_Disp9 : FullLoadCondDisp9Sub<0b0101, 0b011, "ld.sblt">;
+def LD_SB_MI_Disp9 : FullLoadCondDisp9Sub<0b0110, 0b011, "ld.sbmi">;
+def LD_SB_PL_Disp9 : FullLoadCondDisp9Sub<0b0111, 0b011, "ld.sbpl">;
+def LD_SB_LS_Disp9 : FullLoadCondDisp9Sub<0b1000, 0b011, "ld.sbls">;
+def LD_SB_GT_Disp9 : FullLoadCondDisp9Sub<0b1001, 0b011, "ld.sbgt">;
+def LD_SB_LE_Disp9 : FullLoadCondDisp9Sub<0b1010, 0b011, "ld.sble">;
+def LD_SB_HI_Disp9 : FullLoadCondDisp9Sub<0b1011, 0b011, "ld.sbhi">;
+def LD_SB_VS_Disp9 : FullLoadCondDisp9Sub<0b1100, 0b011, "ld.sbvs">;
+def LD_SB_VC_Disp9 : FullLoadCondDisp9Sub<0b1101, 0b011, "ld.sbvc">;
+def LD_SB_QS_Disp9 : FullLoadCondDisp9Sub<0b1110, 0b011, "ld.sbqs">;
 def LD_UB_PostInc : CompactLoadPostInc<0b10011, "ld.ub">;
 def LD_UB_PreDec : CompactLoadPreDec<0b10111, "ld.ub">;
 def LD_UB_Disp3 : CompactLoadDisp3<"ld.ub">;

@@ -346,6 +346,24 @@ TEST(AVR32TargetInfo, LookupTarget) {
   EXPECT_EQ(MII->get(AVR32::LD_W_QS_Disp9).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::LD_SB_Disp16).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::LD_SB_IndexShift).getSize(), 4u);
+  EXPECT_EQ(MII->get(AVR32::LD_SB_AL_Disp9).getSize(), 4u);
+  EXPECT_EQ(MII->get(AVR32::LD_SB_EQ_Disp9).getSize(), 4u);
+  EXPECT_EQ(MII->get(AVR32::LD_SB_NE_Disp9).getSize(), 4u);
+  EXPECT_EQ(MII->get(AVR32::LD_SB_CC_Disp9).getSize(), 4u);
+  EXPECT_EQ(MII->get(AVR32::LD_SB_HS_Disp9).getSize(), 4u);
+  EXPECT_EQ(MII->get(AVR32::LD_SB_CS_Disp9).getSize(), 4u);
+  EXPECT_EQ(MII->get(AVR32::LD_SB_LO_Disp9).getSize(), 4u);
+  EXPECT_EQ(MII->get(AVR32::LD_SB_GE_Disp9).getSize(), 4u);
+  EXPECT_EQ(MII->get(AVR32::LD_SB_LT_Disp9).getSize(), 4u);
+  EXPECT_EQ(MII->get(AVR32::LD_SB_MI_Disp9).getSize(), 4u);
+  EXPECT_EQ(MII->get(AVR32::LD_SB_PL_Disp9).getSize(), 4u);
+  EXPECT_EQ(MII->get(AVR32::LD_SB_LS_Disp9).getSize(), 4u);
+  EXPECT_EQ(MII->get(AVR32::LD_SB_GT_Disp9).getSize(), 4u);
+  EXPECT_EQ(MII->get(AVR32::LD_SB_LE_Disp9).getSize(), 4u);
+  EXPECT_EQ(MII->get(AVR32::LD_SB_HI_Disp9).getSize(), 4u);
+  EXPECT_EQ(MII->get(AVR32::LD_SB_VS_Disp9).getSize(), 4u);
+  EXPECT_EQ(MII->get(AVR32::LD_SB_VC_Disp9).getSize(), 4u);
+  EXPECT_EQ(MII->get(AVR32::LD_SB_QS_Disp9).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::LD_UB_PostInc).getSize(), 2u);
   EXPECT_EQ(MII->get(AVR32::LD_UB_PreDec).getSize(), 2u);
   EXPECT_EQ(MII->get(AVR32::LD_UB_Disp3).getSize(), 2u);
@@ -1463,6 +1481,40 @@ TEST(AVR32TargetInfo, LookupTarget) {
   EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0x03);
   EXPECT_EQ(static_cast<uint8_t>(Code[2]), 0x06);
   EXPECT_EQ(static_cast<uint8_t>(Code[3]), 0x21);
+
+  MCInst LdSBEqDisp9;
+  LdSBEqDisp9.setOpcode(AVR32::LD_SB_EQ_Disp9);
+  LdSBEqDisp9.addOperand(MCOperand::createReg(AVR32::R1));
+  LdSBEqDisp9.addOperand(MCOperand::createReg(AVR32::R2));
+  LdSBEqDisp9.addOperand(MCOperand::createImm(3));
+
+  Code.clear();
+  Fixups.clear();
+  MCE->encodeInstruction(LdSBEqDisp9, Code, Fixups, *STI);
+
+  EXPECT_TRUE(Fixups.empty());
+  ASSERT_EQ(Code.size(), 4u);
+  EXPECT_EQ(static_cast<uint8_t>(Code[0]), 0xe3);
+  EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0xf2);
+  EXPECT_EQ(static_cast<uint8_t>(Code[2]), 0x06);
+  EXPECT_EQ(static_cast<uint8_t>(Code[3]), 0x03);
+
+  MCInst LdSBAlDisp9;
+  LdSBAlDisp9.setOpcode(AVR32::LD_SB_AL_Disp9);
+  LdSBAlDisp9.addOperand(MCOperand::createReg(AVR32::R1));
+  LdSBAlDisp9.addOperand(MCOperand::createReg(AVR32::R2));
+  LdSBAlDisp9.addOperand(MCOperand::createImm(3));
+
+  Code.clear();
+  Fixups.clear();
+  MCE->encodeInstruction(LdSBAlDisp9, Code, Fixups, *STI);
+
+  EXPECT_TRUE(Fixups.empty());
+  ASSERT_EQ(Code.size(), 4u);
+  EXPECT_EQ(static_cast<uint8_t>(Code[0]), 0xe3);
+  EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0xf2);
+  EXPECT_EQ(static_cast<uint8_t>(Code[2]), 0xf6);
+  EXPECT_EQ(static_cast<uint8_t>(Code[3]), 0x03);
 
   MCInst LdUBPostInc;
   LdUBPostInc.setOpcode(AVR32::LD_UB_PostInc);
@@ -4166,6 +4218,20 @@ TEST(AVR32TargetInfo, LookupTarget) {
   EXPECT_EQ(Printed, "\tld.sb\tr1, r2[r3 << 2]");
 
   Printed.clear();
+  raw_string_ostream LdSBEqDisp9OS(Printed);
+  InstPrinter->printInst(&LdSBEqDisp9, /*Address=*/0, /*Annot=*/"", *STI,
+                         LdSBEqDisp9OS);
+  LdSBEqDisp9OS.flush();
+  EXPECT_EQ(Printed, "\tld.sbeq\tr1, r2[3]");
+
+  Printed.clear();
+  raw_string_ostream LdSBAlDisp9OS(Printed);
+  InstPrinter->printInst(&LdSBAlDisp9, /*Address=*/0, /*Annot=*/"", *STI,
+                         LdSBAlDisp9OS);
+  LdSBAlDisp9OS.flush();
+  EXPECT_EQ(Printed, "\tld.sbal\tr1, r2[3]");
+
+  Printed.clear();
   raw_string_ostream LdUBPostIncOS(Printed);
   InstPrinter->printInst(&LdUBPostInc, /*Address=*/0, /*Annot=*/"", *STI,
                          LdUBPostIncOS);
@@ -5220,6 +5286,7 @@ TEST(AVR32TargetInfo, LookupTarget) {
           "ld.w r1, r2[r3:l << 2]\n"
           "ld.weq r1, r2[12]\nld.wal r1, r2[12]\n"
           "ld.sb r1, r2[-1]\nld.sb r1, r2[r3 << 2]\n"
+          "ld.sbeq r1, r2[3]\nld.sbal r1, r2[3]\n"
           "ld.ub r1, r2++\nld.ub r1, --r2\nld.ub r1, r2[3]\n"
           "ld.ub r1, r2[-1]\nld.ub r1, r2[r3 << 2]\n"
           "ld.ubeq r1, r2[3]\nld.ubal r1, r2[3]\n"
