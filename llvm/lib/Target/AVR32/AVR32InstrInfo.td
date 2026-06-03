@@ -178,6 +178,7 @@ def CP_Wrr : CompactRegRegNoOut<0b00011, "cp.w">;
 def EORrr : CompactRegReg<0b00101, "eor">;
 def FRS : AVR32Inst<0b1101011101000011, (outs), (ins), "frs">;
 def LSLrrr : FullRegRegReg<0b000010010100, "lsl">;
+def LSRrrr : FullRegRegReg<0b000010100100, "lsr">;
 def MOVrr : MovRR<0b1111, "mov">;
 def MOVri8 : MovRI<0b0011, "mov">;
 def NEGr : CompactReg<0b010111000011, "neg">;
