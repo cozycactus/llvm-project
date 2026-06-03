@@ -597,6 +597,22 @@ class FullLoadCondDisp9Shift1<bits<4> Cond, string Mnemonic>
   let Inst{8-0} = Disp;
 }
 
+class FullLoadCondDisp9Shift1Sub<bits<4> Cond, bits<3> Sub, string Mnemonic>
+    : AVR32Inst32<(outs GPR:$Rd), (ins GPR:$Rp, uimm9shift1:$Disp),
+                  Mnemonic#"\t$Rd, ${Rp}[$Disp]"> {
+  bits<4> Rd;
+  bits<4> Rp;
+  bits<9> Disp;
+
+  let Inst{31-29} = 0b111;
+  let Inst{28-25} = Rd;
+  let Inst{24-20} = 0b11111;
+  let Inst{19-16} = Rp;
+  let Inst{15-12} = Cond;
+  let Inst{11-9} = Sub;
+  let Inst{8-0} = Disp;
+}
+
 class FullStoreHalfwordPairDisp8
     : AVR32Inst32<(outs), (ins GPR:$Rp, uimm8shift2:$Disp, GPR:$Rx,
                                halfpart:$XPart, GPR:$Ry, halfpart:$YPart),
@@ -920,6 +936,24 @@ def LD_UH_PreDec : CompactLoadPreDec<0b10110, "ld.uh">;
 def LD_UH_Disp3 : CompactLoadDisp3Shift1Sub<0b01, "ld.uh">;
 def LD_UH_Disp16 : FullLoadDisp16<0b10001, "ld.uh">;
 def LD_UH_IndexShift : FullLoadIndexShift<0b0000010100, "ld.uh">;
+def LD_UH_AL_Disp9 : FullLoadCondDisp9Shift1Sub<0b1111, 0b010, "ld.uhal">;
+def LD_UH_EQ_Disp9 : FullLoadCondDisp9Shift1Sub<0b0000, 0b010, "ld.uheq">;
+def LD_UH_NE_Disp9 : FullLoadCondDisp9Shift1Sub<0b0001, 0b010, "ld.uhne">;
+def LD_UH_CC_Disp9 : FullLoadCondDisp9Shift1Sub<0b0010, 0b010, "ld.uhcc">;
+def LD_UH_HS_Disp9 : FullLoadCondDisp9Shift1Sub<0b0010, 0b010, "ld.uhhs">;
+def LD_UH_CS_Disp9 : FullLoadCondDisp9Shift1Sub<0b0011, 0b010, "ld.uhcs">;
+def LD_UH_LO_Disp9 : FullLoadCondDisp9Shift1Sub<0b0011, 0b010, "ld.uhlo">;
+def LD_UH_GE_Disp9 : FullLoadCondDisp9Shift1Sub<0b0100, 0b010, "ld.uhge">;
+def LD_UH_LT_Disp9 : FullLoadCondDisp9Shift1Sub<0b0101, 0b010, "ld.uhlt">;
+def LD_UH_MI_Disp9 : FullLoadCondDisp9Shift1Sub<0b0110, 0b010, "ld.uhmi">;
+def LD_UH_PL_Disp9 : FullLoadCondDisp9Shift1Sub<0b0111, 0b010, "ld.uhpl">;
+def LD_UH_LS_Disp9 : FullLoadCondDisp9Shift1Sub<0b1000, 0b010, "ld.uhls">;
+def LD_UH_GT_Disp9 : FullLoadCondDisp9Shift1Sub<0b1001, 0b010, "ld.uhgt">;
+def LD_UH_LE_Disp9 : FullLoadCondDisp9Shift1Sub<0b1010, 0b010, "ld.uhle">;
+def LD_UH_HI_Disp9 : FullLoadCondDisp9Shift1Sub<0b1011, 0b010, "ld.uhhi">;
+def LD_UH_VS_Disp9 : FullLoadCondDisp9Shift1Sub<0b1100, 0b010, "ld.uhvs">;
+def LD_UH_VC_Disp9 : FullLoadCondDisp9Shift1Sub<0b1101, 0b010, "ld.uhvc">;
+def LD_UH_QS_Disp9 : FullLoadCondDisp9Shift1Sub<0b1110, 0b010, "ld.uhqs">;
 
 class FullRegRegNoOut<bits<16> Op, string Mnemonic>
     : AVR32Inst32<(outs), (ins GPR:$Rd, GPR:$Rs),
