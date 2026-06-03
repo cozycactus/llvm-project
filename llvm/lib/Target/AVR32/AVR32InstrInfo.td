@@ -387,6 +387,31 @@ class FullStoreHalfwordPairDisp8
   let Inst{3-0} = Rp;
 }
 
+class FullStoreHalfwordPairIndexShift
+    : AVR32Inst32<(outs), (ins GPR:$Rb, GPR:$Ri, uimm2:$Shift, GPR:$Rx,
+                               halfpart:$XPart, GPR:$Ry, halfpart:$YPart),
+                  "sthh.w\t${Rb}[$Ri << $Shift], ${Rx}:$XPart, ${Ry}:$YPart"> {
+  bits<4> Rb;
+  bits<4> Ri;
+  bits<2> Shift;
+  bits<4> Rx;
+  bits<1> XPart;
+  bits<4> Ry;
+  bits<1> YPart;
+
+  let Inst{31-29} = 0b111;
+  let Inst{28-25} = Rx;
+  let Inst{24-20} = 0b11110;
+  let Inst{19-16} = Ry;
+  let Inst{15-14} = 0b10;
+  let Inst{13} = XPart;
+  let Inst{12} = YPart;
+  let Inst{11-8} = Ri;
+  let Inst{7-6} = 0b00;
+  let Inst{5-4} = Shift;
+  let Inst{3-0} = Rb;
+}
+
 class FullStorePairDisp16<bits<5> Op, string Mnemonic>
     : AVR32Inst32<(outs), (ins GPR:$Rp, simm16:$Disp, GPREven:$Rs),
                   Mnemonic#"\t${Rp}[$Disp], $Rs"> {
@@ -1211,6 +1236,7 @@ def ST_W_QS_Disp9 : FullStoreCondDisp9Shift2<0b1110, "st.wqs">;
 def STCOND : FullStoreDisp16<0b10111, "stcond">;
 def STDSP : CompactSPStoreDisp7Shift2;
 def STHH_W_Disp8 : FullStoreHalfwordPairDisp8;
+def STHH_W_IndexShift : FullStoreHalfwordPairIndexShift;
 def SUBALrrr : CondRRR<0b1111, 0b0001, "subal">;
 def SUBEQrrr : CondRRR<0b0000, 0b0001, "subeq">;
 def SUBNErrr : CondRRR<0b0001, 0b0001, "subne">;
