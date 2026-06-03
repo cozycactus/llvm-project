@@ -146,6 +146,34 @@ TEST(AVR32TargetInfo, LookupTarget) {
   EXPECT_EQ(MII->get(AVR32::TLBS).getSize(), 2u);
   EXPECT_EQ(MII->get(AVR32::TLBW).getSize(), 2u);
   EXPECT_EQ(MII->get(AVR32::TSTrr).getSize(), 2u);
+
+  auto ExpectFixedReturn = [&](unsigned Opcode) {
+    const MCInstrDesc &Desc = MII->get(Opcode);
+    EXPECT_TRUE(Desc.isReturn());
+    EXPECT_TRUE(Desc.isTerminator());
+    EXPECT_TRUE(Desc.isBarrier());
+    EXPECT_FALSE(Desc.isBranch());
+  };
+
+  for (unsigned Opcode :
+       {AVR32::RETD, AVR32::RETE, AVR32::RETJ, AVR32::RETS, AVR32::RETSS})
+    ExpectFixedReturn(Opcode);
+
+  auto ExpectConditionalReturn = [&](unsigned Opcode) {
+    const MCInstrDesc &Desc = MII->get(Opcode);
+    EXPECT_TRUE(Desc.isReturn());
+    EXPECT_TRUE(Desc.isTerminator());
+    EXPECT_TRUE(Desc.isBranch());
+    EXPECT_FALSE(Desc.isBarrier());
+  };
+
+  for (unsigned Opcode :
+       {AVR32::RETALr, AVR32::RETCCr, AVR32::RETCSr, AVR32::RETEQr,
+        AVR32::RETGEr, AVR32::RETGTr, AVR32::RETHIr, AVR32::RETHSr,
+        AVR32::RETLEr, AVR32::RETLOr, AVR32::RETLSr, AVR32::RETLTr,
+        AVR32::RETMIr, AVR32::RETNEr, AVR32::RETPLr, AVR32::RETVSr})
+    ExpectConditionalReturn(Opcode);
+
   EXPECT_EQ(MRI->getEncodingValue(AVR32::SP), 13u);
   EXPECT_EQ(MRI->getEncodingValue(AVR32::LR), 14u);
   EXPECT_EQ(MRI->getEncodingValue(AVR32::PC), 15u);

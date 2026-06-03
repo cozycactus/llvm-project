@@ -224,9 +224,13 @@ class RetCond<bits<4> Cond, string Mnemonic>
     : AVR32Inst<0, (outs), (ins GPR:$Rs), Mnemonic#"\t$Rs"> {
   bits<4> Rs;
 
+  let hasCtrlDep = 1;
   let Inst{15-8} = 0b01011110;
   let Inst{7-4} = Cond;
   let Inst{3-0} = Rs;
+  let isBranch = 1;
+  let isReturn = 1;
+  let isTerminator = 1;
 }
 
 def ADCrrr : FullRegRegReg<0b000000000100, "adc">;
@@ -268,8 +272,10 @@ def MUSFRr : CompactRegNoOut<0b010111010011, "musfr">;
 def NEGr : CompactReg<0b010111000011, "neg">;
 def ORrr : CompactRegReg<0b00100, "or">;
 def PUSHJC : AVR32Inst<0b1101011100100011, (outs), (ins), "pushjc">;
+let isBarrier = 1, isReturn = 1, isTerminator = 1 in {
 def RETD : AVR32Inst<0b1101011000100011, (outs), (ins), "retd">;
 def RETE : AVR32Inst<0b1101011000000011, (outs), (ins), "rete">;
+}
 def RETALr : RetCond<0b1111, "retal">;
 def RETEQr : RetCond<0b0000, "reteq">;
 def RETNEr : RetCond<0b0001, "retne">;
@@ -286,9 +292,11 @@ def RETGTr : RetCond<0b1001, "retgt">;
 def RETLEr : RetCond<0b1010, "retle">;
 def RETHIr : RetCond<0b1011, "rethi">;
 def RETVSr : RetCond<0b1100, "retvs">;
+let isBarrier = 1, isReturn = 1, isTerminator = 1 in {
 def RETJ : AVR32Inst<0b1101011000110011, (outs), (ins), "retj">;
 def RETS : AVR32Inst<0b1101011000010011, (outs), (ins), "rets">;
 def RETSS : AVR32Inst<0b1101011101100011, (outs), (ins), "retss">;
+}
 def ROLr : CompactReg<0b010111001111, "rol">;
 def RORr : CompactReg<0b010111010000, "ror">;
 def RSUBrr : CompactRegReg<0b00010, "rsub">;
