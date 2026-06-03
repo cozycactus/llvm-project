@@ -78,6 +78,7 @@ TEST(AVR32TargetInfo, LookupTarget) {
   EXPECT_EQ(MII->get(AVR32::ANDrr).getSize(), 2u);
   EXPECT_EQ(MII->get(AVR32::ASRrrr).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::BREVr).getSize(), 2u);
+  EXPECT_EQ(MII->get(AVR32::BREAKPOINT).getSize(), 2u);
   EXPECT_EQ(MII->get(AVR32::CASTS_Br).getSize(), 2u);
   EXPECT_EQ(MII->get(AVR32::CASTS_Hr).getSize(), 2u);
   EXPECT_EQ(MII->get(AVR32::CASTU_Br).getSize(), 2u);
@@ -295,6 +296,18 @@ TEST(AVR32TargetInfo, LookupTarget) {
   ASSERT_EQ(Code.size(), 2u);
   EXPECT_EQ(static_cast<uint8_t>(Code[0]), 0x5c);
   EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0x91);
+
+  MCInst Breakpoint;
+  Breakpoint.setOpcode(AVR32::BREAKPOINT);
+
+  Code.clear();
+  Fixups.clear();
+  MCE->encodeInstruction(Breakpoint, Code, Fixups, *STI);
+
+  EXPECT_TRUE(Fixups.empty());
+  ASSERT_EQ(Code.size(), 2u);
+  EXPECT_EQ(static_cast<uint8_t>(Code[0]), 0xd6);
+  EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0x73);
 
   MCInst CastsB;
   CastsB.setOpcode(AVR32::CASTS_Br);
@@ -1031,6 +1044,13 @@ TEST(AVR32TargetInfo, LookupTarget) {
   EXPECT_EQ(Printed, "\tbrev\tr1");
 
   Printed.clear();
+  raw_string_ostream BreakpointOS(Printed);
+  InstPrinter->printInst(&Breakpoint, /*Address=*/0, /*Annot=*/"", *STI,
+                         BreakpointOS);
+  BreakpointOS.flush();
+  EXPECT_EQ(Printed, "\tbreakpoint");
+
+  Printed.clear();
   raw_string_ostream CastsBOS(Printed);
   InstPrinter->printInst(&CastsB, /*Address=*/0, /*Annot=*/"", *STI, CastsBOS);
   CastsBOS.flush();
@@ -1326,7 +1346,7 @@ TEST(AVR32TargetInfo, LookupTarget) {
   SourceMgr SrcMgr;
   SrcMgr.AddNewSourceBuffer(
       MemoryBuffer::getMemBuffer(
-          "nop\nfrs\nabs r1\nacr r1\nadc r1, r2, r3\naddabs r1, r2, r3\nadd r1, r2\nand r1, r2\nandn r1, r2\nasr r1, r2, r3\nbrev r1\ncasts.b r1\ncasts.h r1\ncastu.b r1\ncastu.h r1\ncom r1\ncpc r1\ncpc r1, r2\ncp.w r1, r2\ncp.w r1, -1\ncp.w r1, 32\ncsrf 1\nneg r1\neor r1, r2\nlsl r1, r2, r3\nlsr r1, r2, r3\nmax r1, r2, r3\nmin r1, r2, r3\nmul r1, r2\nmul r1, r2, -1\nmul r1, r2, r3\nmuls.d r2, r3, r4\nmulu.d r2, r3, r4\nmusfr r1\nor r1, r2\nretd\nrete\nretal lr\nretj\nrets\nretss\nrol r1\nror r1\nrsub r1, r2\nsbc r1, r2, r3\nscall\nscr r1\nssrf 1\nsub r1, r2\nswap.bh r1\nswap.b r1\nswap.h r1\ntlbr\ntlbs\ntlbw\ntst r1, r2\nmov r1, r2\nmov r1, -1\n"),
+          "nop\nfrs\nabs r1\nacr r1\nadc r1, r2, r3\naddabs r1, r2, r3\nadd r1, r2\nand r1, r2\nandn r1, r2\nasr r1, r2, r3\nbrev r1\nbreakpoint\ncasts.b r1\ncasts.h r1\ncastu.b r1\ncastu.h r1\ncom r1\ncpc r1\ncpc r1, r2\ncp.w r1, r2\ncp.w r1, -1\ncp.w r1, 32\ncsrf 1\nneg r1\neor r1, r2\nlsl r1, r2, r3\nlsr r1, r2, r3\nmax r1, r2, r3\nmin r1, r2, r3\nmul r1, r2\nmul r1, r2, -1\nmul r1, r2, r3\nmuls.d r2, r3, r4\nmulu.d r2, r3, r4\nmusfr r1\nor r1, r2\nretd\nrete\nretal lr\nretj\nrets\nretss\nrol r1\nror r1\nrsub r1, r2\nsbc r1, r2, r3\nscall\nscr r1\nssrf 1\nsub r1, r2\nswap.bh r1\nswap.b r1\nswap.h r1\ntlbr\ntlbs\ntlbw\ntst r1, r2\nmov r1, r2\nmov r1, -1\n"),
       SMLoc());
 
   MCContext ParseCtx(TT, *MAI, *MRI, *STI, &SrcMgr);

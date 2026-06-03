@@ -220,6 +220,7 @@ def ANDNrr : CompactRegReg<0b01000, "andn">;
 def ANDrr : CompactRegReg<0b00110, "and">;
 def ASRrrr : FullRegRegReg<0b000010000100, "asr">;
 def BREVr : CompactReg<0b010111001001, "brev">;
+def BREAKPOINT : AVR32Inst<0b1101011001110011, (outs), (ins), "breakpoint">;
 def CASTS_Br : CompactReg<0b010111000110, "casts.b">;
 def CASTS_Hr : CompactReg<0b010111001000, "casts.h">;
 def CASTU_Br : CompactReg<0b010111000101, "castu.b">;
