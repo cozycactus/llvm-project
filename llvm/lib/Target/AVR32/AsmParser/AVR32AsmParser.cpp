@@ -219,7 +219,7 @@ bool AVR32AsmParser::parseInstruction(ParseInstructionInfo &Info,
   Operands.push_back(AVR32Operand::createToken(Name, NameLoc));
 
   if (Name == "add" || Name == "and" || Name == "eor" || Name == "or" ||
-      Name == "sub") {
+      Name == "rsub" || Name == "sub") {
     if (parseRegisterCommaRegister(Operands))
       return true;
   } else if (Name == "mov") {
