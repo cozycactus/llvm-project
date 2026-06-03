@@ -690,6 +690,26 @@ class FullRegRegReg<bits<12> Op, string Mnemonic>
   let Inst{3-0} = Rd;
 }
 
+class FullRegRegHalfRegHalf<bits<10> Op, string Mnemonic>
+    : AVR32Inst32<(outs GPR:$Rd), (ins GPR:$Rx, halfpart:$XPart, GPR:$Ry,
+                                       halfpart:$YPart),
+                  Mnemonic#"\t$Rd, ${Rx}:$XPart, ${Ry}:$YPart"> {
+  bits<4> Rd;
+  bits<4> Rx;
+  bits<1> XPart;
+  bits<4> Ry;
+  bits<1> YPart;
+
+  let Inst{31-29} = 0b111;
+  let Inst{28-25} = Rx;
+  let Inst{24-20} = 0b00000;
+  let Inst{19-16} = Ry;
+  let Inst{15-6} = Op;
+  let Inst{5} = XPart;
+  let Inst{4} = YPart;
+  let Inst{3-0} = Rd;
+}
+
 class FullRegRegRegShift<bits<10> Op, string Mnemonic>
     : AVR32Inst32<(outs GPR:$Rd), (ins GPR:$Rx, GPR:$Ry, uimm2:$Shift),
                   Mnemonic#"\t$Rd, $Rx, $Ry << $Shift"> {
@@ -1332,6 +1352,7 @@ def SUBFHIri : SubfCondRI<0b1011, "subfhi">;
 def SUBFVSri : SubfCondRI<0b1100, "subfvs">;
 def SUBFVCri : SubfCondRI<0b1101, "subfvc">;
 def SUBFQSri : SubfCondRI<0b1110, "subfqs">;
+def SUBHH_W : FullRegRegHalfRegHalf<0b0000111100, "subhh.w">;
 def SUBSPri8 : CompactSPSubImm<"sub">;
 def SUBri8 : CompactRegSImm8<0b0010, "sub">;
 def SUBrrrs : FullRegRegRegShift<0b0000000100, "sub">;
