@@ -396,6 +396,7 @@ TEST(AVR32TargetInfo, LookupTarget) {
   EXPECT_EQ(MII->get(AVR32::ST_W_QS_Disp9).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::STCOND).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::STDSP).getSize(), 2u);
+  EXPECT_EQ(MII->get(AVR32::STHH_W_Disp8).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::SUBALrrr).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::SUBCCrrr).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::SUBCSrrr).getSize(), 4u);
@@ -2566,6 +2567,26 @@ TEST(AVR32TargetInfo, LookupTarget) {
   EXPECT_EQ(static_cast<uint8_t>(Code[0]), 0x50);
   EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0x32);
 
+  MCInst SthhWDisp8;
+  SthhWDisp8.setOpcode(AVR32::STHH_W_Disp8);
+  SthhWDisp8.addOperand(MCOperand::createReg(AVR32::R1));
+  SthhWDisp8.addOperand(MCOperand::createImm(12));
+  SthhWDisp8.addOperand(MCOperand::createReg(AVR32::R2));
+  SthhWDisp8.addOperand(MCOperand::createImm(1));
+  SthhWDisp8.addOperand(MCOperand::createReg(AVR32::R3));
+  SthhWDisp8.addOperand(MCOperand::createImm(0));
+
+  Code.clear();
+  Fixups.clear();
+  MCE->encodeInstruction(SthhWDisp8, Code, Fixups, *STI);
+
+  EXPECT_TRUE(Fixups.empty());
+  ASSERT_EQ(Code.size(), 4u);
+  EXPECT_EQ(static_cast<uint8_t>(Code[0]), 0xe5);
+  EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0xe3);
+  EXPECT_EQ(static_cast<uint8_t>(Code[2]), 0xe0);
+  EXPECT_EQ(static_cast<uint8_t>(Code[3]), 0x31);
+
   MCInst Scall;
   Scall.setOpcode(AVR32::SCALL);
 
@@ -3965,6 +3986,13 @@ TEST(AVR32TargetInfo, LookupTarget) {
   EXPECT_EQ(Printed, "\tstdsp\tsp[12], r2");
 
   Printed.clear();
+  raw_string_ostream SthhWDisp8OS(Printed);
+  InstPrinter->printInst(&SthhWDisp8, /*Address=*/0, /*Annot=*/"", *STI,
+                         SthhWDisp8OS);
+  SthhWDisp8OS.flush();
+  EXPECT_EQ(Printed, "\tsthh.w\tr1[12], r2:t, r3:b");
+
+  Printed.clear();
   raw_string_ostream ScallOS(Printed);
   InstPrinter->printInst(&Scall, /*Address=*/0, /*Annot=*/"", *STI, ScallOS);
   ScallOS.flush();
@@ -4252,7 +4280,8 @@ TEST(AVR32TargetInfo, LookupTarget) {
           "st.w r1++, r2\nst.w --r1, r2\nst.w r1[12], r2\n"
           "st.w r1[-1], r2\nst.w r1[r2 << 3], r4\n"
           "st.weq r1[12], r2\nst.wal r1[12], r2\n"
-          "stcond r1[-1], r2\nstdsp sp[12], r2\n"),
+          "stcond r1[-1], r2\nstdsp sp[12], r2\n"
+          "sthh.w r1[12], r2:t, r3:b\n"),
       SMLoc());
 
   MCContext StoreParseCtx(TT, *MAI, *MRI, *STI, &StoreSrcMgr);

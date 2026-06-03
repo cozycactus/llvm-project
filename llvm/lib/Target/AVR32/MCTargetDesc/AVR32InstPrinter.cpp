@@ -45,3 +45,10 @@ void AVR32InstPrinter::printOperand(const MCInst *MI, unsigned OpNo,
   assert(Op.isExpr() && "unknown AVR32 operand kind");
   MAI.printExpr(OS, *Op.getExpr());
 }
+
+void AVR32InstPrinter::printHalfPart(const MCInst *MI, unsigned OpNo,
+                                     raw_ostream &OS) {
+  const MCOperand &Op = MI->getOperand(OpNo);
+  assert(Op.isImm() && "halfword part selector must be immediate");
+  OS << (Op.getImm() ? "t" : "b");
+}

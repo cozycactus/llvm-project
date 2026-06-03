@@ -33,6 +33,11 @@ def SubSPImmAsmOperand : AsmOperandClass {
   let RenderMethod = "addImmOperands";
 }
 
+def HalfPartAsmOperand : AsmOperandClass {
+  let Name = "HalfPart";
+  let RenderMethod = "addImmOperands";
+}
+
 def UImm5AsmOperand : AsmOperandClass {
   let Name = "UImm5";
   let RenderMethod = "addImmOperands";
@@ -60,6 +65,11 @@ def UImm4Shift2AsmOperand : AsmOperandClass {
 
 def UImm7Shift2AsmOperand : AsmOperandClass {
   let Name = "UImm7Shift2";
+  let RenderMethod = "addImmOperands";
+}
+
+def UImm8Shift2AsmOperand : AsmOperandClass {
+  let Name = "UImm8Shift2";
   let RenderMethod = "addImmOperands";
 }
 
@@ -170,6 +180,13 @@ def uimm8 : Operand<i32>, ImmLeaf<i32, [{ return Imm >= 0 && Imm < 256; }]> {
   let ParserMatchClass = UImm8AsmOperand;
 }
 
+def uimm8shift2 : Operand<i32>,
+                  ImmLeaf<i32, [{ return Imm >= 0 && Imm <= 1020 &&
+                                         Imm % 4 == 0; }]> {
+  let ParserMatchClass = UImm8Shift2AsmOperand;
+  let EncoderMethod = "getShifted2OpValue";
+}
+
 def uimm9 : Operand<i32>, ImmLeaf<i32, [{ return Imm >= 0 && Imm < 512; }]> {
   let ParserMatchClass = UImm9AsmOperand;
 }
@@ -218,6 +235,11 @@ def incjospimm : Operand<i32>,
                  ImmLeaf<i32, [{ return Imm >= -4 && Imm <= 4 && Imm != 0; }]> {
   let ParserMatchClass = IncJOSPImmAsmOperand;
   let EncoderMethod = "getIncJOSPImmOpValue";
+}
+
+def halfpart : Operand<i32>, ImmLeaf<i32, [{ return Imm == 0 || Imm == 1; }]> {
+  let ParserMatchClass = HalfPartAsmOperand;
+  let PrintMethod = "printHalfPart";
 }
 
 def NOP : AVR32Inst<0b1101011100000011, (outs), (ins), "nop">;
@@ -341,6 +363,28 @@ class FullStoreIndexShift<bits<10> Op, string Mnemonic, RegisterClass SrcRC = GP
   let Inst{15-6} = Op;
   let Inst{5-4} = Shift;
   let Inst{3-0} = Rs;
+}
+
+class FullStoreHalfwordPairDisp8
+    : AVR32Inst32<(outs), (ins GPR:$Rp, uimm8shift2:$Disp, GPR:$Rx,
+                               halfpart:$XPart, GPR:$Ry, halfpart:$YPart),
+                  "sthh.w\t${Rp}[$Disp], ${Rx}:$XPart, ${Ry}:$YPart"> {
+  bits<4> Rp;
+  bits<8> Disp;
+  bits<4> Rx;
+  bits<1> XPart;
+  bits<4> Ry;
+  bits<1> YPart;
+
+  let Inst{31-29} = 0b111;
+  let Inst{28-25} = Rx;
+  let Inst{24-20} = 0b11110;
+  let Inst{19-16} = Ry;
+  let Inst{15-14} = 0b11;
+  let Inst{13} = XPart;
+  let Inst{12} = YPart;
+  let Inst{11-4} = Disp;
+  let Inst{3-0} = Rp;
 }
 
 class FullStorePairDisp16<bits<5> Op, string Mnemonic>
@@ -1166,6 +1210,7 @@ def ST_W_VC_Disp9 : FullStoreCondDisp9Shift2<0b1101, "st.wvc">;
 def ST_W_QS_Disp9 : FullStoreCondDisp9Shift2<0b1110, "st.wqs">;
 def STCOND : FullStoreDisp16<0b10111, "stcond">;
 def STDSP : CompactSPStoreDisp7Shift2;
+def STHH_W_Disp8 : FullStoreHalfwordPairDisp8;
 def SUBALrrr : CondRRR<0b1111, 0b0001, "subal">;
 def SUBEQrrr : CondRRR<0b0000, 0b0001, "subeq">;
 def SUBNErrr : CondRRR<0b0001, 0b0001, "subne">;

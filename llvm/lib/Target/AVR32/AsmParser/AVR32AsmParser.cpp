@@ -149,6 +149,14 @@ public:
     return Const && isUInt<8>(Const->getValue());
   }
 
+  bool isUImm8Shift2() const {
+    if (Kind != Immediate)
+      return false;
+    auto *Const = dyn_cast<MCConstantExpr>(Imm);
+    return Const && Const->getValue() >= 0 && Const->getValue() <= 1020 &&
+           Const->getValue() % 4 == 0;
+  }
+
   bool isUImm9() const {
     if (Kind != Immediate)
       return false;
@@ -209,6 +217,13 @@ public:
     auto *Const = dyn_cast<MCConstantExpr>(Imm);
     return Const && Const->getValue() >= -4 && Const->getValue() <= 4 &&
            Const->getValue() != 0;
+  }
+
+  bool isHalfPart() const {
+    if (Kind != Immediate)
+      return false;
+    auto *Const = dyn_cast<MCConstantExpr>(Imm);
+    return Const && (Const->getValue() == 0 || Const->getValue() == 1);
   }
 
   void print(raw_ostream &OS, const MCAsmInfo &MAI) const override {
@@ -298,6 +313,8 @@ private:
   bool parseRegisterShiftRightImmediateCommaImmediate(OperandVector &Operands);
   bool parseSubOperands(
       OperandVector &Operands);
+  bool parseRegisterHalfPart(OperandVector &Operands);
+  bool parseStoreHalfwordPairOperands(OperandVector &Operands);
   bool parseStoreByteOperands(OperandVector &Operands);
   bool parseStoreDoubleOperands(OperandVector &Operands);
   bool parseRegisterCommaImmediate(OperandVector &Operands);
@@ -510,6 +527,9 @@ bool AVR32AsmParser::parseInstruction(ParseInstructionInfo &Info,
              Name == "stcond" || Name == "stdsp") {
     if (parseStoreByteOperands(Operands))
       return true;
+  } else if (Name == "sthh.w") {
+    if (parseStoreHalfwordPairOperands(Operands))
+      return true;
   } else if (Name == "st.d") {
     if (parseStoreDoubleOperands(Operands))
       return true;
@@ -707,6 +727,60 @@ bool AVR32AsmParser::parseSubOperands(OperandVector &Operands) {
     return Error(StartLoc, "invalid register name");
 
   if (parseImmediateOperand(Operands))
+    return true;
+  return false;
+}
+
+bool AVR32AsmParser::parseRegisterHalfPart(OperandVector &Operands) {
+  if (parseRegisterOperand(Operands))
+    return true;
+  if (!parseOptionalToken(AsmToken::Colon))
+    return Error(getLexer().getLoc(), "expected :");
+  Operands.push_back(AVR32Operand::createToken(":", getLexer().getLoc()));
+
+  SMLoc PartLoc = getLexer().getLoc();
+  if (getLexer().isNot(AsmToken::Identifier))
+    return Error(PartLoc, "expected b or t");
+  StringRef Part = getLexer().getTok().getString();
+  int64_t PartValue;
+  if (Part == "b")
+    PartValue = 0;
+  else if (Part == "t")
+    PartValue = 1;
+  else
+    return Error(PartLoc, "expected b or t");
+
+  const MCExpr *PartExpr = MCConstantExpr::create(PartValue, getContext());
+  getLexer().Lex();
+  Operands.push_back(
+      AVR32Operand::createImm(PartExpr, PartLoc, getLexer().getLoc()));
+  return false;
+}
+
+bool AVR32AsmParser::parseStoreHalfwordPairOperands(OperandVector &Operands) {
+  if (parseRegisterOperand(Operands))
+    return true;
+  if (getLexer().isNot(AsmToken::LBrac))
+    return Error(getLexer().getLoc(), "expected [");
+  Operands.push_back(AVR32Operand::createToken("[", getLexer().getLoc()));
+  getLexer().Lex();
+
+  if (parseImmediateOperand(Operands))
+    return true;
+
+  if (getLexer().isNot(AsmToken::RBrac))
+    return Error(getLexer().getLoc(), "expected ]");
+  Operands.push_back(AVR32Operand::createToken("]", getLexer().getLoc()));
+  getLexer().Lex();
+
+  if (!parseOptionalToken(AsmToken::Comma))
+    return Error(getLexer().getLoc(), "expected comma");
+  if (parseRegisterHalfPart(Operands))
+    return true;
+
+  if (!parseOptionalToken(AsmToken::Comma))
+    return Error(getLexer().getLoc(), "expected comma");
+  if (parseRegisterHalfPart(Operands))
     return true;
   return false;
 }
