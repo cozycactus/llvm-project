@@ -271,6 +271,7 @@ def PUSHJC : AVR32Inst<0b1101011100100011, (outs), (ins), "pushjc">;
 def RETD : AVR32Inst<0b1101011000100011, (outs), (ins), "retd">;
 def RETE : AVR32Inst<0b1101011000000011, (outs), (ins), "rete">;
 def RETALr : RetCond<0b1111, "retal">;
+def RETEQr : RetCond<0b0000, "reteq">;
 def RETJ : AVR32Inst<0b1101011000110011, (outs), (ins), "retj">;
 def RETS : AVR32Inst<0b1101011000010011, (outs), (ins), "rets">;
 def RETSS : AVR32Inst<0b1101011101100011, (outs), (ins), "retss">;
