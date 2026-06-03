@@ -498,7 +498,8 @@ bool AVR32AsmParser::parseInstruction(ParseInstructionInfo &Info,
              Name == "st.whi" || Name == "st.whs" || Name == "st.wle" ||
              Name == "st.wlo" || Name == "st.wls" || Name == "st.wlt" ||
              Name == "st.wmi" || Name == "st.wne" || Name == "st.wpl" ||
-             Name == "st.wqs" || Name == "st.wvc" || Name == "st.wvs") {
+             Name == "st.wqs" || Name == "st.wvc" || Name == "st.wvs" ||
+             Name == "stcond") {
     if (parseStoreByteOperands(Operands))
       return true;
   } else if (Name == "st.d") {

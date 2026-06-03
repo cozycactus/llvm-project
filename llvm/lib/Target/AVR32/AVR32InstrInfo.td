@@ -1141,6 +1141,7 @@ def ST_W_HI_Disp9 : FullStoreCondDisp9Shift2<0b1011, "st.whi">;
 def ST_W_VS_Disp9 : FullStoreCondDisp9Shift2<0b1100, "st.wvs">;
 def ST_W_VC_Disp9 : FullStoreCondDisp9Shift2<0b1101, "st.wvc">;
 def ST_W_QS_Disp9 : FullStoreCondDisp9Shift2<0b1110, "st.wqs">;
+def STCOND : FullStoreDisp16<0b10111, "stcond">;
 def SUBALrrr : CondRRR<0b1111, 0b0001, "subal">;
 def SUBEQrrr : CondRRR<0b0000, 0b0001, "subeq">;
 def SUBNErrr : CondRRR<0b0001, 0b0001, "subne">;
