@@ -355,6 +355,8 @@ TEST(AVR32TargetInfo, LookupTarget) {
   EXPECT_EQ(MII->get(AVR32::LD_D_IndexShift).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::LDDPC).getSize(), 2u);
   EXPECT_EQ(MII->get(AVR32::LDDSP).getSize(), 2u);
+  EXPECT_EQ(MII->get(AVR32::LDINS_B).getSize(), 4u);
+  EXPECT_EQ(MII->get(AVR32::LDINS_H).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::LD_SB_Disp16).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::LD_SB_IndexShift).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::LD_SB_AL_Disp9).getSize(), 4u);
@@ -1581,6 +1583,42 @@ TEST(AVR32TargetInfo, LookupTarget) {
   ASSERT_EQ(Code.size(), 2u);
   EXPECT_EQ(static_cast<uint8_t>(Code[0]), 0x40);
   EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0x32);
+
+  MCInst LdinsB;
+  LdinsB.setOpcode(AVR32::LDINS_B);
+  LdinsB.addOperand(MCOperand::createReg(AVR32::R1));
+  LdinsB.addOperand(MCOperand::createImm(2));
+  LdinsB.addOperand(MCOperand::createReg(AVR32::R2));
+  LdinsB.addOperand(MCOperand::createImm(-1));
+
+  Code.clear();
+  Fixups.clear();
+  MCE->encodeInstruction(LdinsB, Code, Fixups, *STI);
+
+  EXPECT_TRUE(Fixups.empty());
+  ASSERT_EQ(Code.size(), 4u);
+  EXPECT_EQ(static_cast<uint8_t>(Code[0]), 0xe5);
+  EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0xd1);
+  EXPECT_EQ(static_cast<uint8_t>(Code[2]), 0x6f);
+  EXPECT_EQ(static_cast<uint8_t>(Code[3]), 0xff);
+
+  MCInst LdinsH;
+  LdinsH.setOpcode(AVR32::LDINS_H);
+  LdinsH.addOperand(MCOperand::createReg(AVR32::R1));
+  LdinsH.addOperand(MCOperand::createImm(1));
+  LdinsH.addOperand(MCOperand::createReg(AVR32::R2));
+  LdinsH.addOperand(MCOperand::createImm(-2));
+
+  Code.clear();
+  Fixups.clear();
+  MCE->encodeInstruction(LdinsH, Code, Fixups, *STI);
+
+  EXPECT_TRUE(Fixups.empty());
+  ASSERT_EQ(Code.size(), 4u);
+  EXPECT_EQ(static_cast<uint8_t>(Code[0]), 0xe5);
+  EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0xd1);
+  EXPECT_EQ(static_cast<uint8_t>(Code[2]), 0x1f);
+  EXPECT_EQ(static_cast<uint8_t>(Code[3]), 0xff);
 
   MCInst LdSBDisp16;
   LdSBDisp16.setOpcode(AVR32::LD_SB_Disp16);
@@ -4439,6 +4477,20 @@ TEST(AVR32TargetInfo, LookupTarget) {
   EXPECT_EQ(Printed, "\tlddsp\tr2, sp[12]");
 
   Printed.clear();
+  raw_string_ostream LdinsBOS(Printed);
+  InstPrinter->printInst(&LdinsB, /*Address=*/0, /*Annot=*/"", *STI,
+                         LdinsBOS);
+  LdinsBOS.flush();
+  EXPECT_EQ(Printed, "\tldins.b\tr1:u, r2[-1]");
+
+  Printed.clear();
+  raw_string_ostream LdinsHOS(Printed);
+  InstPrinter->printInst(&LdinsH, /*Address=*/0, /*Annot=*/"", *STI,
+                         LdinsHOS);
+  LdinsHOS.flush();
+  EXPECT_EQ(Printed, "\tldins.h\tr1:t, r2[-2]");
+
+  Printed.clear();
   raw_string_ostream LdSBDisp16OS(Printed);
   InstPrinter->printInst(&LdSBDisp16, /*Address=*/0, /*Annot=*/"", *STI,
                          LdSBDisp16OS);
@@ -5541,6 +5593,7 @@ TEST(AVR32TargetInfo, LookupTarget) {
           "ld.d r2, r1++\nld.d r2, --r1\nld.d r2, r1\n"
           "ld.d r2, r1[-1]\nld.d r2, r1[r3 << 3]\n"
           "lddpc r2, pc[12]\nlddsp r2, sp[12]\n"
+          "ldins.b r1:u, r2[-1]\nldins.h r1:t, r2[-2]\n"
           "ld.sb r1, r2[-1]\nld.sb r1, r2[r3 << 2]\n"
           "ld.sbeq r1, r2[3]\nld.sbal r1, r2[3]\n"
           "ld.ub r1, r2++\nld.ub r1, --r2\nld.ub r1, r2[3]\n"

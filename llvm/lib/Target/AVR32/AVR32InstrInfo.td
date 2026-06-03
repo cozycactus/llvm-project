@@ -23,6 +23,11 @@ def SImm11AsmOperand : AsmOperandClass {
   let RenderMethod = "addImmOperands";
 }
 
+def SImm12AsmOperand : AsmOperandClass {
+  let Name = "SImm12";
+  let RenderMethod = "addImmOperands";
+}
+
 def SImm16AsmOperand : AsmOperandClass {
   let Name = "SImm16";
   let RenderMethod = "addImmOperands";
@@ -164,6 +169,11 @@ def simm8 : Operand<i32>, ImmLeaf<i32, [{ return Imm >= -128 && Imm < 128; }]> {
 def simm11 : Operand<i32>,
              ImmLeaf<i32, [{ return Imm >= -1024 && Imm < 1024; }]> {
   let ParserMatchClass = SImm11AsmOperand;
+}
+
+def simm12 : Operand<i32>,
+             ImmLeaf<i32, [{ return Imm >= -2048 && Imm < 2048; }]> {
+  let ParserMatchClass = SImm12AsmOperand;
 }
 
 def simm16 : Operand<i32>,
@@ -640,6 +650,41 @@ class FullLoadPairIndexShift<bits<10> Op, string Mnemonic>
   let Inst{0} = 0;
 }
 
+class FullLoadInsertByteDisp12
+    : AVR32Inst32<(outs GPR:$Rd), (ins bytepart:$Part, GPR:$Rp, simm12:$Disp),
+                  "ldins.b\t${Rd}:$Part, ${Rp}[$Disp]"> {
+  bits<4> Rd;
+  bits<2> Part;
+  bits<4> Rp;
+  bits<12> Disp;
+
+  let Inst{31-29} = 0b111;
+  let Inst{28-25} = Rp;
+  let Inst{24-20} = 0b11101;
+  let Inst{19-16} = Rd;
+  let Inst{15-14} = 0b01;
+  let Inst{13-12} = Part;
+  let Inst{11-0} = Disp;
+}
+
+class FullLoadInsertHalfDisp12
+    : AVR32Inst32<(outs GPR:$Rd),
+                  (ins halfpart:$Part, GPR:$Rp, simm12shift1:$Disp),
+                  "ldins.h\t${Rd}:$Part, ${Rp}[$Disp]"> {
+  bits<4> Rd;
+  bits<1> Part;
+  bits<4> Rp;
+  bits<12> Disp;
+
+  let Inst{31-29} = 0b111;
+  let Inst{28-25} = Rp;
+  let Inst{24-20} = 0b11101;
+  let Inst{19-16} = Rd;
+  let Inst{15-13} = 0b000;
+  let Inst{12} = Part;
+  let Inst{11-0} = Disp;
+}
+
 class FullLoadCondDisp9Shift2<bits<4> Cond, string Mnemonic>
     : AVR32Inst32<(outs GPR:$Rd), (ins GPR:$Rp, uimm9shift2:$Disp),
                   Mnemonic#"\t$Rd, ${Rp}[$Disp]"> {
@@ -1023,6 +1068,8 @@ def LD_D_Disp16 : FullLoadPairDisp16<0b01110, "ld.d">;
 def LD_D_IndexShift : FullLoadPairIndexShift<0b0000001000, "ld.d">;
 def LDDPC : CompactLoadBaseDisp7Shift2<0b01001, PCOnly, "lddpc">;
 def LDDSP : CompactLoadBaseDisp7Shift2<0b01000, SPOnly, "lddsp">;
+def LDINS_B : FullLoadInsertByteDisp12;
+def LDINS_H : FullLoadInsertHalfDisp12;
 def LD_SB_Disp16 : FullLoadDisp16<0b10010, "ld.sb">;
 def LD_SB_IndexShift : FullLoadIndexShift<0b0000011000, "ld.sb">;
 def LD_SB_AL_Disp9 : FullLoadCondDisp9Sub<0b1111, 0b011, "ld.sbal">;

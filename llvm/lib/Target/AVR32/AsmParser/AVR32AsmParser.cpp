@@ -128,6 +128,13 @@ public:
     return Const && isInt<11>(Const->getValue());
   }
 
+  bool isSImm12() const {
+    if (Kind != Immediate)
+      return false;
+    auto *Const = dyn_cast<MCConstantExpr>(Imm);
+    return Const && isInt<12>(Const->getValue());
+  }
+
   bool isUImm5() const {
     if (Kind != Immediate)
       return false;
@@ -367,9 +374,11 @@ private:
   bool parseSubOperands(
       OperandVector &Operands);
   bool parseRegisterHalfPart(OperandVector &Operands);
+  bool parseHalfPartOperand(OperandVector &Operands);
   bool parseBytePartOperand(OperandVector &Operands);
   bool parseRegisterCommaRegisterHalfPartCommaRegisterHalfPart(
       OperandVector &Operands);
+  bool parseLoadInsertOperands(OperandVector &Operands, bool IsByte);
   bool parseLoadOperands(OperandVector &Operands,
                          bool AllowBareRegister = false);
   bool parseStoreHalfwordPairOperands(OperandVector &Operands);
@@ -571,6 +580,9 @@ bool AVR32AsmParser::parseInstruction(ParseInstructionInfo &Info,
       return true;
   } else if (Name == "memc" || Name == "mems") {
     if (parseImmediateCommaImmediate(Operands))
+      return true;
+  } else if (Name == "ldins.b" || Name == "ldins.h") {
+    if (parseLoadInsertOperands(Operands, Name == "ldins.b"))
       return true;
   } else if (Name == "ld.d" || Name == "lddpc" || Name == "lddsp" ||
              Name == "ld.sb" || Name == "ld.sbal" || Name == "ld.sbcc" ||
@@ -850,6 +862,12 @@ bool AVR32AsmParser::parseRegisterHalfPart(OperandVector &Operands) {
     return Error(getLexer().getLoc(), "expected :");
   Operands.push_back(AVR32Operand::createToken(":", getLexer().getLoc()));
 
+  if (parseHalfPartOperand(Operands))
+    return true;
+  return false;
+}
+
+bool AVR32AsmParser::parseHalfPartOperand(OperandVector &Operands) {
   SMLoc PartLoc = getLexer().getLoc();
   if (getLexer().isNot(AsmToken::Identifier))
     return Error(PartLoc, "expected b or t");
@@ -905,6 +923,27 @@ bool AVR32AsmParser::parseRegisterCommaRegisterHalfPartCommaRegisterHalfPart(
   if (!parseOptionalToken(AsmToken::Comma))
     return Error(getLexer().getLoc(), "expected comma");
   if (parseRegisterHalfPart(Operands))
+    return true;
+  return false;
+}
+
+bool AVR32AsmParser::parseLoadInsertOperands(OperandVector &Operands,
+                                             bool IsByte) {
+  if (parseRegisterOperand(Operands))
+    return true;
+  if (!parseOptionalToken(AsmToken::Colon))
+    return Error(getLexer().getLoc(), "expected :");
+  Operands.push_back(AVR32Operand::createToken(":", getLexer().getLoc()));
+  if (IsByte) {
+    if (parseBytePartOperand(Operands))
+      return true;
+  } else if (parseHalfPartOperand(Operands)) {
+    return true;
+  }
+
+  if (!parseOptionalToken(AsmToken::Comma))
+    return Error(getLexer().getLoc(), "expected comma");
+  if (parseMemoryDispOperand(Operands))
     return true;
   return false;
 }
