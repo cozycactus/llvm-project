@@ -402,6 +402,19 @@ class MovRR<bits<4> Cond, string Mnemonic>
   let Inst{3-0} = 0b0000;
 }
 
+class MovCondRI<bits<4> Cond, string Mnemonic>
+    : AVR32Inst32<(outs GPR:$Rd), (ins simm8:$Imm),
+                  Mnemonic#"\t$Rd, $Imm"> {
+  bits<4> Rd;
+  bits<8> Imm;
+
+  let Inst{31-20} = 0b111110011011;
+  let Inst{19-16} = Rd;
+  let Inst{15-12} = 0;
+  let Inst{11-8} = Cond;
+  let Inst{7-0} = Imm;
+}
+
 class RetCond<bits<4> Cond, string Mnemonic>
     : AVR32Inst<0, (outs), (ins GPR:$Rs), Mnemonic#"\t$Rs"> {
   bits<4> Rs;
@@ -465,6 +478,24 @@ def MAXrrr : FullRegRegReg<0b000011000100, "max">;
 def MINrrr : FullRegRegReg<0b000011010100, "min">;
 def MFDRi : FullRegDebugReg<0b111001011011, "mfdr">;
 def MFSRi : FullRegSysReg<0b111000011011, "mfsr">;
+def MOVALri : MovCondRI<0b1111, "moval">;
+def MOVEQri : MovCondRI<0b0000, "moveq">;
+def MOVNEri : MovCondRI<0b0001, "movne">;
+def MOVCCri : MovCondRI<0b0010, "movcc">;
+def MOVHSri : MovCondRI<0b0010, "movhs">;
+def MOVCSri : MovCondRI<0b0011, "movcs">;
+def MOVLOri : MovCondRI<0b0011, "movlo">;
+def MOVGEri : MovCondRI<0b0100, "movge">;
+def MOVLTri : MovCondRI<0b0101, "movlt">;
+def MOVMIri : MovCondRI<0b0110, "movmi">;
+def MOVPLri : MovCondRI<0b0111, "movpl">;
+def MOVLSri : MovCondRI<0b1000, "movls">;
+def MOVGTri : MovCondRI<0b1001, "movgt">;
+def MOVLEri : MovCondRI<0b1010, "movle">;
+def MOVHIri : MovCondRI<0b1011, "movhi">;
+def MOVVSri : MovCondRI<0b1100, "movvs">;
+def MOVVCri : MovCondRI<0b1101, "movvc">;
+def MOVQSri : MovCondRI<0b1110, "movqs">;
 def MOVALrr : MovRR<0b1111, "moval">;
 def MOVEQrr : MovRR<0b0000, "moveq">;
 def MOVNErr : MovRR<0b0001, "movne">;

@@ -217,6 +217,7 @@ private:
   bool parseRegisterCommaRegisterCommaRegister(OperandVector &Operands);
   bool parseRegisterCommaImmediate(OperandVector &Operands);
   bool parseRegisterCommaImmediateOptionalCOH(OperandVector &Operands);
+  bool parseRegisterCommaRegisterOrImmediate(OperandVector &Operands);
   bool parseImmediateCommaRegister(OperandVector &Operands);
   bool parseRegisterOrImmediateOperand(OperandVector &Operands);
 };
@@ -302,16 +303,18 @@ bool AVR32AsmParser::parseInstruction(ParseInstructionInfo &Info,
         parseRegisterOrImmediateOperand(Operands))
       return true;
   } else if (Name == "add" || Name == "and" || Name == "andn" ||
-             Name == "clz" || Name == "eor" || Name == "moval" ||
-             Name == "movcc" || Name == "movcs" || Name == "moveq" ||
-             Name == "movge" || Name == "movgt" || Name == "movhi" ||
-             Name == "movhs" || Name == "movle" || Name == "movlo" ||
-             Name == "movls" || Name == "movlt" || Name == "movmi" ||
-             Name == "movne" || Name == "movpl" || Name == "movqs" ||
-             Name == "movvc" || Name == "movvs" ||
+             Name == "clz" || Name == "eor" ||
              Name == "or" || Name == "rsub" || Name == "sub" ||
              Name == "tst") {
     if (parseRegisterCommaRegister(Operands))
+      return true;
+  } else if (Name == "moval" || Name == "movcc" || Name == "movcs" ||
+             Name == "moveq" || Name == "movge" || Name == "movgt" ||
+             Name == "movhi" || Name == "movhs" || Name == "movle" ||
+             Name == "movlo" || Name == "movls" || Name == "movlt" ||
+             Name == "movmi" || Name == "movne" || Name == "movpl" ||
+             Name == "movqs" || Name == "movvc" || Name == "movvs") {
+    if (parseRegisterCommaRegisterOrImmediate(Operands))
       return true;
   } else if (Name == "andh" || Name == "andl") {
     if (parseRegisterCommaImmediateOptionalCOH(Operands))
@@ -371,11 +374,7 @@ bool AVR32AsmParser::parseInstruction(ParseInstructionInfo &Info,
     if (parseRegisterOperand(Operands))
       return true;
   } else if (Name == "mov") {
-    if (parseRegisterOperand(Operands))
-      return true;
-    if (!parseOptionalToken(AsmToken::Comma))
-      return Error(getLexer().getLoc(), "expected comma");
-    if (parseRegisterOrImmediateOperand(Operands))
+    if (parseRegisterCommaRegisterOrImmediate(Operands))
       return true;
   }
 
@@ -478,6 +477,17 @@ bool AVR32AsmParser::parseRegisterCommaImmediateOptionalCOH(
 
   Operands.push_back(AVR32Operand::createToken("coh", getLexer().getLoc()));
   getLexer().Lex();
+  return false;
+}
+
+bool AVR32AsmParser::parseRegisterCommaRegisterOrImmediate(
+    OperandVector &Operands) {
+  if (parseRegisterOperand(Operands))
+    return true;
+  if (!parseOptionalToken(AsmToken::Comma))
+    return Error(getLexer().getLoc(), "expected comma");
+  if (parseRegisterOrImmediateOperand(Operands))
+    return true;
   return false;
 }
 
