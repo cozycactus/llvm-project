@@ -83,3 +83,4 @@ def RORr : CompactReg<0b010111010000, "ror">;
 def RSUBrr : CompactRegReg<0b00010, "rsub">;
 def SCRr : CompactReg<0b010111000001, "scr">;
 def SUBrr : CompactRegReg<0b00001, "sub">;
+def SWAP_Hr : CompactReg<0b010111001010, "swap.h">;

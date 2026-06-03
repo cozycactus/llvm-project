@@ -87,6 +87,7 @@ TEST(AVR32TargetInfo, LookupTarget) {
   EXPECT_EQ(MII->get(AVR32::RSUBrr).getSize(), 2u);
   EXPECT_EQ(MII->get(AVR32::SCRr).getSize(), 2u);
   EXPECT_EQ(MII->get(AVR32::SUBrr).getSize(), 2u);
+  EXPECT_EQ(MII->get(AVR32::SWAP_Hr).getSize(), 2u);
   EXPECT_EQ(MRI->getEncodingValue(AVR32::SP), 13u);
   EXPECT_EQ(MRI->getEncodingValue(AVR32::LR), 14u);
   EXPECT_EQ(MRI->getEncodingValue(AVR32::PC), 15u);
@@ -339,6 +340,19 @@ TEST(AVR32TargetInfo, LookupTarget) {
   EXPECT_EQ(static_cast<uint8_t>(Code[0]), 0x04);
   EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0x11);
 
+  MCInst SwapH;
+  SwapH.setOpcode(AVR32::SWAP_Hr);
+  SwapH.addOperand(MCOperand::createReg(AVR32::R1));
+
+  Code.clear();
+  Fixups.clear();
+  MCE->encodeInstruction(SwapH, Code, Fixups, *STI);
+
+  EXPECT_TRUE(Fixups.empty());
+  ASSERT_EQ(Code.size(), 2u);
+  EXPECT_EQ(static_cast<uint8_t>(Code[0]), 0x5c);
+  EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0xa1);
+
   MCInst Mov;
   Mov.setOpcode(AVR32::MOVrr);
   Mov.addOperand(MCOperand::createReg(AVR32::R1));
@@ -477,6 +491,12 @@ TEST(AVR32TargetInfo, LookupTarget) {
   EXPECT_EQ(Printed, "\tsub\tr1, r2");
 
   Printed.clear();
+  raw_string_ostream SwapHOS(Printed);
+  InstPrinter->printInst(&SwapH, /*Address=*/0, /*Annot=*/"", *STI, SwapHOS);
+  SwapHOS.flush();
+  EXPECT_EQ(Printed, "\tswap.h\tr1");
+
+  Printed.clear();
   raw_string_ostream MovOS(Printed);
   InstPrinter->printInst(&Mov, /*Address=*/0, /*Annot=*/"", *STI, MovOS);
   MovOS.flush();
@@ -491,7 +511,7 @@ TEST(AVR32TargetInfo, LookupTarget) {
   SourceMgr SrcMgr;
   SrcMgr.AddNewSourceBuffer(
       MemoryBuffer::getMemBuffer(
-          "nop\nfrs\nabs r1\nacr r1\nadd r1, r2\nand r1, r2\nandn r1, r2\nbrev r1\ncom r1\nneg r1\neor r1, r2\nor r1, r2\nrol r1\nror r1\nrsub r1, r2\nscr r1\nsub r1, r2\nmov r1, r2\nmov r1, -1\n"),
+          "nop\nfrs\nabs r1\nacr r1\nadd r1, r2\nand r1, r2\nandn r1, r2\nbrev r1\ncom r1\nneg r1\neor r1, r2\nor r1, r2\nrol r1\nror r1\nrsub r1, r2\nscr r1\nsub r1, r2\nswap.h r1\nmov r1, r2\nmov r1, -1\n"),
       SMLoc());
 
   MCContext ParseCtx(TT, *MAI, *MRI, *STI, &SrcMgr);
