@@ -292,7 +292,14 @@ bool AVR32AsmParser::parseInstruction(ParseInstructionInfo &Info,
   Operands.push_back(AVR32Operand::createToken(Name, NameLoc));
 
   if (Name == "adc" || Name == "addabs" || Name == "asr" ||
-      Name == "divs" || Name == "divu" || Name == "lsl" ||
+      Name == "divs" || Name == "divu" ||
+      Name == "eoral" || Name == "eorcc" || Name == "eorcs" ||
+      Name == "eoreq" || Name == "eorge" || Name == "eorgt" ||
+      Name == "eorhi" || Name == "eorhs" || Name == "eorle" ||
+      Name == "eorlo" || Name == "eorls" || Name == "eorlt" ||
+      Name == "eormi" || Name == "eorne" || Name == "eorpl" ||
+      Name == "eorqs" || Name == "eorvc" || Name == "eorvs" ||
+      Name == "lsl" ||
       Name == "lsr" || Name == "max" || Name == "min" ||
       Name == "muls.d" || Name == "mulu.d" || Name == "sbc") {
     if (parseRegisterCommaRegisterCommaRegister(Operands))

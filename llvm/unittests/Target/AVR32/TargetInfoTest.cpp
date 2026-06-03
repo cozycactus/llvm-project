@@ -106,6 +106,24 @@ TEST(AVR32TargetInfo, LookupTarget) {
   EXPECT_EQ(MII->get(AVR32::DIVUrrr).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::EORHri).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::EORLri).getSize(), 4u);
+  EXPECT_EQ(MII->get(AVR32::EORALrrr).getSize(), 4u);
+  EXPECT_EQ(MII->get(AVR32::EORCCrrr).getSize(), 4u);
+  EXPECT_EQ(MII->get(AVR32::EORCSrrr).getSize(), 4u);
+  EXPECT_EQ(MII->get(AVR32::EOREQrrr).getSize(), 4u);
+  EXPECT_EQ(MII->get(AVR32::EORGErrr).getSize(), 4u);
+  EXPECT_EQ(MII->get(AVR32::EORGTrrr).getSize(), 4u);
+  EXPECT_EQ(MII->get(AVR32::EORHIrrr).getSize(), 4u);
+  EXPECT_EQ(MII->get(AVR32::EORHSrrr).getSize(), 4u);
+  EXPECT_EQ(MII->get(AVR32::EORLErrr).getSize(), 4u);
+  EXPECT_EQ(MII->get(AVR32::EORLOrrr).getSize(), 4u);
+  EXPECT_EQ(MII->get(AVR32::EORLSrrr).getSize(), 4u);
+  EXPECT_EQ(MII->get(AVR32::EORLTrrr).getSize(), 4u);
+  EXPECT_EQ(MII->get(AVR32::EORMIrrr).getSize(), 4u);
+  EXPECT_EQ(MII->get(AVR32::EORNErrr).getSize(), 4u);
+  EXPECT_EQ(MII->get(AVR32::EORPLrrr).getSize(), 4u);
+  EXPECT_EQ(MII->get(AVR32::EORQSrrr).getSize(), 4u);
+  EXPECT_EQ(MII->get(AVR32::EORVCrrr).getSize(), 4u);
+  EXPECT_EQ(MII->get(AVR32::EORVSrrr).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::EORrr).getSize(), 2u);
   EXPECT_EQ(MII->get(AVR32::FRS).getSize(), 2u);
   EXPECT_EQ(MII->get(AVR32::ICALLr).getSize(), 2u);
@@ -836,6 +854,40 @@ TEST(AVR32TargetInfo, LookupTarget) {
   EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0x11);
   EXPECT_EQ(static_cast<uint8_t>(Code[2]), 0x00);
   EXPECT_EQ(static_cast<uint8_t>(Code[3]), 0x01);
+
+  MCInst EorEq;
+  EorEq.setOpcode(AVR32::EOREQrrr);
+  EorEq.addOperand(MCOperand::createReg(AVR32::R1));
+  EorEq.addOperand(MCOperand::createReg(AVR32::R2));
+  EorEq.addOperand(MCOperand::createReg(AVR32::R3));
+
+  Code.clear();
+  Fixups.clear();
+  MCE->encodeInstruction(EorEq, Code, Fixups, *STI);
+
+  EXPECT_TRUE(Fixups.empty());
+  ASSERT_EQ(Code.size(), 4u);
+  EXPECT_EQ(static_cast<uint8_t>(Code[0]), 0xe5);
+  EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0xd3);
+  EXPECT_EQ(static_cast<uint8_t>(Code[2]), 0xe0);
+  EXPECT_EQ(static_cast<uint8_t>(Code[3]), 0x41);
+
+  MCInst EorAl;
+  EorAl.setOpcode(AVR32::EORALrrr);
+  EorAl.addOperand(MCOperand::createReg(AVR32::R1));
+  EorAl.addOperand(MCOperand::createReg(AVR32::R2));
+  EorAl.addOperand(MCOperand::createReg(AVR32::R3));
+
+  Code.clear();
+  Fixups.clear();
+  MCE->encodeInstruction(EorAl, Code, Fixups, *STI);
+
+  EXPECT_TRUE(Fixups.empty());
+  ASSERT_EQ(Code.size(), 4u);
+  EXPECT_EQ(static_cast<uint8_t>(Code[0]), 0xe5);
+  EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0xd3);
+  EXPECT_EQ(static_cast<uint8_t>(Code[2]), 0xef);
+  EXPECT_EQ(static_cast<uint8_t>(Code[3]), 0x41);
 
   MCInst Frs;
   Frs.setOpcode(AVR32::FRS);
@@ -2174,6 +2226,18 @@ TEST(AVR32TargetInfo, LookupTarget) {
   EXPECT_EQ(Printed, "\teorl\tr1, 1");
 
   Printed.clear();
+  raw_string_ostream EorEqOS(Printed);
+  InstPrinter->printInst(&EorEq, /*Address=*/0, /*Annot=*/"", *STI, EorEqOS);
+  EorEqOS.flush();
+  EXPECT_EQ(Printed, "\teoreq\tr1, r2, r3");
+
+  Printed.clear();
+  raw_string_ostream EorAlOS(Printed);
+  InstPrinter->printInst(&EorAl, /*Address=*/0, /*Annot=*/"", *STI, EorAlOS);
+  EorAlOS.flush();
+  EXPECT_EQ(Printed, "\teoral\tr1, r2, r3");
+
+  Printed.clear();
   raw_string_ostream FrsOS(Printed);
   InstPrinter->printInst(&Frs, /*Address=*/0, /*Annot=*/"", *STI, FrsOS);
   FrsOS.flush();
@@ -2652,7 +2716,7 @@ TEST(AVR32TargetInfo, LookupTarget) {
   SourceMgr SrcMgr;
   SrcMgr.AddNewSourceBuffer(
       MemoryBuffer::getMemBuffer(
-          "nop\nfrs\nabs r1\nacr r1\nacall 4\nadc r1, r2, r3\naddabs r1, r2, r3\nadd r1, r2\nand r1, r2\nandh r1, 1\nandh r1, 1, coh\nandl r1, 1\nandl r1, 1, coh\nandn r1, r2\nasr r1, r2, r3\nbld r1, 1\nbrev r1\nbst r1, 1\nbreakpoint\ncbr r1, 1\ncasts.b r1\ncasts.h r1\ncastu.b r1\ncastu.h r1\nclz r1, r2\ncom r1\ncpc r1\ncpc r1, r2\ncp.b r1, r2\ncp.h r1, r2\ncp.w r1, r2\ncp.w r1, -1\ncp.w r1, 32\ncsrfcz 1\ncsrf 1\ndivs r2, r3, r4\ndivu r2, r3, r4\nneg r1\neor r1, r2\neorh r1, 1\neorl r1, 1\nicall r1\nincjosp -1\nlsl r1, r2, r3\nlsr r1, r2, r3\nmax r1, r2, r3\nmin r1, r2, r3\nmfdr r1, 4\nmfsr r1, 4\nmoval r1, r2\nmovcc r1, r2\nmovcs r1, r2\nmoveq r1, r2\nmovge r1, r2\nmovgt r1, r2\nmovhi r1, r2\nmovhs r1, r2\nmovle r1, r2\nmovlo r1, r2\nmovls r1, r2\nmovlt r1, r2\nmovmi r1, r2\nmovne r1, r2\nmovpl r1, r2\nmovqs r1, r2\nmovvc r1, r2\nmovvs r1, r2\nmoveq r1, -1\nmoval r1, -1\nmul r1, r2\nmul r1, r2, -1\nmul r1, r2, r3\nmuls.d r2, r3, r4\nmulu.d r2, r3, r4\nmusfr r1\nmustr r1\nmtdr 4, r1\nmtsr 4, r1\nor r1, r2\norh r1, 1\norl r1, 1\npopjc\npushjc\nretd\nrete\nret\nretal lr\nretcc lr\nretcs lr\nretlo lr\nretge lr\nretlt lr\nretmi lr\nretpl lr\nretls lr\nretgt lr\nretle lr\nrethi lr\nretvs lr\nretvc lr\nretqs lr\nreths lr\nreteq lr\nretne lr\nretj\nrets\nretss\nrol r1\nror r1\nrsub r1, r2\nsbc r1, r2, r3\nsbr r1, 1\nscall\nsscall\nscr r1\nsral r1\nsrcc r1\nsrcs r1\nsreq r1\nsrge r1\nsrgt r1\nsrhi r1\nsrhs r1\nsrle r1\nsrlo r1\nsrls r1\nsrlt r1\nsrmi r1\nsrne r1\nsrpl r1\nsrqs r1\nsrvc r1\nsrvs r1\nsleep 1\nssrf 1\nsub r1, r2\nswap.bh r1\nswap.b r1\nswap.h r1\nsync 1\ntlbr\ntlbs\ntlbw\ntnbz r1\ntst r1, r2\nmov r1, r2\nmov r1, -1\nmov r1, 128\nmovh r1, 1\n"),
+          "nop\nfrs\nabs r1\nacr r1\nacall 4\nadc r1, r2, r3\naddabs r1, r2, r3\nadd r1, r2\nand r1, r2\nandh r1, 1\nandh r1, 1, coh\nandl r1, 1\nandl r1, 1, coh\nandn r1, r2\nasr r1, r2, r3\nbld r1, 1\nbrev r1\nbst r1, 1\nbreakpoint\ncbr r1, 1\ncasts.b r1\ncasts.h r1\ncastu.b r1\ncastu.h r1\nclz r1, r2\ncom r1\ncpc r1\ncpc r1, r2\ncp.b r1, r2\ncp.h r1, r2\ncp.w r1, r2\ncp.w r1, -1\ncp.w r1, 32\ncsrfcz 1\ncsrf 1\ndivs r2, r3, r4\ndivu r2, r3, r4\nneg r1\neor r1, r2\neoral r1, r2, r3\neorcc r1, r2, r3\neorcs r1, r2, r3\neoreq r1, r2, r3\neorge r1, r2, r3\neorgt r1, r2, r3\neorhi r1, r2, r3\neorhs r1, r2, r3\neorle r1, r2, r3\neorlo r1, r2, r3\neorls r1, r2, r3\neorlt r1, r2, r3\neormi r1, r2, r3\neorne r1, r2, r3\neorpl r1, r2, r3\neorqs r1, r2, r3\neorvc r1, r2, r3\neorvs r1, r2, r3\neorh r1, 1\neorl r1, 1\nicall r1\nincjosp -1\nlsl r1, r2, r3\nlsr r1, r2, r3\nmax r1, r2, r3\nmin r1, r2, r3\nmfdr r1, 4\nmfsr r1, 4\nmoval r1, r2\nmovcc r1, r2\nmovcs r1, r2\nmoveq r1, r2\nmovge r1, r2\nmovgt r1, r2\nmovhi r1, r2\nmovhs r1, r2\nmovle r1, r2\nmovlo r1, r2\nmovls r1, r2\nmovlt r1, r2\nmovmi r1, r2\nmovne r1, r2\nmovpl r1, r2\nmovqs r1, r2\nmovvc r1, r2\nmovvs r1, r2\nmoveq r1, -1\nmoval r1, -1\nmul r1, r2\nmul r1, r2, -1\nmul r1, r2, r3\nmuls.d r2, r3, r4\nmulu.d r2, r3, r4\nmusfr r1\nmustr r1\nmtdr 4, r1\nmtsr 4, r1\nor r1, r2\norh r1, 1\norl r1, 1\npopjc\npushjc\nretd\nrete\nret\nretal lr\nretcc lr\nretcs lr\nretlo lr\nretge lr\nretlt lr\nretmi lr\nretpl lr\nretls lr\nretgt lr\nretle lr\nrethi lr\nretvs lr\nretvc lr\nretqs lr\nreths lr\nreteq lr\nretne lr\nretj\nrets\nretss\nrol r1\nror r1\nrsub r1, r2\nsbc r1, r2, r3\nsbr r1, 1\nscall\nsscall\nscr r1\nsral r1\nsrcc r1\nsrcs r1\nsreq r1\nsrge r1\nsrgt r1\nsrhi r1\nsrhs r1\nsrle r1\nsrlo r1\nsrls r1\nsrlt r1\nsrmi r1\nsrne r1\nsrpl r1\nsrqs r1\nsrvc r1\nsrvs r1\nsleep 1\nssrf 1\nsub r1, r2\nswap.bh r1\nswap.b r1\nswap.h r1\nsync 1\ntlbr\ntlbs\ntlbw\ntnbz r1\ntst r1, r2\nmov r1, r2\nmov r1, -1\nmov r1, 128\nmovh r1, 1\n"),
       SMLoc());
 
   MCContext ParseCtx(TT, *MAI, *MRI, *STI, &SrcMgr);

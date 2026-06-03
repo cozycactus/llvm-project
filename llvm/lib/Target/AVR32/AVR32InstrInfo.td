@@ -429,6 +429,23 @@ class MovCondRI<bits<4> Cond, string Mnemonic>
   let Inst{7-0} = Imm;
 }
 
+class EorCondRRR<bits<4> Cond, string Mnemonic>
+    : AVR32Inst32<(outs GPR:$Rd), (ins GPR:$Rx, GPR:$Ry),
+                  Mnemonic#"\t$Rd, $Rx, $Ry"> {
+  bits<4> Rd;
+  bits<4> Rx;
+  bits<4> Ry;
+
+  let Inst{31-29} = 0b111;
+  let Inst{28-25} = Rx;
+  let Inst{24-20} = 0b11101;
+  let Inst{19-16} = Ry;
+  let Inst{15-12} = 0b1110;
+  let Inst{11-8} = Cond;
+  let Inst{7-4} = 0b0100;
+  let Inst{3-0} = Rd;
+}
+
 class RetCond<bits<4> Cond, string Mnemonic>
     : AVR32Inst<0, (outs), (ins GPR:$Rs), Mnemonic#"\t$Rs"> {
   bits<4> Rs;
@@ -487,6 +504,24 @@ def DIVSrrr : FullRegRegReg<0b000011000000, "divs">;
 def DIVUrrr : FullRegRegReg<0b000011010000, "divu">;
 def EORHri : FullRegUImm16<0b111011100001, "eorh">;
 def EORLri : FullRegUImm16<0b111011000001, "eorl">;
+def EORALrrr : EorCondRRR<0b1111, "eoral">;
+def EOREQrrr : EorCondRRR<0b0000, "eoreq">;
+def EORNErrr : EorCondRRR<0b0001, "eorne">;
+def EORCCrrr : EorCondRRR<0b0010, "eorcc">;
+def EORHSrrr : EorCondRRR<0b0010, "eorhs">;
+def EORCSrrr : EorCondRRR<0b0011, "eorcs">;
+def EORLOrrr : EorCondRRR<0b0011, "eorlo">;
+def EORGErrr : EorCondRRR<0b0100, "eorge">;
+def EORLTrrr : EorCondRRR<0b0101, "eorlt">;
+def EORMIrrr : EorCondRRR<0b0110, "eormi">;
+def EORPLrrr : EorCondRRR<0b0111, "eorpl">;
+def EORLSrrr : EorCondRRR<0b1000, "eorls">;
+def EORGTrrr : EorCondRRR<0b1001, "eorgt">;
+def EORLErrr : EorCondRRR<0b1010, "eorle">;
+def EORHIrrr : EorCondRRR<0b1011, "eorhi">;
+def EORVSrrr : EorCondRRR<0b1100, "eorvs">;
+def EORVCrrr : EorCondRRR<0b1101, "eorvc">;
+def EORQSrrr : EorCondRRR<0b1110, "eorqs">;
 def EORrr : CompactRegReg<0b00101, "eor">;
 def FRS : AVR32Inst<0b1101011101000011, (outs), (ins), "frs">;
 def ICALLr : CompactRegNoOut<0b010111010001, "icall">;
