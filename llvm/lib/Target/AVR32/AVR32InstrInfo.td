@@ -885,6 +885,8 @@ def LD_W_HI_Disp9 : FullLoadCondDisp9Shift2<0b1011, "ld.whi">;
 def LD_W_VS_Disp9 : FullLoadCondDisp9Shift2<0b1100, "ld.wvs">;
 def LD_W_VC_Disp9 : FullLoadCondDisp9Shift2<0b1101, "ld.wvc">;
 def LD_W_QS_Disp9 : FullLoadCondDisp9Shift2<0b1110, "ld.wqs">;
+def LD_SB_Disp16 : FullLoadDisp16<0b10010, "ld.sb">;
+def LD_SB_IndexShift : FullLoadIndexShift<0b0000011000, "ld.sb">;
 def LD_UB_PostInc : CompactLoadPostInc<0b10011, "ld.ub">;
 def LD_UB_PreDec : CompactLoadPreDec<0b10111, "ld.ub">;
 def LD_UB_Disp3 : CompactLoadDisp3<"ld.ub">;
