@@ -68,6 +68,13 @@ public:
     return Const && isInt<8>(Const->getValue());
   }
 
+  bool isSImm21() const {
+    if (Kind != Immediate)
+      return false;
+    auto *Const = dyn_cast<MCConstantExpr>(Imm);
+    return Const && isInt<21>(Const->getValue());
+  }
+
   bool isSImm6() const {
     if (Kind != Immediate)
       return false;

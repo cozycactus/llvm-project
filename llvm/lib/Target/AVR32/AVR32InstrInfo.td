@@ -18,12 +18,22 @@ def SImm8AsmOperand : AsmOperandClass {
   let RenderMethod = "addImmOperands";
 }
 
+def SImm21AsmOperand : AsmOperandClass {
+  let Name = "SImm21";
+  let RenderMethod = "addImmOperands";
+}
+
 def simm6 : Operand<i32>, ImmLeaf<i32, [{ return Imm >= -32 && Imm < 32; }]> {
   let ParserMatchClass = SImm6AsmOperand;
 }
 
 def simm8 : Operand<i32>, ImmLeaf<i32, [{ return Imm >= -128 && Imm < 128; }]> {
   let ParserMatchClass = SImm8AsmOperand;
+}
+
+def simm21 : Operand<i32>,
+             ImmLeaf<i32, [{ return Imm >= -1048576 && Imm < 1048576; }]> {
+  let ParserMatchClass = SImm21AsmOperand;
 }
 
 def NOP : AVR32Inst<0b1101011100000011, (outs), (ins), "nop">;
@@ -92,6 +102,20 @@ class FullRegRegNoOut<bits<16> Op, string Mnemonic>
   let Inst{15-0} = Op;
 }
 
+class FullRegImmNoOut<bits<4> Op, string Mnemonic>
+    : AVR32Inst32<(outs), (ins GPR:$Rd, simm21:$Imm),
+                  Mnemonic#"\t$Rd, $Imm"> {
+  bits<4> Rd;
+  bits<21> Imm;
+
+  let Inst{31-29} = 0b111;
+  let Inst{28-25} = Imm{20-17};
+  let Inst{24-21} = Op;
+  let Inst{20} = Imm{16};
+  let Inst{19-16} = Rd;
+  let Inst{15-0} = Imm{15-0};
+}
+
 class MovRI<bits<4> Prefix, string Mnemonic>
     : AVR32Inst<0, (outs GPR:$Rd), (ins simm8:$Imm),
                 Mnemonic#"\t$Rd, $Imm"> {
@@ -131,6 +155,7 @@ def CASTU_Hr : CompactReg<0b010111000111, "castu.h">;
 def COMr : CompactReg<0b010111001101, "com">;
 def CPCr : CompactRegNoOut<0b010111000010, "cpc">;
 def CPCrr : FullRegRegNoOut<0b0001001100000000, "cpc">;
+def CP_Wri21 : FullRegImmNoOut<0b0010, "cp.w">;
 def CP_Wri6 : CompactRegImmNoOut<0b010110, "cp.w">;
 def CP_Wrr : CompactRegRegNoOut<0b00011, "cp.w">;
 def EORrr : CompactRegReg<0b00101, "eor">;
