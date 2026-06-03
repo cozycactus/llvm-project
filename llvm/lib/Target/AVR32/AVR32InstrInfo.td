@@ -507,6 +507,22 @@ class FullLoadIndexPart<string Mnemonic>
   let Inst{3-0} = Rd;
 }
 
+class FullLoadCondDisp9Shift2<bits<4> Cond, string Mnemonic>
+    : AVR32Inst32<(outs GPR:$Rd), (ins GPR:$Rp, uimm9shift2:$Disp),
+                  Mnemonic#"\t$Rd, ${Rp}[$Disp]"> {
+  bits<4> Rd;
+  bits<4> Rp;
+  bits<9> Disp;
+
+  let Inst{31-29} = 0b111;
+  let Inst{28-25} = Rd;
+  let Inst{24-20} = 0b11111;
+  let Inst{19-16} = Rp;
+  let Inst{15-12} = Cond;
+  let Inst{11-9} = 0b000;
+  let Inst{8-0} = Disp;
+}
+
 class FullStoreHalfwordPairDisp8
     : AVR32Inst32<(outs), (ins GPR:$Rp, uimm8shift2:$Disp, GPR:$Rx,
                                halfpart:$XPart, GPR:$Ry, halfpart:$YPart),
@@ -761,6 +777,24 @@ def LD_W_Disp5 : CompactLoadDisp5Shift2<"ld.w">;
 def LD_W_Disp16 : FullLoadDisp16<0b01111, "ld.w">;
 def LD_W_IndexShift : FullLoadIndexShift<0b0000001100, "ld.w">;
 def LD_W_IndexPart : FullLoadIndexPart<"ld.w">;
+def LD_W_AL_Disp9 : FullLoadCondDisp9Shift2<0b1111, "ld.wal">;
+def LD_W_EQ_Disp9 : FullLoadCondDisp9Shift2<0b0000, "ld.weq">;
+def LD_W_NE_Disp9 : FullLoadCondDisp9Shift2<0b0001, "ld.wne">;
+def LD_W_CC_Disp9 : FullLoadCondDisp9Shift2<0b0010, "ld.wcc">;
+def LD_W_HS_Disp9 : FullLoadCondDisp9Shift2<0b0010, "ld.whs">;
+def LD_W_CS_Disp9 : FullLoadCondDisp9Shift2<0b0011, "ld.wcs">;
+def LD_W_LO_Disp9 : FullLoadCondDisp9Shift2<0b0011, "ld.wlo">;
+def LD_W_GE_Disp9 : FullLoadCondDisp9Shift2<0b0100, "ld.wge">;
+def LD_W_LT_Disp9 : FullLoadCondDisp9Shift2<0b0101, "ld.wlt">;
+def LD_W_MI_Disp9 : FullLoadCondDisp9Shift2<0b0110, "ld.wmi">;
+def LD_W_PL_Disp9 : FullLoadCondDisp9Shift2<0b0111, "ld.wpl">;
+def LD_W_LS_Disp9 : FullLoadCondDisp9Shift2<0b1000, "ld.wls">;
+def LD_W_GT_Disp9 : FullLoadCondDisp9Shift2<0b1001, "ld.wgt">;
+def LD_W_LE_Disp9 : FullLoadCondDisp9Shift2<0b1010, "ld.wle">;
+def LD_W_HI_Disp9 : FullLoadCondDisp9Shift2<0b1011, "ld.whi">;
+def LD_W_VS_Disp9 : FullLoadCondDisp9Shift2<0b1100, "ld.wvs">;
+def LD_W_VC_Disp9 : FullLoadCondDisp9Shift2<0b1101, "ld.wvc">;
+def LD_W_QS_Disp9 : FullLoadCondDisp9Shift2<0b1110, "ld.wqs">;
 
 class FullRegRegNoOut<bits<16> Op, string Mnemonic>
     : AVR32Inst32<(outs), (ins GPR:$Rd, GPR:$Rs),

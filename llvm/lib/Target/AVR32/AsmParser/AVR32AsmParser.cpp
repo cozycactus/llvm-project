@@ -550,7 +550,13 @@ bool AVR32AsmParser::parseInstruction(ParseInstructionInfo &Info,
   } else if (Name == "incjosp" || Name == "sleep" || Name == "sync") {
     if (parseImmediateOperand(Operands))
       return true;
-  } else if (Name == "ld.w") {
+  } else if (Name == "ld.w" || Name == "ld.wal" || Name == "ld.wcc" ||
+             Name == "ld.wcs" || Name == "ld.weq" || Name == "ld.wge" ||
+             Name == "ld.wgt" || Name == "ld.whi" || Name == "ld.whs" ||
+             Name == "ld.wle" || Name == "ld.wlo" || Name == "ld.wls" ||
+             Name == "ld.wlt" || Name == "ld.wmi" || Name == "ld.wne" ||
+             Name == "ld.wpl" || Name == "ld.wqs" || Name == "ld.wvc" ||
+             Name == "ld.wvs") {
     if (parseLoadOperands(Operands))
       return true;
   } else if (Name == "st.b" || Name == "st.bal" || Name == "st.bcc" ||
