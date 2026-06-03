@@ -198,6 +198,18 @@ class FullRegReg<bits<16> Op, string Mnemonic>
   let Inst{15-0} = Op;
 }
 
+class FullRegUImm5NoOut<bits<12> Op, string Mnemonic>
+    : AVR32Inst32<(outs), (ins GPR:$Rd, uimm5:$Imm),
+                  Mnemonic#"\t$Rd, $Imm"> {
+  bits<4> Rd;
+  bits<5> Imm;
+
+  let Inst{31-20} = Op;
+  let Inst{19-16} = Rd;
+  let Inst{15-5} = 0;
+  let Inst{4-0} = Imm;
+}
+
 class FullRegRegReg<bits<12> Op, string Mnemonic>
     : AVR32Inst32<(outs GPR:$Rd), (ins GPR:$Rx, GPR:$Ry),
                   Mnemonic#"\t$Rd, $Rx, $Ry"> {
@@ -346,6 +358,7 @@ def ADDrr : CompactRegReg<0b00000, "add">;
 def ANDNrr : CompactRegReg<0b01000, "andn">;
 def ANDrr : CompactRegReg<0b00110, "and">;
 def ASRrrr : FullRegRegReg<0b000010000100, "asr">;
+def BLDri : FullRegUImm5NoOut<0b111011011011, "bld">;
 def BREVr : CompactReg<0b010111001001, "brev">;
 def BREAKPOINT : AVR32Inst<0b1101011001110011, (outs), (ins), "breakpoint">;
 def CASTS_Br : CompactReg<0b010111000110, "casts.b">;

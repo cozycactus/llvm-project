@@ -291,6 +291,9 @@ bool AVR32AsmParser::parseInstruction(ParseInstructionInfo &Info,
              Name == "sub" || Name == "tst") {
     if (parseRegisterCommaRegister(Operands))
       return true;
+  } else if (Name == "bld") {
+    if (parseRegisterCommaImmediate(Operands))
+      return true;
   } else if (Name == "cp.w") {
     if (parseRegisterOperand(Operands))
       return true;
