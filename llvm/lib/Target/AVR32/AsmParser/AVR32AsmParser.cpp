@@ -222,10 +222,15 @@ bool AVR32AsmParser::parseInstruction(ParseInstructionInfo &Info,
       Name == "eor" || Name == "or" || Name == "rsub" || Name == "sub") {
     if (parseRegisterCommaRegister(Operands))
       return true;
+  } else if (Name == "cpc") {
+    if (parseRegisterOperand(Operands))
+      return true;
+    if (parseOptionalToken(AsmToken::Comma) &&
+        parseRegisterOperand(Operands))
+      return true;
   } else if (Name == "abs" || Name == "acr" || Name == "brev" ||
              Name == "casts.b" || Name == "casts.h" || Name == "castu.h" ||
-             Name == "castu.b" || Name == "com" || Name == "cpc" ||
-             Name == "neg" ||
+             Name == "castu.b" || Name == "com" || Name == "neg" ||
              Name == "rol" || Name == "ror" || Name == "scr" ||
              Name == "swap.b" || Name == "swap.bh" || Name == "swap.h") {
     if (parseRegisterOperand(Operands))
