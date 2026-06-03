@@ -16,16 +16,19 @@
 #include "llvm/MC/MCFixup.h"
 #include "llvm/MC/MCInst.h"
 #include "llvm/MC/MCInstrInfo.h"
+#include "llvm/MC/MCInstPrinter.h"
 #include "llvm/MC/MCObjectWriter.h"
 #include "llvm/MC/MCRegisterInfo.h"
 #include "llvm/MC/MCSubtargetInfo.h"
 #include "llvm/MC/MCTargetOptions.h"
 #include "llvm/MC/TargetRegistry.h"
 #include "llvm/Support/TargetSelect.h"
+#include "llvm/Support/raw_ostream.h"
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/TargetParser/Triple.h"
 #include "gtest/gtest.h"
 #include <optional>
+#include <string>
 
 using namespace llvm;
 
@@ -96,6 +99,17 @@ TEST(AVR32TargetInfo, LookupTarget) {
   ASSERT_EQ(Code.size(), 2u);
   EXPECT_EQ(static_cast<uint8_t>(Code[0]), 0xd7);
   EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0x03);
+
+  std::unique_ptr<MCInstPrinter> InstPrinter(
+      TheTarget->createMCInstPrinter(TT, /*SyntaxVariant=*/0, *MAI, *MII,
+                                     *MRI));
+  ASSERT_NE(InstPrinter.get(), nullptr);
+
+  std::string Printed;
+  raw_string_ostream OS(Printed);
+  InstPrinter->printInst(&Nop, /*Address=*/0, /*Annot=*/"", *STI, OS);
+  OS.flush();
+  EXPECT_EQ(Printed, "\tnop");
 }
 
 } // namespace

@@ -1,5 +1,6 @@
 add_llvm_component_library(LLVMAVR32Desc
   AVR32AsmBackend.cpp
+  AVR32InstPrinter.cpp
   AVR32MCCodeEmitter.cpp
   AVR32ELFObjectWriter.cpp
   AVR32MCAsmInfo.cpp

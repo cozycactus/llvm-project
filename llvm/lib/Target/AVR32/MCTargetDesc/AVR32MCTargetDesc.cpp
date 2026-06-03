@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "AVR32MCTargetDesc.h"
+#include "AVR32InstPrinter.h"
 #include "AVR32MCAsmInfo.h"
 #include "../TargetInfo/AVR32TargetInfo.h"
 #include "llvm/MC/MCAsmInfo.h"
@@ -53,6 +54,16 @@ static MCSubtargetInfo *createAVR32MCSubtargetInfo(const Triple &TT,
   return createAVR32MCSubtargetInfoImpl(TT, CPU, /*TuneCPU=*/CPU, FS);
 }
 
+static MCInstPrinter *createAVR32MCInstPrinter(const Triple &TT,
+                                               unsigned SyntaxVariant,
+                                               const MCAsmInfo &MAI,
+                                               const MCInstrInfo &MII,
+                                               const MCRegisterInfo &MRI) {
+  if (SyntaxVariant == 0)
+    return new AVR32InstPrinter(MAI, MII, MRI);
+  return nullptr;
+}
+
 extern "C" LLVM_ABI LLVM_EXTERNAL_VISIBILITY void
 LLVMInitializeAVR32TargetMC() {
   Target &T = getTheAVR32Target();
@@ -61,6 +72,7 @@ LLVMInitializeAVR32TargetMC() {
   TargetRegistry::RegisterMCInstrInfo(T, createAVR32MCInstrInfo);
   TargetRegistry::RegisterMCRegInfo(T, createAVR32MCRegisterInfo);
   TargetRegistry::RegisterMCSubtargetInfo(T, createAVR32MCSubtargetInfo);
+  TargetRegistry::RegisterMCInstPrinter(T, createAVR32MCInstPrinter);
   TargetRegistry::RegisterMCCodeEmitter(T, createAVR32MCCodeEmitter);
   TargetRegistry::RegisterMCAsmBackend(T, createAVR32MCAsmBackend);
 }

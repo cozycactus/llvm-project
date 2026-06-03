@@ -17,6 +17,12 @@ def AVR32InstrInfo : InstrInfo;
 
 def : Processor<"generic", NoItineraries, []>;
 
+def AVR32InstPrinter : AsmWriter {
+  string AsmWriterClassName = "InstPrinter";
+  bit isMCAsmWriter = 1;
+}
+
 def AVR32 : Target {
   let InstructionSet = AVR32InstrInfo;
+  let AssemblyWriters = [AVR32InstPrinter];
 }
