@@ -33,6 +33,11 @@ def UImm8AsmOperand : AsmOperandClass {
   let RenderMethod = "addImmOperands";
 }
 
+def UImm16AsmOperand : AsmOperandClass {
+  let Name = "UImm16";
+  let RenderMethod = "addImmOperands";
+}
+
 def ACallDispAsmOperand : AsmOperandClass {
   let Name = "ACallDisp";
   let RenderMethod = "addImmOperands";
@@ -72,6 +77,11 @@ def uimm5 : Operand<i32>, ImmLeaf<i32, [{ return Imm >= 0 && Imm < 32; }]> {
 
 def uimm8 : Operand<i32>, ImmLeaf<i32, [{ return Imm >= 0 && Imm < 256; }]> {
   let ParserMatchClass = UImm8AsmOperand;
+}
+
+def uimm16 : Operand<i32>,
+             ImmLeaf<i32, [{ return Imm >= 0 && Imm < 65536; }]> {
+  let ParserMatchClass = UImm16AsmOperand;
 }
 
 def acalldisp : Operand<i32>,
@@ -296,6 +306,17 @@ class FullImm8NoOut<bits<16> Op, string Mnemonic>
   let Inst{7-0} = Imm;
 }
 
+class FullRegUImm16<bits<12> Op, string Mnemonic>
+    : AVR32Inst32<(outs GPR:$Rd), (ins uimm16:$Imm),
+                  Mnemonic#"\t$Rd, $Imm"> {
+  bits<4> Rd;
+  bits<16> Imm;
+
+  let Inst{31-20} = Op;
+  let Inst{19-16} = Rd;
+  let Inst{15-0} = Imm;
+}
+
 class FullRegSysReg<bits<12> Op, string Mnemonic>
     : AVR32Inst32<(outs GPR:$Rd), (ins sysregaddr:$Addr),
                   Mnemonic#"\t$Rd, $Addr"> {
@@ -429,6 +450,7 @@ def MFDRi : FullRegDebugReg<0b111001011011, "mfdr">;
 def MFSRi : FullRegSysReg<0b111000011011, "mfsr">;
 def MOVrr : MovRR<0b1111, "mov">;
 def MOVri8 : MovRI<0b0011, "mov">;
+def MOVHri : FullRegUImm16<0b111111000001, "movh">;
 def MULrr : CompactRegRegWithPrefix<0b101, 0b10011, "mul">;
 def MULri8 : FullRegRegImm<0b00010000, "mul">;
 def MULrrr : FullRegRegReg<0b000000100100, "mul">;
