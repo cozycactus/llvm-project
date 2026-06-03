@@ -320,7 +320,13 @@ bool AVR32AsmParser::parseInstruction(ParseInstructionInfo &Info,
       Name == "orlo" || Name == "orls" || Name == "orlt" ||
       Name == "ormi" || Name == "orne" || Name == "orpl" ||
       Name == "orqs" || Name == "orvc" || Name == "orvs" ||
-      Name == "muls.d" || Name == "mulu.d" || Name == "sbc") {
+      Name == "muls.d" || Name == "mulu.d" || Name == "sbc" ||
+      Name == "subal" || Name == "subcc" || Name == "subcs" ||
+      Name == "subeq" || Name == "subge" || Name == "subgt" ||
+      Name == "subhi" || Name == "subhs" || Name == "suble" ||
+      Name == "sublo" || Name == "subls" || Name == "sublt" ||
+      Name == "submi" || Name == "subne" || Name == "subpl" ||
+      Name == "subqs" || Name == "subvc" || Name == "subvs") {
     if (parseRegisterCommaRegisterCommaRegister(Operands))
       return true;
   } else if (Name == "mul") {
