@@ -243,6 +243,7 @@ TEST(AVR32TargetInfo, LookupTarget) {
   EXPECT_EQ(MII->get(AVR32::ORVCrrr).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::ORVSrrr).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::ORrr).getSize(), 2u);
+  EXPECT_EQ(MII->get(AVR32::PREF).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::POPJC).getSize(), 2u);
   EXPECT_EQ(MII->get(AVR32::PUSHJC).getSize(), 2u);
   EXPECT_EQ(MII->get(AVR32::RETD).getSize(), 2u);
@@ -2332,6 +2333,22 @@ TEST(AVR32TargetInfo, LookupTarget) {
   EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0x11);
   EXPECT_EQ(static_cast<uint8_t>(Code[2]), 0x00);
   EXPECT_EQ(static_cast<uint8_t>(Code[3]), 0x01);
+
+  MCInst Pref;
+  Pref.setOpcode(AVR32::PREF);
+  Pref.addOperand(MCOperand::createReg(AVR32::R1));
+  Pref.addOperand(MCOperand::createImm(-1));
+
+  Code.clear();
+  Fixups.clear();
+  MCE->encodeInstruction(Pref, Code, Fixups, *STI);
+
+  EXPECT_TRUE(Fixups.empty());
+  ASSERT_EQ(Code.size(), 4u);
+  EXPECT_EQ(static_cast<uint8_t>(Code[0]), 0xf2);
+  EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0x11);
+  EXPECT_EQ(static_cast<uint8_t>(Code[2]), 0xff);
+  EXPECT_EQ(static_cast<uint8_t>(Code[3]), 0xff);
 
   MCInst OrEq;
   OrEq.setOpcode(AVR32::OREQrrr);
@@ -4713,6 +4730,12 @@ TEST(AVR32TargetInfo, LookupTarget) {
   EXPECT_EQ(Printed, "\torl\tr1, 1");
 
   Printed.clear();
+  raw_string_ostream PrefOS(Printed);
+  InstPrinter->printInst(&Pref, /*Address=*/0, /*Annot=*/"", *STI, PrefOS);
+  PrefOS.flush();
+  EXPECT_EQ(Printed, "\tpref\tr1[-1]");
+
+  Printed.clear();
   raw_string_ostream OrEqOS(Printed);
   InstPrinter->printInst(&OrEq, /*Address=*/0, /*Annot=*/"", *STI, OrEqOS);
   OrEqOS.flush();
@@ -5536,6 +5559,25 @@ TEST(AVR32TargetInfo, LookupTarget) {
   ASSERT_NE(StoreTargetParser.get(), nullptr);
   StoreParser->setTargetParser(*StoreTargetParser);
   EXPECT_FALSE(StoreParser->Run(/*NoInitialTextSection=*/false));
+
+  SourceMgr PrefSrcMgr;
+  PrefSrcMgr.AddNewSourceBuffer(
+      MemoryBuffer::getMemBuffer("pref r1[-1]\n"), SMLoc());
+
+  MCContext PrefParseCtx(TT, *MAI, *MRI, *STI, &PrefSrcMgr);
+  std::unique_ptr<MCObjectFileInfo> PrefMOFI(
+      TheTarget->createMCObjectFileInfo(PrefParseCtx, /*PIC=*/false));
+  PrefParseCtx.setObjectFileInfo(PrefMOFI.get());
+
+  std::unique_ptr<MCStreamer> PrefStreamer(
+      TheTarget->createNullStreamer(PrefParseCtx));
+  std::unique_ptr<MCAsmParser> PrefParser(
+      createMCAsmParser(PrefSrcMgr, PrefParseCtx, *PrefStreamer, *MAI));
+  std::unique_ptr<MCTargetAsmParser> PrefTargetParser(
+      TheTarget->createMCAsmParser(*STI, *PrefParser, *MII));
+  ASSERT_NE(PrefTargetParser.get(), nullptr);
+  PrefParser->setTargetParser(*PrefTargetParser);
+  EXPECT_FALSE(PrefParser->Run(/*NoInitialTextSection=*/false));
 }
 
 } // namespace

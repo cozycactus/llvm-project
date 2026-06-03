@@ -368,6 +368,7 @@ private:
   bool parseStoreHalfwordPairOperands(OperandVector &Operands);
   bool parseStoreByteOperands(OperandVector &Operands);
   bool parseStoreDoubleOperands(OperandVector &Operands);
+  bool parseMemoryDisp16Operand(OperandVector &Operands);
   bool parseRegisterCommaImmediate(OperandVector &Operands);
   bool parseRegisterCommaImmediateOptionalCOH(OperandVector &Operands);
   bool parseRegisterCommaRegisterOrImmediate(OperandVector &Operands);
@@ -637,6 +638,9 @@ bool AVR32AsmParser::parseInstruction(ParseInstructionInfo &Info,
       return true;
   } else if (Name == "mtdr" || Name == "mtsr") {
     if (parseImmediateCommaRegister(Operands))
+      return true;
+  } else if (Name == "pref") {
+    if (parseMemoryDisp16Operand(Operands))
       return true;
   } else if (Name == "abs" || Name == "acr" || Name == "brev" ||
              Name == "casts.b" || Name == "casts.h" || Name == "castu.h" ||
@@ -1125,6 +1129,25 @@ bool AVR32AsmParser::parseStoreDoubleOperands(OperandVector &Operands) {
     return Error(getLexer().getLoc(), "expected comma");
   if (parseRegisterOperand(Operands))
     return true;
+  return false;
+}
+
+bool AVR32AsmParser::parseMemoryDisp16Operand(OperandVector &Operands) {
+  if (parseRegisterOperand(Operands))
+    return true;
+
+  if (getLexer().isNot(AsmToken::LBrac))
+    return Error(getLexer().getLoc(), "expected [");
+  Operands.push_back(AVR32Operand::createToken("[", getLexer().getLoc()));
+  getLexer().Lex();
+
+  if (parseImmediateOperand(Operands))
+    return true;
+
+  if (getLexer().isNot(AsmToken::RBrac))
+    return Error(getLexer().getLoc(), "expected ]");
+  Operands.push_back(AVR32Operand::createToken("]", getLexer().getLoc()));
+  getLexer().Lex();
   return false;
 }
 

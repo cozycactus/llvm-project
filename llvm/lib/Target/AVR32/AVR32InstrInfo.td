@@ -588,6 +588,17 @@ class FullLoadPairDisp16<bits<5> Op, string Mnemonic>
   let Inst{15-0} = Disp;
 }
 
+class FullMemDisp16<bits<12> Op, string Mnemonic>
+    : AVR32Inst32<(outs), (ins GPR:$Rp, simm16:$Disp),
+                  Mnemonic#"\t${Rp}[$Disp]"> {
+  bits<4> Rp;
+  bits<16> Disp;
+
+  let Inst{31-20} = Op;
+  let Inst{19-16} = Rp;
+  let Inst{15-0} = Disp;
+}
+
 class FullLoadPairIndexShift<bits<10> Op, string Mnemonic>
     : AVR32Inst32<(outs GPREven:$Rd), (ins GPR:$Rb, GPR:$Ri, uimm2:$Shift),
                   Mnemonic#"\t$Rd, ${Rb}[$Ri << $Shift]"> {
@@ -1578,6 +1589,7 @@ def ORVSrrr : CondRRR<0b1100, 0b0011, "orvs">;
 def ORVCrrr : CondRRR<0b1101, 0b0011, "orvc">;
 def ORQSrrr : CondRRR<0b1110, 0b0011, "orqs">;
 def ORrr : CompactRegReg<0b00100, "or">;
+def PREF : FullMemDisp16<0b111100100001, "pref">;
 def POPJC : AVR32Inst<0b1101011100010011, (outs), (ins), "popjc">;
 def PUSHJC : AVR32Inst<0b1101011100100011, (outs), (ins), "pushjc">;
 let isBarrier = 1, isReturn = 1, isTerminator = 1 in {
