@@ -320,7 +320,8 @@ bool AVR32AsmParser::parseInstruction(ParseInstructionInfo &Info,
              Name == "retmi" || Name == "retne" || Name == "retpl" ||
              Name == "retqs" || Name == "retvc" || Name == "retvs" ||
              Name == "rol" || Name == "ror" || Name == "scr" ||
-             Name == "swap.b" || Name == "swap.bh" || Name == "swap.h") {
+             Name == "swap.b" || Name == "swap.bh" || Name == "swap.h" ||
+             Name == "tnbz") {
     if (parseRegisterOperand(Operands))
       return true;
   } else if (Name == "mov") {

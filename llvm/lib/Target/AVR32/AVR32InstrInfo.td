@@ -410,4 +410,5 @@ def SYNCi : FullImm8NoOut<0b1110011101100000, "sync">;
 def TLBR : AVR32Inst<0b1101011001000011, (outs), (ins), "tlbr">;
 def TLBS : AVR32Inst<0b1101011001010011, (outs), (ins), "tlbs">;
 def TLBW : AVR32Inst<0b1101011001100011, (outs), (ins), "tlbw">;
+def TNBZr : CompactRegNoOut<0b010111001110, "tnbz">;
 def TSTrr : CompactRegRegNoOut<0b00111, "tst">;
