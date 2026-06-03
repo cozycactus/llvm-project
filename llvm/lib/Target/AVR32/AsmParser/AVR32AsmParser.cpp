@@ -140,6 +140,14 @@ public:
     return Const && isUInt<9>(Const->getValue());
   }
 
+  bool isUImm9Shift1() const {
+    if (Kind != Immediate)
+      return false;
+    auto *Const = dyn_cast<MCConstantExpr>(Imm);
+    return Const && Const->getValue() >= 0 && Const->getValue() <= 1022 &&
+           Const->getValue() % 2 == 0;
+  }
+
   bool isUImm16() const {
     if (Kind != Immediate)
       return false;
@@ -462,7 +470,13 @@ bool AVR32AsmParser::parseInstruction(ParseInstructionInfo &Info,
              Name == "st.ble" || Name == "st.blo" || Name == "st.bls" ||
              Name == "st.blt" || Name == "st.bmi" || Name == "st.bne" ||
              Name == "st.bpl" || Name == "st.bqs" || Name == "st.bvc" ||
-             Name == "st.bvs" || Name == "st.h") {
+             Name == "st.bvs" || Name == "st.h" || Name == "st.hal" ||
+             Name == "st.hcc" || Name == "st.hcs" || Name == "st.heq" ||
+             Name == "st.hge" || Name == "st.hgt" || Name == "st.hhi" ||
+             Name == "st.hhs" || Name == "st.hle" || Name == "st.hlo" ||
+             Name == "st.hls" || Name == "st.hlt" || Name == "st.hmi" ||
+             Name == "st.hne" || Name == "st.hpl" || Name == "st.hqs" ||
+             Name == "st.hvc" || Name == "st.hvs") {
     if (parseStoreByteOperands(Operands))
       return true;
   } else if (Name == "st.d") {

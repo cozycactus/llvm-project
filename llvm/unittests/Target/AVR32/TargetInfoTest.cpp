@@ -353,6 +353,24 @@ TEST(AVR32TargetInfo, LookupTarget) {
   EXPECT_EQ(MII->get(AVR32::ST_H_Disp3).getSize(), 2u);
   EXPECT_EQ(MII->get(AVR32::ST_H_Disp16).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::ST_H_IndexShift).getSize(), 4u);
+  EXPECT_EQ(MII->get(AVR32::ST_H_AL_Disp9).getSize(), 4u);
+  EXPECT_EQ(MII->get(AVR32::ST_H_EQ_Disp9).getSize(), 4u);
+  EXPECT_EQ(MII->get(AVR32::ST_H_NE_Disp9).getSize(), 4u);
+  EXPECT_EQ(MII->get(AVR32::ST_H_CC_Disp9).getSize(), 4u);
+  EXPECT_EQ(MII->get(AVR32::ST_H_HS_Disp9).getSize(), 4u);
+  EXPECT_EQ(MII->get(AVR32::ST_H_CS_Disp9).getSize(), 4u);
+  EXPECT_EQ(MII->get(AVR32::ST_H_LO_Disp9).getSize(), 4u);
+  EXPECT_EQ(MII->get(AVR32::ST_H_GE_Disp9).getSize(), 4u);
+  EXPECT_EQ(MII->get(AVR32::ST_H_LT_Disp9).getSize(), 4u);
+  EXPECT_EQ(MII->get(AVR32::ST_H_MI_Disp9).getSize(), 4u);
+  EXPECT_EQ(MII->get(AVR32::ST_H_PL_Disp9).getSize(), 4u);
+  EXPECT_EQ(MII->get(AVR32::ST_H_LS_Disp9).getSize(), 4u);
+  EXPECT_EQ(MII->get(AVR32::ST_H_GT_Disp9).getSize(), 4u);
+  EXPECT_EQ(MII->get(AVR32::ST_H_LE_Disp9).getSize(), 4u);
+  EXPECT_EQ(MII->get(AVR32::ST_H_HI_Disp9).getSize(), 4u);
+  EXPECT_EQ(MII->get(AVR32::ST_H_VS_Disp9).getSize(), 4u);
+  EXPECT_EQ(MII->get(AVR32::ST_H_VC_Disp9).getSize(), 4u);
+  EXPECT_EQ(MII->get(AVR32::ST_H_QS_Disp9).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::SUBALrrr).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::SUBCCrrr).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::SUBCSrrr).getSize(), 4u);
@@ -2345,6 +2363,40 @@ TEST(AVR32TargetInfo, LookupTarget) {
   EXPECT_EQ(static_cast<uint8_t>(Code[2]), 0x0a);
   EXPECT_EQ(static_cast<uint8_t>(Code[3]), 0x34);
 
+  MCInst StHEqDisp9;
+  StHEqDisp9.setOpcode(AVR32::ST_H_EQ_Disp9);
+  StHEqDisp9.addOperand(MCOperand::createReg(AVR32::R1));
+  StHEqDisp9.addOperand(MCOperand::createImm(6));
+  StHEqDisp9.addOperand(MCOperand::createReg(AVR32::R2));
+
+  Code.clear();
+  Fixups.clear();
+  MCE->encodeInstruction(StHEqDisp9, Code, Fixups, *STI);
+
+  EXPECT_TRUE(Fixups.empty());
+  ASSERT_EQ(Code.size(), 4u);
+  EXPECT_EQ(static_cast<uint8_t>(Code[0]), 0xe3);
+  EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0xf2);
+  EXPECT_EQ(static_cast<uint8_t>(Code[2]), 0x0c);
+  EXPECT_EQ(static_cast<uint8_t>(Code[3]), 0x03);
+
+  MCInst StHAlDisp9;
+  StHAlDisp9.setOpcode(AVR32::ST_H_AL_Disp9);
+  StHAlDisp9.addOperand(MCOperand::createReg(AVR32::R1));
+  StHAlDisp9.addOperand(MCOperand::createImm(6));
+  StHAlDisp9.addOperand(MCOperand::createReg(AVR32::R2));
+
+  Code.clear();
+  Fixups.clear();
+  MCE->encodeInstruction(StHAlDisp9, Code, Fixups, *STI);
+
+  EXPECT_TRUE(Fixups.empty());
+  ASSERT_EQ(Code.size(), 4u);
+  EXPECT_EQ(static_cast<uint8_t>(Code[0]), 0xe3);
+  EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0xf2);
+  EXPECT_EQ(static_cast<uint8_t>(Code[2]), 0xfc);
+  EXPECT_EQ(static_cast<uint8_t>(Code[3]), 0x03);
+
   MCInst Scall;
   Scall.setOpcode(AVR32::SCALL);
 
@@ -3668,6 +3720,20 @@ TEST(AVR32TargetInfo, LookupTarget) {
   EXPECT_EQ(Printed, "\tst.h\tr1[r2 << 3], r4");
 
   Printed.clear();
+  raw_string_ostream StHEqDisp9OS(Printed);
+  InstPrinter->printInst(&StHEqDisp9, /*Address=*/0, /*Annot=*/"", *STI,
+                         StHEqDisp9OS);
+  StHEqDisp9OS.flush();
+  EXPECT_EQ(Printed, "\tst.heq\tr1[6], r2");
+
+  Printed.clear();
+  raw_string_ostream StHAlDisp9OS(Printed);
+  InstPrinter->printInst(&StHAlDisp9, /*Address=*/0, /*Annot=*/"", *STI,
+                         StHAlDisp9OS);
+  StHAlDisp9OS.flush();
+  EXPECT_EQ(Printed, "\tst.hal\tr1[6], r2");
+
+  Printed.clear();
   raw_string_ostream ScallOS(Printed);
   InstPrinter->printInst(&Scall, /*Address=*/0, /*Annot=*/"", *STI, ScallOS);
   ScallOS.flush();
@@ -3950,7 +4016,8 @@ TEST(AVR32TargetInfo, LookupTarget) {
           "st.d r1++, r2\nst.d --r1, r2\nst.d r1, r2\n"
           "st.d r1[-1], r2\nst.d r1[r2 << 3], r4\n"
           "st.h r1++, r2\nst.h --r1, r2\nst.h r1[6], r2\n"
-          "st.h r1[-1], r2\nst.h r1[r2 << 3], r4\n"),
+          "st.h r1[-1], r2\nst.h r1[r2 << 3], r4\n"
+          "st.heq r1[6], r2\nst.hal r1[6], r2\n"),
       SMLoc());
 
   MCContext StoreParseCtx(TT, *MAI, *MRI, *STI, &StoreSrcMgr);
