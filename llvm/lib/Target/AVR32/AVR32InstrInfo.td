@@ -375,6 +375,7 @@ def BLDri : FullRegUImm5NoOut<0b111011011011, "bld">;
 def BREVr : CompactReg<0b010111001001, "brev">;
 def BSTri : FullRegUImm5NoOut<0b111011111011, "bst">;
 def BREAKPOINT : AVR32Inst<0b1101011001110011, (outs), (ins), "breakpoint">;
+def CBRri : CompactRegUImm5NoOut<0b1110, "cbr">;
 def CASTS_Br : CompactReg<0b010111000110, "casts.b">;
 def CASTS_Hr : CompactReg<0b010111001000, "casts.h">;
 def CASTU_Br : CompactReg<0b010111000101, "castu.b">;
