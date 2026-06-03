@@ -476,6 +476,8 @@ def CLZrr : FullRegReg<0b0001001000000000, "clz">;
 def COMr : CompactReg<0b010111001101, "com">;
 def CPCr : CompactRegNoOut<0b010111000010, "cpc">;
 def CPCrr : FullRegRegNoOut<0b0001001100000000, "cpc">;
+def CP_Brr : FullRegRegNoOut<0b0001100000000000, "cp.b">;
+def CP_Hrr : FullRegRegNoOut<0b0001100100000000, "cp.h">;
 def CP_Wri21 : FullRegImmNoOut<0b0010, "cp.w">;
 def CP_Wri6 : CompactRegImmNoOut<0b010110, "cp.w">;
 def CP_Wrr : CompactRegRegNoOut<0b00011, "cp.w">;

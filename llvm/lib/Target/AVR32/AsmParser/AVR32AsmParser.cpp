@@ -303,9 +303,9 @@ bool AVR32AsmParser::parseInstruction(ParseInstructionInfo &Info,
         parseRegisterOrImmediateOperand(Operands))
       return true;
   } else if (Name == "add" || Name == "and" || Name == "andn" ||
-             Name == "clz" || Name == "eor" ||
-             Name == "or" || Name == "rsub" || Name == "sub" ||
-             Name == "tst") {
+             Name == "clz" || Name == "cp.b" || Name == "cp.h" ||
+             Name == "eor" || Name == "or" || Name == "rsub" ||
+             Name == "sub" || Name == "tst") {
     if (parseRegisterCommaRegister(Operands))
       return true;
   } else if (Name == "moval" || Name == "movcc" || Name == "movcs" ||
