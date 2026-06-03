@@ -376,6 +376,7 @@ private:
   bool parseRegisterHalfPart(OperandVector &Operands);
   bool parseHalfPartOperand(OperandVector &Operands);
   bool parseBytePartOperand(OperandVector &Operands);
+  bool parseRegisterCommaRegisterHalfPart(OperandVector &Operands);
   bool parseRegisterCommaRegisterHalfPartCommaRegisterHalfPart(
       OperandVector &Operands);
   bool parseLoadInsertOperands(OperandVector &Operands, bool IsByte);
@@ -536,6 +537,9 @@ bool AVR32AsmParser::parseInstruction(ParseInstructionInfo &Info,
   } else if (Name == "psubadd.h" || Name == "psubaddh.sh" ||
              Name == "subhh.w") {
     if (parseRegisterCommaRegisterHalfPartCommaRegisterHalfPart(Operands))
+      return true;
+  } else if (Name == "punpckub.h" || Name == "punpcksb.h") {
+    if (parseRegisterCommaRegisterHalfPart(Operands))
       return true;
   } else if (Name == "moval" || Name == "movcc" || Name == "movcs" ||
              Name == "moveq" || Name == "movge" || Name == "movgt" ||
@@ -917,6 +921,17 @@ bool AVR32AsmParser::parseBytePartOperand(OperandVector &Operands) {
   getLexer().Lex();
   Operands.push_back(
       AVR32Operand::createImm(PartExpr, PartLoc, getLexer().getLoc()));
+  return false;
+}
+
+bool AVR32AsmParser::parseRegisterCommaRegisterHalfPart(
+    OperandVector &Operands) {
+  if (parseRegisterOperand(Operands))
+    return true;
+  if (!parseOptionalToken(AsmToken::Comma))
+    return Error(getLexer().getLoc(), "expected comma");
+  if (parseRegisterHalfPart(Operands))
+    return true;
   return false;
 }
 

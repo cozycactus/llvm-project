@@ -1233,6 +1233,21 @@ class FullRegRegHalfRegHalf<bits<10> Op, string Mnemonic>
   let Inst{3-0} = Rd;
 }
 
+class FullRegRegHalf<bits<11> Op, string Mnemonic>
+    : AVR32Inst32<(outs GPR:$Rd), (ins GPR:$Rs, halfpart:$Part),
+                  Mnemonic#"\t$Rd, ${Rs}:$Part"> {
+  bits<4> Rd;
+  bits<4> Rs;
+  bits<1> Part;
+
+  let Inst{31-29} = 0b111;
+  let Inst{28-25} = Rs;
+  let Inst{24-16} = 0;
+  let Inst{15-5} = Op;
+  let Inst{4} = Part;
+  let Inst{3-0} = Rd;
+}
+
 class FullRegRegRegShift<bits<10> Op, string Mnemonic>
     : AVR32Inst32<(outs GPR:$Rd), (ins GPR:$Rx, GPR:$Ry, uimm2:$Shift),
                   Mnemonic#"\t$Rd, $Rx, $Ry << $Shift"> {
@@ -1676,6 +1691,8 @@ def PSUBX_Hrrr : FullRegRegReg<0b001000000011, "psubx.h">;
 def PSUBXH_SHrrr : FullRegRegReg<0b001000001111, "psubxh.sh">;
 def PSUBXS_UHrrr : FullRegRegReg<0b001000001011, "psubxs.uh">;
 def PSUBXS_SHrrr : FullRegRegReg<0b001000000111, "psubxs.sh">;
+def PUNPCKUB_H : FullRegRegHalf<0b00100100100, "punpckub.h">;
+def PUNPCKSB_H : FullRegRegHalf<0b00100100101, "punpcksb.h">;
 def POPJC : AVR32Inst<0b1101011100010011, (outs), (ins), "popjc">;
 def PUSHJC : AVR32Inst<0b1101011100100011, (outs), (ins), "pushjc">;
 let isBarrier = 1, isReturn = 1, isTerminator = 1 in {
