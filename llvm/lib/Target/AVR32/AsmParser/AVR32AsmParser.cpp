@@ -82,6 +82,13 @@ public:
     return Const && isInt<6>(Const->getValue());
   }
 
+  bool isUImm5() const {
+    if (Kind != Immediate)
+      return false;
+    auto *Const = dyn_cast<MCConstantExpr>(Imm);
+    return Const && isUInt<5>(Const->getValue());
+  }
+
   void print(raw_ostream &OS, const MCAsmInfo &MAI) const override {
     if (Kind == Token)
       OS << "Token " << Tok;
@@ -159,6 +166,7 @@ public:
 private:
   MCRegister parseRegisterName(StringRef Name) const;
   bool parseRegisterOperand(OperandVector &Operands);
+  bool parseImmediateOperand(OperandVector &Operands);
   bool parseRegisterCommaRegister(OperandVector &Operands);
   bool parseRegisterCommaRegisterCommaRegister(OperandVector &Operands);
   bool parseRegisterOrImmediateOperand(OperandVector &Operands);
@@ -262,6 +270,9 @@ bool AVR32AsmParser::parseInstruction(ParseInstructionInfo &Info,
     if (parseOptionalToken(AsmToken::Comma) &&
         parseRegisterOperand(Operands))
       return true;
+  } else if (Name == "csrf") {
+    if (parseImmediateOperand(Operands))
+      return true;
   } else if (Name == "abs" || Name == "acr" || Name == "brev" ||
              Name == "casts.b" || Name == "casts.h" || Name == "castu.h" ||
              Name == "castu.b" || Name == "com" || Name == "musfr" ||
@@ -321,6 +332,16 @@ bool AVR32AsmParser::parseRegisterOperand(OperandVector &Operands) {
   if (parseRegister(Reg, StartLoc, EndLoc))
     return Error(getLexer().getLoc(), "expected register");
   Operands.push_back(AVR32Operand::createReg(Reg, StartLoc, EndLoc));
+  return false;
+}
+
+bool AVR32AsmParser::parseImmediateOperand(OperandVector &Operands) {
+  SMLoc StartLoc = getLexer().getLoc();
+  const MCExpr *Expr = nullptr;
+  if (getParser().parseExpression(Expr))
+    return Error(StartLoc, "expected immediate");
+  Operands.push_back(
+      AVR32Operand::createImm(Expr, StartLoc, getLexer().getLoc()));
   return false;
 }
 

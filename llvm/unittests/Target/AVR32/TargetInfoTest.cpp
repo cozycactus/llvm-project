@@ -88,6 +88,7 @@ TEST(AVR32TargetInfo, LookupTarget) {
   EXPECT_EQ(MII->get(AVR32::CP_Wri21).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::CP_Wri6).getSize(), 2u);
   EXPECT_EQ(MII->get(AVR32::CP_Wrr).getSize(), 2u);
+  EXPECT_EQ(MII->get(AVR32::CSRFi).getSize(), 2u);
   EXPECT_EQ(MII->get(AVR32::EORrr).getSize(), 2u);
   EXPECT_EQ(MII->get(AVR32::FRS).getSize(), 2u);
   EXPECT_EQ(MII->get(AVR32::LSLrrr).getSize(), 4u);
@@ -421,6 +422,19 @@ TEST(AVR32TargetInfo, LookupTarget) {
   EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0x41);
   EXPECT_EQ(static_cast<uint8_t>(Code[2]), 0x00);
   EXPECT_EQ(static_cast<uint8_t>(Code[3]), 0x20);
+
+  MCInst Csrf;
+  Csrf.setOpcode(AVR32::CSRFi);
+  Csrf.addOperand(MCOperand::createImm(1));
+
+  Code.clear();
+  Fixups.clear();
+  MCE->encodeInstruction(Csrf, Code, Fixups, *STI);
+
+  EXPECT_TRUE(Fixups.empty());
+  ASSERT_EQ(Code.size(), 2u);
+  EXPECT_EQ(static_cast<uint8_t>(Code[0]), 0xd4);
+  EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0x13);
 
   MCInst Neg;
   Neg.setOpcode(AVR32::NEGr);
@@ -935,6 +949,12 @@ TEST(AVR32TargetInfo, LookupTarget) {
   EXPECT_EQ(Printed, "\tcp.w\tr1, 32");
 
   Printed.clear();
+  raw_string_ostream CsrfOS(Printed);
+  InstPrinter->printInst(&Csrf, /*Address=*/0, /*Annot=*/"", *STI, CsrfOS);
+  CsrfOS.flush();
+  EXPECT_EQ(Printed, "\tcsrf\t1");
+
+  Printed.clear();
   raw_string_ostream NegOS(Printed);
   InstPrinter->printInst(&Neg, /*Address=*/0, /*Annot=*/"", *STI, NegOS);
   NegOS.flush();
@@ -1095,7 +1115,7 @@ TEST(AVR32TargetInfo, LookupTarget) {
   SourceMgr SrcMgr;
   SrcMgr.AddNewSourceBuffer(
       MemoryBuffer::getMemBuffer(
-          "nop\nfrs\nabs r1\nacr r1\nadc r1, r2, r3\naddabs r1, r2, r3\nadd r1, r2\nand r1, r2\nandn r1, r2\nasr r1, r2, r3\nbrev r1\ncasts.b r1\ncasts.h r1\ncastu.b r1\ncastu.h r1\ncom r1\ncpc r1\ncpc r1, r2\ncp.w r1, r2\ncp.w r1, -1\ncp.w r1, 32\nneg r1\neor r1, r2\nlsl r1, r2, r3\nlsr r1, r2, r3\nmax r1, r2, r3\nmin r1, r2, r3\nmul r1, r2\nmul r1, r2, -1\nmul r1, r2, r3\nmuls.d r2, r3, r4\nmulu.d r2, r3, r4\nmusfr r1\nor r1, r2\nrol r1\nror r1\nrsub r1, r2\nsbc r1, r2, r3\nscr r1\nsub r1, r2\nswap.bh r1\nswap.b r1\nswap.h r1\ntst r1, r2\nmov r1, r2\nmov r1, -1\n"),
+          "nop\nfrs\nabs r1\nacr r1\nadc r1, r2, r3\naddabs r1, r2, r3\nadd r1, r2\nand r1, r2\nandn r1, r2\nasr r1, r2, r3\nbrev r1\ncasts.b r1\ncasts.h r1\ncastu.b r1\ncastu.h r1\ncom r1\ncpc r1\ncpc r1, r2\ncp.w r1, r2\ncp.w r1, -1\ncp.w r1, 32\ncsrf 1\nneg r1\neor r1, r2\nlsl r1, r2, r3\nlsr r1, r2, r3\nmax r1, r2, r3\nmin r1, r2, r3\nmul r1, r2\nmul r1, r2, -1\nmul r1, r2, r3\nmuls.d r2, r3, r4\nmulu.d r2, r3, r4\nmusfr r1\nor r1, r2\nrol r1\nror r1\nrsub r1, r2\nsbc r1, r2, r3\nscr r1\nsub r1, r2\nswap.bh r1\nswap.b r1\nswap.h r1\ntst r1, r2\nmov r1, r2\nmov r1, -1\n"),
       SMLoc());
 
   MCContext ParseCtx(TT, *MAI, *MRI, *STI, &SrcMgr);

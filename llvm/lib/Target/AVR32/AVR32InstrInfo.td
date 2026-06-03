@@ -23,6 +23,11 @@ def SImm21AsmOperand : AsmOperandClass {
   let RenderMethod = "addImmOperands";
 }
 
+def UImm5AsmOperand : AsmOperandClass {
+  let Name = "UImm5";
+  let RenderMethod = "addImmOperands";
+}
+
 def simm6 : Operand<i32>, ImmLeaf<i32, [{ return Imm >= -32 && Imm < 32; }]> {
   let ParserMatchClass = SImm6AsmOperand;
 }
@@ -34,6 +39,10 @@ def simm8 : Operand<i32>, ImmLeaf<i32, [{ return Imm >= -128 && Imm < 128; }]> {
 def simm21 : Operand<i32>,
              ImmLeaf<i32, [{ return Imm >= -1048576 && Imm < 1048576; }]> {
   let ParserMatchClass = SImm21AsmOperand;
+}
+
+def uimm5 : Operand<i32>, ImmLeaf<i32, [{ return Imm >= 0 && Imm < 32; }]> {
+  let ParserMatchClass = UImm5AsmOperand;
 }
 
 def NOP : AVR32Inst<0b1101011100000011, (outs), (ins), "nop">;
@@ -99,6 +108,15 @@ class CompactRegImmNoOut<bits<6> Op, string Mnemonic>
   let Inst{15-10} = Op;
   let Inst{9-4} = Imm;
   let Inst{3-0} = Rd;
+}
+
+class CompactImm<bits<7> Op, string Mnemonic>
+    : AVR32Inst<0, (outs), (ins uimm5:$Imm), Mnemonic#"\t$Imm"> {
+  bits<5> Imm;
+
+  let Inst{15-9} = Op;
+  let Inst{8-4} = Imm;
+  let Inst{3-0} = 0b0011;
 }
 
 class FullRegRegNoOut<bits<16> Op, string Mnemonic>
@@ -203,6 +221,7 @@ def CPCrr : FullRegRegNoOut<0b0001001100000000, "cpc">;
 def CP_Wri21 : FullRegImmNoOut<0b0010, "cp.w">;
 def CP_Wri6 : CompactRegImmNoOut<0b010110, "cp.w">;
 def CP_Wrr : CompactRegRegNoOut<0b00011, "cp.w">;
+def CSRFi : CompactImm<0b1101010, "csrf">;
 def EORrr : CompactRegReg<0b00101, "eor">;
 def FRS : AVR32Inst<0b1101011101000011, (outs), (ins), "frs">;
 def LSLrrr : FullRegRegReg<0b000010010100, "lsl">;
