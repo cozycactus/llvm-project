@@ -62,6 +62,18 @@ class CompactRegRegNoOut<bits<5> Op, string Mnemonic>
   let Inst{3-0} = Rd;
 }
 
+class CompactRegRegWithPrefix<bits<3> Prefix, bits<5> Op, string Mnemonic>
+    : AVR32Inst<0, (outs GPR:$Rd), (ins GPR:$Rs),
+                Mnemonic#"\t$Rd, $Rs"> {
+  bits<4> Rd;
+  bits<4> Rs;
+
+  let Inst{15-13} = Prefix;
+  let Inst{12-9} = Rs;
+  let Inst{8-4} = Op;
+  let Inst{3-0} = Rd;
+}
+
 class CompactReg<bits<12> Op, string Mnemonic>
     : AVR32Inst<0, (outs GPR:$Rd), (ins), Mnemonic#"\t$Rd"> {
   bits<4> Rd;
@@ -181,6 +193,7 @@ def LSLrrr : FullRegRegReg<0b000010010100, "lsl">;
 def LSRrrr : FullRegRegReg<0b000010100100, "lsr">;
 def MOVrr : MovRR<0b1111, "mov">;
 def MOVri8 : MovRI<0b0011, "mov">;
+def MULrr : CompactRegRegWithPrefix<0b101, 0b10011, "mul">;
 def MULrrr : FullRegRegReg<0b000000100100, "mul">;
 def NEGr : CompactReg<0b010111000011, "neg">;
 def ORrr : CompactRegReg<0b00100, "or">;
