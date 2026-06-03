@@ -111,6 +111,13 @@ public:
     return Const && isUInt<2>(Const->getValue());
   }
 
+  bool isUImm3() const {
+    if (Kind != Immediate)
+      return false;
+    auto *Const = dyn_cast<MCConstantExpr>(Imm);
+    return Const && isUInt<3>(Const->getValue());
+  }
+
   bool isUImm8() const {
     if (Kind != Immediate)
       return false;
@@ -645,11 +652,23 @@ bool AVR32AsmParser::parseStoreByteOperands(OperandVector &Operands) {
   } else {
     if (parseRegisterOperand(Operands))
       return true;
-    SMLoc PlusLoc = getLexer().getLoc();
-    if (!parseOptionalToken(AsmToken::Plus) ||
-        !parseOptionalToken(AsmToken::Plus))
-      return Error(PlusLoc, "expected ++");
-    Operands.push_back(AVR32Operand::createToken("++", PlusLoc));
+
+    if (getLexer().is(AsmToken::LBrac)) {
+      Operands.push_back(AVR32Operand::createToken("[", getLexer().getLoc()));
+      getLexer().Lex();
+      if (parseImmediateOperand(Operands))
+        return true;
+      if (getLexer().isNot(AsmToken::RBrac))
+        return Error(getLexer().getLoc(), "expected ]");
+      Operands.push_back(AVR32Operand::createToken("]", getLexer().getLoc()));
+      getLexer().Lex();
+    } else {
+      SMLoc PlusLoc = getLexer().getLoc();
+      if (!parseOptionalToken(AsmToken::Plus) ||
+          !parseOptionalToken(AsmToken::Plus))
+        return Error(PlusLoc, "expected ++ or [disp]");
+      Operands.push_back(AVR32Operand::createToken("++", PlusLoc));
+    }
   }
 
   if (!parseOptionalToken(AsmToken::Comma))

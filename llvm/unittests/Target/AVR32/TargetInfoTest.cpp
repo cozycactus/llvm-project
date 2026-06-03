@@ -322,6 +322,7 @@ TEST(AVR32TargetInfo, LookupTarget) {
   EXPECT_EQ(MII->get(AVR32::SSRFi).getSize(), 2u);
   EXPECT_EQ(MII->get(AVR32::ST_B_PostInc).getSize(), 2u);
   EXPECT_EQ(MII->get(AVR32::ST_B_PreDec).getSize(), 2u);
+  EXPECT_EQ(MII->get(AVR32::ST_B_Disp3).getSize(), 2u);
   EXPECT_EQ(MII->get(AVR32::SUBALrrr).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::SUBCCrrr).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::SUBCSrrr).getSize(), 4u);
@@ -2075,6 +2076,21 @@ TEST(AVR32TargetInfo, LookupTarget) {
   EXPECT_EQ(static_cast<uint8_t>(Code[0]), 0x02);
   EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0xf2);
 
+  MCInst StBDisp3;
+  StBDisp3.setOpcode(AVR32::ST_B_Disp3);
+  StBDisp3.addOperand(MCOperand::createReg(AVR32::R1));
+  StBDisp3.addOperand(MCOperand::createImm(3));
+  StBDisp3.addOperand(MCOperand::createReg(AVR32::R2));
+
+  Code.clear();
+  Fixups.clear();
+  MCE->encodeInstruction(StBDisp3, Code, Fixups, *STI);
+
+  EXPECT_TRUE(Fixups.empty());
+  ASSERT_EQ(Code.size(), 2u);
+  EXPECT_EQ(static_cast<uint8_t>(Code[0]), 0xa2);
+  EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0xb2);
+
   MCInst Scall;
   Scall.setOpcode(AVR32::SCALL);
 
@@ -3294,6 +3310,13 @@ TEST(AVR32TargetInfo, LookupTarget) {
   EXPECT_EQ(Printed, "\tst.b\t--r1, r2");
 
   Printed.clear();
+  raw_string_ostream StBDisp3OS(Printed);
+  InstPrinter->printInst(&StBDisp3, /*Address=*/0, /*Annot=*/"", *STI,
+                         StBDisp3OS);
+  StBDisp3OS.flush();
+  EXPECT_EQ(Printed, "\tst.b\tr1[3], r2");
+
+  Printed.clear();
   raw_string_ostream ScallOS(Printed);
   InstPrinter->printInst(&Scall, /*Address=*/0, /*Annot=*/"", *STI, ScallOS);
   ScallOS.flush();
@@ -3569,7 +3592,9 @@ TEST(AVR32TargetInfo, LookupTarget) {
 
   SourceMgr StoreSrcMgr;
   StoreSrcMgr.AddNewSourceBuffer(
-      MemoryBuffer::getMemBuffer("st.b r1++, r2\nst.b --r1, r2\n"), SMLoc());
+      MemoryBuffer::getMemBuffer(
+          "st.b r1++, r2\nst.b --r1, r2\nst.b r1[3], r2\n"),
+      SMLoc());
 
   MCContext StoreParseCtx(TT, *MAI, *MRI, *STI, &StoreSrcMgr);
   std::unique_ptr<MCObjectFileInfo> StoreMOFI(

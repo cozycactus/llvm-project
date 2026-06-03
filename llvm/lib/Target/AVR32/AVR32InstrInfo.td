@@ -43,6 +43,11 @@ def UImm2AsmOperand : AsmOperandClass {
   let RenderMethod = "addImmOperands";
 }
 
+def UImm3AsmOperand : AsmOperandClass {
+  let Name = "UImm3";
+  let RenderMethod = "addImmOperands";
+}
+
 def UImm8AsmOperand : AsmOperandClass {
   let Name = "UImm8";
   let RenderMethod = "addImmOperands";
@@ -100,6 +105,10 @@ def subspimm : Operand<i32>,
 
 def uimm2 : Operand<i32>, ImmLeaf<i32, [{ return Imm >= 0 && Imm < 4; }]> {
   let ParserMatchClass = UImm2AsmOperand;
+}
+
+def uimm3 : Operand<i32>, ImmLeaf<i32, [{ return Imm >= 0 && Imm < 8; }]> {
+  let ParserMatchClass = UImm3AsmOperand;
 }
 
 def uimm5 : Operand<i32>, ImmLeaf<i32, [{ return Imm >= 0 && Imm < 32; }]> {
@@ -189,6 +198,20 @@ class CompactStorePreDec<bits<5> Op, string Mnemonic>
   let Inst{15-13} = 0b000;
   let Inst{12-9} = Rp;
   let Inst{8-4} = Op;
+  let Inst{3-0} = Rs;
+}
+
+class CompactStoreDisp3<string Mnemonic>
+    : AVR32Inst<0, (outs), (ins GPR:$Rp, uimm3:$Disp, GPR:$Rs),
+                Mnemonic#"\t${Rp}[$Disp], $Rs"> {
+  bits<4> Rp;
+  bits<3> Disp;
+  bits<4> Rs;
+
+  let Inst{15-13} = 0b101;
+  let Inst{12-9} = Rp;
+  let Inst{8-7} = 0b01;
+  let Inst{6-4} = Disp;
   let Inst{3-0} = Rs;
 }
 
@@ -855,6 +878,7 @@ def SRQSr : SrCond<0b1110, "srqs">;
 def SSRFi : CompactImm<0b1101001, "ssrf">;
 def ST_B_PostInc : CompactStorePostInc<0b01100, "st.b">;
 def ST_B_PreDec : CompactStorePreDec<0b01111, "st.b">;
+def ST_B_Disp3 : CompactStoreDisp3<"st.b">;
 def SUBALrrr : CondRRR<0b1111, 0b0001, "subal">;
 def SUBEQrrr : CondRRR<0b0000, 0b0001, "subeq">;
 def SUBNErrr : CondRRR<0b0001, 0b0001, "subne">;
