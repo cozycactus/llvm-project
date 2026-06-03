@@ -98,6 +98,14 @@ public:
            Const->getValue() <= 8188 && Const->getValue() % 4 == 0;
   }
 
+  bool isSImm15Shift2() const {
+    if (Kind != Immediate)
+      return false;
+    auto *Const = dyn_cast<MCConstantExpr>(Imm);
+    return Const && Const->getValue() >= -65536 &&
+           Const->getValue() <= 65532 && Const->getValue() % 4 == 0;
+  }
+
   bool isSubSPImm() const {
     if (Kind != Immediate)
       return false;
@@ -364,6 +372,7 @@ private:
   bool parseRegisterCommaImmediateOptionalCOH(OperandVector &Operands);
   bool parseRegisterCommaRegisterOrImmediate(OperandVector &Operands);
   bool parseImmediateCommaRegister(OperandVector &Operands);
+  bool parseImmediateCommaImmediate(OperandVector &Operands);
   bool parseRegisterOrImmediateOperand(OperandVector &Operands);
 };
 
@@ -550,6 +559,9 @@ bool AVR32AsmParser::parseInstruction(ParseInstructionInfo &Info,
       return true;
   } else if (Name == "incjosp" || Name == "sleep" || Name == "sync") {
     if (parseImmediateOperand(Operands))
+      return true;
+  } else if (Name == "memc" || Name == "mems") {
+    if (parseImmediateCommaImmediate(Operands))
       return true;
   } else if (Name == "ld.d" ||
              Name == "ld.sb" || Name == "ld.sbal" || Name == "ld.sbcc" ||
@@ -1159,6 +1171,16 @@ bool AVR32AsmParser::parseImmediateCommaRegister(OperandVector &Operands) {
   if (!parseOptionalToken(AsmToken::Comma))
     return Error(getLexer().getLoc(), "expected comma");
   if (parseRegisterOperand(Operands))
+    return true;
+  return false;
+}
+
+bool AVR32AsmParser::parseImmediateCommaImmediate(OperandVector &Operands) {
+  if (parseImmediateOperand(Operands))
+    return true;
+  if (!parseOptionalToken(AsmToken::Comma))
+    return Error(getLexer().getLoc(), "expected comma");
+  if (parseImmediateOperand(Operands))
     return true;
   return false;
 }

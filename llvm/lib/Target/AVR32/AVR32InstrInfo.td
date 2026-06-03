@@ -43,6 +43,11 @@ def SImm12Shift2AsmOperand : AsmOperandClass {
   let RenderMethod = "addImmOperands";
 }
 
+def SImm15Shift2AsmOperand : AsmOperandClass {
+  let Name = "SImm15Shift2";
+  let RenderMethod = "addImmOperands";
+}
+
 def HalfPartAsmOperand : AsmOperandClass {
   let Name = "HalfPart";
   let RenderMethod = "addImmOperands";
@@ -172,6 +177,13 @@ def simm12shift2 : Operand<i32>,
                    ImmLeaf<i32, [{ return Imm >= -8192 && Imm <= 8188 &&
                                           Imm % 4 == 0; }]> {
   let ParserMatchClass = SImm12Shift2AsmOperand;
+  let EncoderMethod = "getShifted2OpValue";
+}
+
+def simm15shift2 : Operand<i32>,
+                   ImmLeaf<i32, [{ return Imm >= -65536 && Imm <= 65532 &&
+                                          Imm % 4 == 0; }]> {
+  let ParserMatchClass = SImm15Shift2AsmOperand;
   let EncoderMethod = "getShifted2OpValue";
 }
 
@@ -596,6 +608,18 @@ class FullLoadCondDisp9Shift2<bits<4> Cond, string Mnemonic>
   let Inst{15-12} = Cond;
   let Inst{11-9} = 0b000;
   let Inst{8-0} = Disp;
+}
+
+class FullMemBit<bits<12> Prefix, string Mnemonic>
+    : AVR32Inst32<(outs), (ins simm15shift2:$Imm, uimm5:$Bp),
+                  Mnemonic#"\t$Imm, $Bp"> {
+  bits<15> Imm;
+  bits<5> Bp;
+
+  let Inst{31-20} = Prefix;
+  let Inst{19-16} = Bp{4-1};
+  let Inst{15} = Bp{0};
+  let Inst{14-0} = Imm;
 }
 
 class FullLoadCondDisp9<bits<4> Cond, string Mnemonic>
@@ -1507,6 +1531,8 @@ def MOVrr : MovRR<0b1111, "mov">;
 def MOVri8 : MovRI<0b0011, "mov">;
 def MOVri21 : FullRegImm<0b0011, "mov">;
 def MOVHri : FullRegUImm16<0b111111000001, "movh">;
+def MEMC : FullMemBit<0b111111000001, "memc">;
+def MEMS : FullMemBit<0b111100000001, "mems">;
 def MULrr : CompactRegRegWithPrefix<0b101, 0b10011, "mul">;
 def MULri8 : FullRegRegImm<0b00010000, "mul">;
 def MULrrr : FullRegRegReg<0b000000100100, "mul">;
