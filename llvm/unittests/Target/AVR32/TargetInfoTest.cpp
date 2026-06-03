@@ -71,6 +71,7 @@ TEST(AVR32TargetInfo, LookupTarget) {
   EXPECT_EQ(MII->get(AVR32::NOP).getSize(), 2u);
   EXPECT_EQ(MII->get(AVR32::ADDrr).getSize(), 2u);
   EXPECT_EQ(MII->get(AVR32::ANDrr).getSize(), 2u);
+  EXPECT_EQ(MII->get(AVR32::EORrr).getSize(), 2u);
   EXPECT_EQ(MII->get(AVR32::MOVrr).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::MOVri8).getSize(), 2u);
   EXPECT_EQ(MII->get(AVR32::ORrr).getSize(), 2u);
@@ -140,6 +141,20 @@ TEST(AVR32TargetInfo, LookupTarget) {
   EXPECT_EQ(static_cast<uint8_t>(Code[0]), 0x04);
   EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0x61);
 
+  MCInst Eor;
+  Eor.setOpcode(AVR32::EORrr);
+  Eor.addOperand(MCOperand::createReg(AVR32::R1));
+  Eor.addOperand(MCOperand::createReg(AVR32::R2));
+
+  Code.clear();
+  Fixups.clear();
+  MCE->encodeInstruction(Eor, Code, Fixups, *STI);
+
+  EXPECT_TRUE(Fixups.empty());
+  ASSERT_EQ(Code.size(), 2u);
+  EXPECT_EQ(static_cast<uint8_t>(Code[0]), 0x04);
+  EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0x51);
+
   MCInst Or;
   Or.setOpcode(AVR32::ORrr);
   Or.addOperand(MCOperand::createReg(AVR32::R1));
@@ -208,6 +223,12 @@ TEST(AVR32TargetInfo, LookupTarget) {
   EXPECT_EQ(Printed, "\tand\tr1, r2");
 
   Printed.clear();
+  raw_string_ostream EorOS(Printed);
+  InstPrinter->printInst(&Eor, /*Address=*/0, /*Annot=*/"", *STI, EorOS);
+  EorOS.flush();
+  EXPECT_EQ(Printed, "\teor\tr1, r2");
+
+  Printed.clear();
   raw_string_ostream OrOS(Printed);
   InstPrinter->printInst(&Or, /*Address=*/0, /*Annot=*/"", *STI, OrOS);
   OrOS.flush();
@@ -228,7 +249,7 @@ TEST(AVR32TargetInfo, LookupTarget) {
   SourceMgr SrcMgr;
   SrcMgr.AddNewSourceBuffer(
       MemoryBuffer::getMemBuffer(
-          "nop\nadd r1, r2\nand r1, r2\nor r1, r2\nmov r1, r2\nmov r1, -1\n"),
+          "nop\nadd r1, r2\nand r1, r2\neor r1, r2\nor r1, r2\nmov r1, r2\nmov r1, -1\n"),
       SMLoc());
 
   MCContext ParseCtx(TT, *MAI, *MRI, *STI, &SrcMgr);
