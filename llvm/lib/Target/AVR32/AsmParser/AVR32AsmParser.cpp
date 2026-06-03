@@ -494,6 +494,7 @@ bool AVR32AsmParser::parseInstruction(ParseInstructionInfo &Info,
       Name == "orqs" || Name == "orvc" || Name == "orvs" ||
       Name == "muls.d" || Name == "mulu.d" ||
       Name == "psad" || Name == "psub.b" || Name == "psub.h" ||
+      Name == "psubh.sh" || Name == "psubh.ub" ||
       Name == "satadd.w" ||
       Name == "satsub.h" || Name == "sbc" || Name == "xchg") {
     if (parseRegisterCommaRegisterCommaRegister(Operands))

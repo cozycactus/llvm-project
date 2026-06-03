@@ -1666,6 +1666,8 @@ def PSUB_Brrr : FullRegRegReg<0b001000110001, "psub.b">;
 def PSUB_Hrrr : FullRegRegReg<0b001000000001, "psub.h">;
 def PSUBADD_H : FullRegRegHalfRegHalf<0b0010000101, "psubadd.h">;
 def PSUBADDH_SH : FullRegRegHalfRegHalf<0b0010001011, "psubaddh.sh">;
+def PSUBH_UBrrr : FullRegRegReg<0b001000110111, "psubh.ub">;
+def PSUBH_SHrrr : FullRegRegReg<0b001000001101, "psubh.sh">;
 def POPJC : AVR32Inst<0b1101011100010011, (outs), (ins), "popjc">;
 def PUSHJC : AVR32Inst<0b1101011100100011, (outs), (ins), "pushjc">;
 let isBarrier = 1, isReturn = 1, isTerminator = 1 in {
