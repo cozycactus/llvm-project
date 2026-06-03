@@ -202,6 +202,15 @@ class MovRR<bits<4> Cond, string Mnemonic>
   let Inst{3-0} = 0b0000;
 }
 
+class RetCond<bits<4> Cond, string Mnemonic>
+    : AVR32Inst<0, (outs), (ins GPR:$Rs), Mnemonic#"\t$Rs"> {
+  bits<4> Rs;
+
+  let Inst{15-8} = 0b01011110;
+  let Inst{7-4} = Cond;
+  let Inst{3-0} = Rs;
+}
+
 def ADCrrr : FullRegRegReg<0b000000000100, "adc">;
 def ABSr : CompactReg<0b010111000100, "abs">;
 def ACRr : CompactReg<0b010111000000, "acr">;
@@ -239,6 +248,7 @@ def MUSFRr : CompactRegNoOut<0b010111010011, "musfr">;
 def NEGr : CompactReg<0b010111000011, "neg">;
 def ORrr : CompactRegReg<0b00100, "or">;
 def RETE : AVR32Inst<0b1101011000000011, (outs), (ins), "rete">;
+def RETALr : RetCond<0b1111, "retal">;
 def RETJ : AVR32Inst<0b1101011000110011, (outs), (ins), "retj">;
 def RETS : AVR32Inst<0b1101011000010011, (outs), (ins), "rets">;
 def RETSS : AVR32Inst<0b1101011101100011, (outs), (ins), "retss">;
