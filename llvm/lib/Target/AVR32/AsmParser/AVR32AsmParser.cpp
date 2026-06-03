@@ -356,7 +356,7 @@ bool AVR32AsmParser::parseInstruction(ParseInstructionInfo &Info,
   } else if (Name == "satsub.w") {
     if (parseRegisterCommaRegisterCommaRegisterOrImmediateOperand(Operands))
       return true;
-  } else if (Name == "sats") {
+  } else if (Name == "sats" || Name == "satu") {
     if (parseRegisterShiftRightImmediateCommaImmediate(Operands))
       return true;
   } else if (Name == "subal" || Name == "subcc" || Name == "subcs" ||

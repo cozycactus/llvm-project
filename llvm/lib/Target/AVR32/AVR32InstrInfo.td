@@ -801,6 +801,7 @@ def SATSUB_Hrrr : FullRegRegReg<0b000000111100, "satsub.h">;
 def SATSUB_Wrrr : FullRegRegReg<0b000000011100, "satsub.w">;
 def SATSUB_Wrri16 : FullRegRegSImm16<0b01101, "satsub.w">;
 def SATSri : FullRegShiftBits<0b111100011011, 0b000000, "sats">;
+def SATUri : FullRegShiftBits<0b111100011011, 0b000001, "satu">;
 def SBCrrr : FullRegRegReg<0b000000010100, "sbc">;
 def SBRri : CompactRegUImm5NoOut<0b1101, "sbr">;
 def SCALL : AVR32Inst<0b1101011100110011, (outs), (ins), "scall">;
