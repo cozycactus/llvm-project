@@ -289,7 +289,8 @@ bool AVR32AsmParser::parseInstruction(ParseInstructionInfo &Info,
              Name == "musfr" ||
              Name == "neg" || Name == "retal" || Name == "retcc" ||
              Name == "retcs" || Name == "reteq" || Name == "reths" ||
-             Name == "retge" || Name == "retlo" || Name == "retne" ||
+             Name == "retge" || Name == "retlo" || Name == "retlt" ||
+             Name == "retne" ||
              Name == "rol" || Name == "ror" || Name == "scr" ||
              Name == "swap.b" || Name == "swap.bh" || Name == "swap.h") {
     if (parseRegisterOperand(Operands))
