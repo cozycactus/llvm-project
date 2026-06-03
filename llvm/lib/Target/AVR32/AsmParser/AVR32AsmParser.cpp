@@ -270,7 +270,7 @@ bool AVR32AsmParser::parseInstruction(ParseInstructionInfo &Info,
     if (parseOptionalToken(AsmToken::Comma) &&
         parseRegisterOperand(Operands))
       return true;
-  } else if (Name == "csrf") {
+  } else if (Name == "csrf" || Name == "ssrf") {
     if (parseImmediateOperand(Operands))
       return true;
   } else if (Name == "abs" || Name == "acr" || Name == "brev" ||

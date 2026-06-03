@@ -243,6 +243,7 @@ def RORr : CompactReg<0b010111010000, "ror">;
 def RSUBrr : CompactRegReg<0b00010, "rsub">;
 def SBCrrr : FullRegRegReg<0b000000010100, "sbc">;
 def SCRr : CompactReg<0b010111000001, "scr">;
+def SSRFi : CompactImm<0b1101001, "ssrf">;
 def SUBrr : CompactRegReg<0b00001, "sub">;
 def SWAP_BHr : CompactReg<0b010111001100, "swap.bh">;
 def SWAP_Br : CompactReg<0b010111001011, "swap.b">;
