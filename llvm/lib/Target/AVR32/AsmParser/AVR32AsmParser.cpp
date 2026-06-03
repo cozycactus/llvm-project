@@ -280,7 +280,7 @@ bool AVR32AsmParser::parseInstruction(ParseInstructionInfo &Info,
   } else if (Name == "csrf" || Name == "ssrf") {
     if (parseImmediateOperand(Operands))
       return true;
-  } else if (Name == "sleep") {
+  } else if (Name == "sleep" || Name == "sync") {
     if (parseImmediateOperand(Operands))
       return true;
   } else if (Name == "abs" || Name == "acr" || Name == "brev" ||
