@@ -549,6 +549,39 @@ class FullLoadIndexPart<string Mnemonic>
   let Inst{3-0} = Rd;
 }
 
+class FullLoadPairDisp16<bits<5> Op, string Mnemonic>
+    : AVR32Inst32<(outs GPREven:$Rd), (ins GPR:$Rp, simm16:$Disp),
+                  Mnemonic#"\t$Rd, ${Rp}[$Disp]"> {
+  bits<4> Rd;
+  bits<4> Rp;
+  bits<16> Disp;
+
+  let Inst{31-29} = 0b111;
+  let Inst{28-25} = Rp;
+  let Inst{24-20} = Op;
+  let Inst{19-17} = Rd{3-1};
+  let Inst{16} = 0;
+  let Inst{15-0} = Disp;
+}
+
+class FullLoadPairIndexShift<bits<10> Op, string Mnemonic>
+    : AVR32Inst32<(outs GPREven:$Rd), (ins GPR:$Rb, GPR:$Ri, uimm2:$Shift),
+                  Mnemonic#"\t$Rd, ${Rb}[$Ri << $Shift]"> {
+  bits<4> Rd;
+  bits<4> Rb;
+  bits<4> Ri;
+  bits<2> Shift;
+
+  let Inst{31-29} = 0b111;
+  let Inst{28-25} = Rb;
+  let Inst{24-20} = 0b00000;
+  let Inst{19-16} = Ri;
+  let Inst{15-6} = Op;
+  let Inst{5-4} = Shift;
+  let Inst{3-1} = Rd{3-1};
+  let Inst{0} = 0;
+}
+
 class FullLoadCondDisp9Shift2<bits<4> Cond, string Mnemonic>
     : AVR32Inst32<(outs GPR:$Rd), (ins GPR:$Rp, uimm9shift2:$Disp),
                   Mnemonic#"\t$Rd, ${Rp}[$Disp]"> {
@@ -766,6 +799,18 @@ class CompactStorePair<bits<5> Op, bits<1> LastBit, string AsmStr>
   let Inst{0} = LastBit;
 }
 
+class CompactLoadPair<bits<5> Op, bits<1> LastBit, string AsmStr>
+    : AVR32Inst<0, (outs GPREven:$Rd), (ins GPR:$Rp), AsmStr> {
+  bits<4> Rd;
+  bits<4> Rp;
+
+  let Inst{15-13} = 0b101;
+  let Inst{12-9} = Rp;
+  let Inst{8-4} = Op;
+  let Inst{3-1} = Rd{3-1};
+  let Inst{0} = LastBit;
+}
+
 class CompactRegRegWithPrefix<bits<3> Prefix, bits<5> Op, string Mnemonic>
     : AVR32Inst<0, (outs GPR:$Rd), (ins GPR:$Rs),
                 Mnemonic#"\t$Rd, $Rs"> {
@@ -901,6 +946,11 @@ def LD_W_HI_Disp9 : FullLoadCondDisp9Shift2<0b1011, "ld.whi">;
 def LD_W_VS_Disp9 : FullLoadCondDisp9Shift2<0b1100, "ld.wvs">;
 def LD_W_VC_Disp9 : FullLoadCondDisp9Shift2<0b1101, "ld.wvc">;
 def LD_W_QS_Disp9 : FullLoadCondDisp9Shift2<0b1110, "ld.wqs">;
+def LD_D_PostInc : CompactLoadPair<0b10000, 1, "ld.d\t$Rd, ${Rp}++">;
+def LD_D_PreDec : CompactLoadPair<0b10001, 0, "ld.d\t$Rd, --$Rp">;
+def LD_D_Reg : CompactLoadPair<0b10000, 0, "ld.d\t$Rd, $Rp">;
+def LD_D_Disp16 : FullLoadPairDisp16<0b01110, "ld.d">;
+def LD_D_IndexShift : FullLoadPairIndexShift<0b0000001000, "ld.d">;
 def LD_SB_Disp16 : FullLoadDisp16<0b10010, "ld.sb">;
 def LD_SB_IndexShift : FullLoadIndexShift<0b0000011000, "ld.sb">;
 def LD_SB_AL_Disp9 : FullLoadCondDisp9Sub<0b1111, 0b011, "ld.sbal">;

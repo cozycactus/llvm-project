@@ -355,7 +355,8 @@ private:
   bool parseBytePartOperand(OperandVector &Operands);
   bool parseRegisterCommaRegisterHalfPartCommaRegisterHalfPart(
       OperandVector &Operands);
-  bool parseLoadOperands(OperandVector &Operands);
+  bool parseLoadOperands(OperandVector &Operands,
+                         bool AllowBareRegister = false);
   bool parseStoreHalfwordPairOperands(OperandVector &Operands);
   bool parseStoreByteOperands(OperandVector &Operands);
   bool parseStoreDoubleOperands(OperandVector &Operands);
@@ -550,7 +551,8 @@ bool AVR32AsmParser::parseInstruction(ParseInstructionInfo &Info,
   } else if (Name == "incjosp" || Name == "sleep" || Name == "sync") {
     if (parseImmediateOperand(Operands))
       return true;
-  } else if (Name == "ld.sb" || Name == "ld.sbal" || Name == "ld.sbcc" ||
+  } else if (Name == "ld.d" ||
+             Name == "ld.sb" || Name == "ld.sbal" || Name == "ld.sbcc" ||
              Name == "ld.sbcs" || Name == "ld.sbeq" || Name == "ld.sbge" ||
              Name == "ld.sbgt" || Name == "ld.sbhi" || Name == "ld.sbhs" ||
              Name == "ld.sble" || Name == "ld.sblo" || Name == "ld.sbls" ||
@@ -585,7 +587,7 @@ bool AVR32AsmParser::parseInstruction(ParseInstructionInfo &Info,
              Name == "ld.wlt" || Name == "ld.wmi" || Name == "ld.wne" ||
              Name == "ld.wpl" || Name == "ld.wqs" || Name == "ld.wvc" ||
              Name == "ld.wvs") {
-    if (parseLoadOperands(Operands))
+    if (parseLoadOperands(Operands, Name == "ld.d"))
       return true;
   } else if (Name == "st.b" || Name == "st.bal" || Name == "st.bcc" ||
              Name == "st.bcs" || Name == "st.beq" || Name == "st.bge" ||
@@ -880,7 +882,8 @@ bool AVR32AsmParser::parseRegisterCommaRegisterHalfPartCommaRegisterHalfPart(
   return false;
 }
 
-bool AVR32AsmParser::parseLoadOperands(OperandVector &Operands) {
+bool AVR32AsmParser::parseLoadOperands(OperandVector &Operands,
+                                       bool AllowBareRegister) {
   if (parseRegisterOperand(Operands))
     return true;
   if (!parseOptionalToken(AsmToken::Comma))
@@ -898,6 +901,9 @@ bool AVR32AsmParser::parseLoadOperands(OperandVector &Operands) {
 
   if (parseRegisterOperand(Operands))
     return true;
+
+  if (AllowBareRegister && getLexer().is(AsmToken::EndOfStatement))
+    return false;
 
   if (getLexer().is(AsmToken::LBrac)) {
     Operands.push_back(AVR32Operand::createToken("[", getLexer().getLoc()));
