@@ -23,10 +23,11 @@ namespace {
 
 class AVR32MCCodeEmitter : public MCCodeEmitter {
   const MCRegisterInfo &MRI;
+  const MCInstrInfo &MCII;
 
 public:
   AVR32MCCodeEmitter(const MCInstrInfo &MCII, MCContext &Ctx)
-      : MRI(*Ctx.getRegisterInfo()) {}
+      : MRI(*Ctx.getRegisterInfo()), MCII(MCII) {}
 
   uint64_t getBinaryCodeForInstr(const MCInst &MI,
                                  SmallVectorImpl<MCFixup> &Fixups,
@@ -46,7 +47,13 @@ public:
                          SmallVectorImpl<MCFixup> &Fixups,
                          const MCSubtargetInfo &STI) const override {
     uint64_t Bits = getBinaryCodeForInstr(MI, Fixups, STI);
-    support::endian::write<uint16_t>(CB, Bits, llvm::endianness::big);
+    unsigned Size = MCII.get(MI.getOpcode()).getSize();
+    if (Size == 2) {
+      support::endian::write<uint16_t>(CB, Bits, llvm::endianness::big);
+      return;
+    }
+    assert(Size == 4 && "unsupported AVR32 instruction size");
+    support::endian::write<uint32_t>(CB, Bits, llvm::endianness::big);
   }
 };
 

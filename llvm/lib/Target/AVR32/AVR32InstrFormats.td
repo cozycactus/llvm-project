@@ -17,3 +17,15 @@ class AVR32Inst<bits<16> Enc, dag Outs, dag Ins, string AsmStr,
   let AsmString = AsmStr;
   let Pattern = Patterns;
 }
+
+class AVR32Inst32<dag Outs, dag Ins, string AsmStr, list<dag> Patterns = []>
+    : Instruction {
+  field bits<32> Inst;
+
+  let Namespace = "AVR32";
+  let Size = 4;
+  let OutOperandList = Outs;
+  let InOperandList = Ins;
+  let AsmString = AsmStr;
+  let Pattern = Patterns;
+}
