@@ -317,6 +317,17 @@ class FullRegUImm16<bits<12> Op, string Mnemonic>
   let Inst{15-0} = Imm;
 }
 
+class FullRegUImm16Suffix<bits<12> Op, string Mnemonic, string Suffix>
+    : AVR32Inst32<(outs GPR:$Rd), (ins uimm16:$Imm),
+                  Mnemonic#"\t$Rd, $Imm"#Suffix> {
+  bits<4> Rd;
+  bits<16> Imm;
+
+  let Inst{31-20} = Op;
+  let Inst{19-16} = Rd;
+  let Inst{15-0} = Imm;
+}
+
 class FullRegSysReg<bits<12> Op, string Mnemonic>
     : AVR32Inst32<(outs GPR:$Rd), (ins sysregaddr:$Addr),
                   Mnemonic#"\t$Rd, $Addr"> {
@@ -418,6 +429,10 @@ def ABSr : CompactReg<0b010111000100, "abs">;
 def ACRr : CompactReg<0b010111000000, "acr">;
 def ADDABSrrr : FullRegRegReg<0b000011100100, "addabs">;
 def ADDrr : CompactRegReg<0b00000, "add">;
+def ANDHri : FullRegUImm16<0b111001000001, "andh">;
+def ANDHri_COH : FullRegUImm16Suffix<0b111001100001, "andh", ", coh">;
+def ANDLri : FullRegUImm16<0b111000000001, "andl">;
+def ANDLri_COH : FullRegUImm16Suffix<0b111000100001, "andl", ", coh">;
 def ANDNrr : CompactRegReg<0b01000, "andn">;
 def ANDrr : CompactRegReg<0b00110, "and">;
 def ASRrrr : FullRegRegReg<0b000010000100, "asr">;

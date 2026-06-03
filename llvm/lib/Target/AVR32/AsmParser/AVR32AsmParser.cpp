@@ -216,6 +216,7 @@ private:
   bool parseRegisterCommaRegister(OperandVector &Operands);
   bool parseRegisterCommaRegisterCommaRegister(OperandVector &Operands);
   bool parseRegisterCommaImmediate(OperandVector &Operands);
+  bool parseRegisterCommaImmediateOptionalCOH(OperandVector &Operands);
   bool parseImmediateCommaRegister(OperandVector &Operands);
   bool parseRegisterOrImmediateOperand(OperandVector &Operands);
 };
@@ -305,6 +306,9 @@ bool AVR32AsmParser::parseInstruction(ParseInstructionInfo &Info,
              Name == "eor" || Name == "or" || Name == "rsub" ||
              Name == "sub" || Name == "tst") {
     if (parseRegisterCommaRegister(Operands))
+      return true;
+  } else if (Name == "andh" || Name == "andl") {
+    if (parseRegisterCommaImmediateOptionalCOH(Operands))
       return true;
   } else if (Name == "bld" || Name == "bst" || Name == "cbr" ||
              Name == "sbr") {
@@ -452,6 +456,22 @@ bool AVR32AsmParser::parseRegisterCommaImmediate(OperandVector &Operands) {
     return Error(getLexer().getLoc(), "expected comma");
   if (parseImmediateOperand(Operands))
     return true;
+  return false;
+}
+
+bool AVR32AsmParser::parseRegisterCommaImmediateOptionalCOH(
+    OperandVector &Operands) {
+  if (parseRegisterCommaImmediate(Operands))
+    return true;
+  if (!parseOptionalToken(AsmToken::Comma))
+    return false;
+
+  if (getLexer().getKind() != AsmToken::Identifier ||
+      !getParser().getTok().getString().equals_insensitive("coh"))
+    return Error(getLexer().getLoc(), "expected coh");
+
+  Operands.push_back(AVR32Operand::createToken("coh", getLexer().getLoc()));
+  getLexer().Lex();
   return false;
 }
 
