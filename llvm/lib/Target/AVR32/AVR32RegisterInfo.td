@@ -25,4 +25,7 @@ def GPR : RegisterClass<"AVR32", [i32], 32,
 def GPRNoSP : RegisterClass<"AVR32", [i32], 32,
                              (add (sequence "R%u", 0, 12), LR, PC)>;
 
+def GPREven : RegisterClass<"AVR32", [i32], 32,
+                            (add R0, R2, R4, R6, R8, R10, R12, LR)>;
+
 def SPOnly : RegisterClass<"AVR32", [i32], 32, (add SP)>;

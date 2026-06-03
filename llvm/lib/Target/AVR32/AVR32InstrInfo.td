@@ -271,6 +271,18 @@ class FullStoreCondDisp9<bits<4> Cond, string Mnemonic>
   let Inst{8-0} = Disp;
 }
 
+class CompactStorePair<bits<5> Op, bits<1> LastBit, string AsmStr>
+    : AVR32Inst<0, (outs), (ins GPR:$Rp, GPREven:$Rs), AsmStr> {
+  bits<4> Rp;
+  bits<4> Rs;
+
+  let Inst{15-13} = 0b101;
+  let Inst{12-9} = Rp;
+  let Inst{8-4} = Op;
+  let Inst{3-1} = Rs{3-1};
+  let Inst{0} = LastBit;
+}
+
 class CompactRegRegWithPrefix<bits<3> Prefix, bits<5> Op, string Mnemonic>
     : AVR32Inst<0, (outs GPR:$Rd), (ins GPR:$Rs),
                 Mnemonic#"\t$Rd, $Rs"> {
@@ -955,6 +967,9 @@ def ST_B_HI_Disp9 : FullStoreCondDisp9<0b1011, "st.bhi">;
 def ST_B_VS_Disp9 : FullStoreCondDisp9<0b1100, "st.bvs">;
 def ST_B_VC_Disp9 : FullStoreCondDisp9<0b1101, "st.bvc">;
 def ST_B_QS_Disp9 : FullStoreCondDisp9<0b1110, "st.bqs">;
+def ST_D_PostInc : CompactStorePair<0b10010, 0, "st.d\t${Rp}++, $Rs">;
+def ST_D_PreDec : CompactStorePair<0b10010, 1, "st.d\t--$Rp, $Rs">;
+def ST_D_Reg : CompactStorePair<0b10001, 1, "st.d\t$Rp, $Rs">;
 def SUBALrrr : CondRRR<0b1111, 0b0001, "subal">;
 def SUBEQrrr : CondRRR<0b0000, 0b0001, "subeq">;
 def SUBNErrr : CondRRR<0b0001, 0b0001, "subne">;

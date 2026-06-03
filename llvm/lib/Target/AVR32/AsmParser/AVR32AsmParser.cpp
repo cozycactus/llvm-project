@@ -259,6 +259,7 @@ private:
   bool parseSubOperands(
       OperandVector &Operands);
   bool parseStoreByteOperands(OperandVector &Operands);
+  bool parseStoreDoubleOperands(OperandVector &Operands);
   bool parseRegisterCommaImmediate(OperandVector &Operands);
   bool parseRegisterCommaImmediateOptionalCOH(OperandVector &Operands);
   bool parseRegisterCommaRegisterOrImmediate(OperandVector &Operands);
@@ -455,6 +456,9 @@ bool AVR32AsmParser::parseInstruction(ParseInstructionInfo &Info,
              Name == "st.bpl" || Name == "st.bqs" || Name == "st.bvc" ||
              Name == "st.bvs") {
     if (parseStoreByteOperands(Operands))
+      return true;
+  } else if (Name == "st.d") {
+    if (parseStoreDoubleOperands(Operands))
       return true;
   } else if (Name == "eorh" || Name == "eorl" || Name == "mfdr" ||
              Name == "mfsr" || Name == "movh" || Name == "orh" ||
@@ -703,6 +707,36 @@ bool AVR32AsmParser::parseStoreByteOperands(OperandVector &Operands) {
         return Error(PlusLoc, "expected ++ or [disp]");
       Operands.push_back(AVR32Operand::createToken("++", PlusLoc));
     }
+  }
+
+  if (!parseOptionalToken(AsmToken::Comma))
+    return Error(getLexer().getLoc(), "expected comma");
+  if (parseRegisterOperand(Operands))
+    return true;
+  return false;
+}
+
+bool AVR32AsmParser::parseStoreDoubleOperands(OperandVector &Operands) {
+  if (parseOptionalToken(AsmToken::Minus)) {
+    SMLoc MinusLoc = getLexer().getLoc();
+    if (!parseOptionalToken(AsmToken::Minus))
+      return Error(getLexer().getLoc(), "expected --");
+    Operands.push_back(AVR32Operand::createToken("--", MinusLoc));
+    if (parseRegisterOperand(Operands))
+      return true;
+  } else {
+    if (parseRegisterOperand(Operands))
+      return true;
+    if (parseOptionalToken(AsmToken::Comma)) {
+      if (parseRegisterOperand(Operands))
+        return true;
+      return false;
+    }
+    SMLoc PlusLoc = getLexer().getLoc();
+    if (!parseOptionalToken(AsmToken::Plus) ||
+        !parseOptionalToken(AsmToken::Plus))
+      return Error(PlusLoc, "expected comma or ++");
+    Operands.push_back(AVR32Operand::createToken("++", PlusLoc));
   }
 
   if (!parseOptionalToken(AsmToken::Comma))
