@@ -160,6 +160,7 @@ private:
   MCRegister parseRegisterName(StringRef Name) const;
   bool parseRegisterOperand(OperandVector &Operands);
   bool parseRegisterCommaRegister(OperandVector &Operands);
+  bool parseRegisterCommaRegisterCommaRegister(OperandVector &Operands);
   bool parseRegisterOrImmediateOperand(OperandVector &Operands);
 };
 
@@ -232,8 +233,12 @@ bool AVR32AsmParser::parseInstruction(ParseInstructionInfo &Info,
                                       OperandVector &Operands) {
   Operands.push_back(AVR32Operand::createToken(Name, NameLoc));
 
-  if (Name == "add" || Name == "and" || Name == "andn" || Name == "eor" ||
-      Name == "or" || Name == "rsub" || Name == "sub" || Name == "tst") {
+  if (Name == "adc") {
+    if (parseRegisterCommaRegisterCommaRegister(Operands))
+      return true;
+  } else if (Name == "add" || Name == "and" || Name == "andn" ||
+             Name == "eor" || Name == "or" || Name == "rsub" ||
+             Name == "sub" || Name == "tst") {
     if (parseRegisterCommaRegister(Operands))
       return true;
   } else if (Name == "cp.w") {
@@ -312,6 +317,17 @@ bool AVR32AsmParser::parseRegisterOperand(OperandVector &Operands) {
 
 bool AVR32AsmParser::parseRegisterCommaRegister(OperandVector &Operands) {
   if (parseRegisterOperand(Operands))
+    return true;
+  if (!parseOptionalToken(AsmToken::Comma))
+    return Error(getLexer().getLoc(), "expected comma");
+  if (parseRegisterOperand(Operands))
+    return true;
+  return false;
+}
+
+bool AVR32AsmParser::parseRegisterCommaRegisterCommaRegister(
+    OperandVector &Operands) {
+  if (parseRegisterCommaRegister(Operands))
     return true;
   if (!parseOptionalToken(AsmToken::Comma))
     return Error(getLexer().getLoc(), "expected comma");

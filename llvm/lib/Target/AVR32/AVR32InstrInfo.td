@@ -102,6 +102,21 @@ class FullRegRegNoOut<bits<16> Op, string Mnemonic>
   let Inst{15-0} = Op;
 }
 
+class FullRegRegReg<bits<12> Op, string Mnemonic>
+    : AVR32Inst32<(outs GPR:$Rd), (ins GPR:$Rx, GPR:$Ry),
+                  Mnemonic#"\t$Rd, $Rx, $Ry"> {
+  bits<4> Rd;
+  bits<4> Rx;
+  bits<4> Ry;
+
+  let Inst{31-29} = 0b111;
+  let Inst{28-25} = Rx;
+  let Inst{24-20} = 0b00000;
+  let Inst{19-16} = Ry;
+  let Inst{15-4} = Op;
+  let Inst{3-0} = Rd;
+}
+
 class FullRegImmNoOut<bits<4> Op, string Mnemonic>
     : AVR32Inst32<(outs), (ins GPR:$Rd, simm21:$Imm),
                   Mnemonic#"\t$Rd, $Imm"> {
@@ -142,6 +157,7 @@ class MovRR<bits<4> Cond, string Mnemonic>
   let Inst{3-0} = 0b0000;
 }
 
+def ADCrrr : FullRegRegReg<0b000000000100, "adc">;
 def ABSr : CompactReg<0b010111000100, "abs">;
 def ACRr : CompactReg<0b010111000000, "acr">;
 def ADDrr : CompactRegReg<0b00000, "add">;
