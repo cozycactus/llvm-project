@@ -163,6 +163,7 @@ def ACRr : CompactReg<0b010111000000, "acr">;
 def ADDrr : CompactRegReg<0b00000, "add">;
 def ANDNrr : CompactRegReg<0b01000, "andn">;
 def ANDrr : CompactRegReg<0b00110, "and">;
+def ASRrrr : FullRegRegReg<0b000010000100, "asr">;
 def BREVr : CompactReg<0b010111001001, "brev">;
 def CASTS_Br : CompactReg<0b010111000110, "casts.b">;
 def CASTS_Hr : CompactReg<0b010111001000, "casts.h">;
