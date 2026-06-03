@@ -145,6 +145,7 @@ public:
 private:
   MCRegister parseRegisterName(StringRef Name) const;
   bool parseRegisterOperand(OperandVector &Operands);
+  bool parseRegisterCommaRegister(OperandVector &Operands);
   bool parseRegisterOrImmediateOperand(OperandVector &Operands);
 };
 
@@ -217,7 +218,10 @@ bool AVR32AsmParser::parseInstruction(ParseInstructionInfo &Info,
                                       OperandVector &Operands) {
   Operands.push_back(AVR32Operand::createToken(Name, NameLoc));
 
-  if (Name == "mov") {
+  if (Name == "add") {
+    if (parseRegisterCommaRegister(Operands))
+      return true;
+  } else if (Name == "mov") {
     if (parseRegisterOperand(Operands))
       return true;
     if (!parseOptionalToken(AsmToken::Comma))
@@ -268,6 +272,16 @@ bool AVR32AsmParser::parseRegisterOperand(OperandVector &Operands) {
   if (parseRegister(Reg, StartLoc, EndLoc))
     return Error(getLexer().getLoc(), "expected register");
   Operands.push_back(AVR32Operand::createReg(Reg, StartLoc, EndLoc));
+  return false;
+}
+
+bool AVR32AsmParser::parseRegisterCommaRegister(OperandVector &Operands) {
+  if (parseRegisterOperand(Operands))
+    return true;
+  if (!parseOptionalToken(AsmToken::Comma))
+    return Error(getLexer().getLoc(), "expected comma");
+  if (parseRegisterOperand(Operands))
+    return true;
   return false;
 }
 

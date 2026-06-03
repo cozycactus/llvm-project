@@ -19,6 +19,18 @@ def simm8 : Operand<i32>, ImmLeaf<i32, [{ return Imm >= -128 && Imm < 128; }]> {
 
 def NOP : AVR32Inst<0b1101011100000011, (outs), (ins), "nop">;
 
+class CompactRegReg<bits<5> Op, string Mnemonic>
+    : AVR32Inst<0, (outs GPR:$Rd), (ins GPR:$Rs),
+                Mnemonic#"\t$Rd, $Rs"> {
+  bits<4> Rd;
+  bits<4> Rs;
+
+  let Inst{15-13} = 0b000;
+  let Inst{12-9} = Rs;
+  let Inst{8-4} = Op;
+  let Inst{3-0} = Rd;
+}
+
 class MovRI<bits<4> Prefix, string Mnemonic>
     : AVR32Inst<0, (outs GPR:$Rd), (ins simm8:$Imm),
                 Mnemonic#"\t$Rd, $Imm"> {
@@ -45,5 +57,6 @@ class MovRR<bits<4> Cond, string Mnemonic>
   let Inst{3-0} = 0b0000;
 }
 
+def ADDrr : CompactRegReg<0b00000, "add">;
 def MOVrr : MovRR<0b1111, "mov">;
 def MOVri8 : MovRI<0b0011, "mov">;

@@ -69,6 +69,7 @@ TEST(AVR32TargetInfo, LookupTarget) {
   std::unique_ptr<MCInstrInfo> MII(TheTarget->createMCInstrInfo());
   ASSERT_NE(MII.get(), nullptr);
   EXPECT_EQ(MII->get(AVR32::NOP).getSize(), 2u);
+  EXPECT_EQ(MII->get(AVR32::ADDrr).getSize(), 2u);
   EXPECT_EQ(MII->get(AVR32::MOVrr).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::MOVri8).getSize(), 2u);
   EXPECT_EQ(MRI->getEncodingValue(AVR32::SP), 13u);
@@ -108,6 +109,20 @@ TEST(AVR32TargetInfo, LookupTarget) {
   ASSERT_EQ(Code.size(), 2u);
   EXPECT_EQ(static_cast<uint8_t>(Code[0]), 0xd7);
   EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0x03);
+
+  MCInst Add;
+  Add.setOpcode(AVR32::ADDrr);
+  Add.addOperand(MCOperand::createReg(AVR32::R1));
+  Add.addOperand(MCOperand::createReg(AVR32::R2));
+
+  Code.clear();
+  Fixups.clear();
+  MCE->encodeInstruction(Add, Code, Fixups, *STI);
+
+  EXPECT_TRUE(Fixups.empty());
+  ASSERT_EQ(Code.size(), 2u);
+  EXPECT_EQ(static_cast<uint8_t>(Code[0]), 0x04);
+  EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0x01);
 
   MCInst Mov;
   Mov.setOpcode(AVR32::MOVrr);
@@ -151,6 +166,12 @@ TEST(AVR32TargetInfo, LookupTarget) {
   EXPECT_EQ(Printed, "\tnop");
 
   Printed.clear();
+  raw_string_ostream AddOS(Printed);
+  InstPrinter->printInst(&Add, /*Address=*/0, /*Annot=*/"", *STI, AddOS);
+  AddOS.flush();
+  EXPECT_EQ(Printed, "\tadd\tr1, r2");
+
+  Printed.clear();
   raw_string_ostream MovOS(Printed);
   InstPrinter->printInst(&Mov, /*Address=*/0, /*Annot=*/"", *STI, MovOS);
   MovOS.flush();
@@ -164,7 +185,8 @@ TEST(AVR32TargetInfo, LookupTarget) {
 
   SourceMgr SrcMgr;
   SrcMgr.AddNewSourceBuffer(
-      MemoryBuffer::getMemBuffer("nop\nmov r1, r2\nmov r1, -1\n"), SMLoc());
+      MemoryBuffer::getMemBuffer("nop\nadd r1, r2\nmov r1, r2\nmov r1, -1\n"),
+      SMLoc());
 
   MCContext ParseCtx(TT, *MAI, *MRI, *STI, &SrcMgr);
   std::unique_ptr<MCObjectFileInfo> MOFI(
