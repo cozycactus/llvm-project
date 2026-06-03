@@ -563,7 +563,7 @@ bool AVR32AsmParser::parseInstruction(ParseInstructionInfo &Info,
   } else if (Name == "memc" || Name == "mems") {
     if (parseImmediateCommaImmediate(Operands))
       return true;
-  } else if (Name == "ld.d" ||
+  } else if (Name == "ld.d" || Name == "lddpc" || Name == "lddsp" ||
              Name == "ld.sb" || Name == "ld.sbal" || Name == "ld.sbcc" ||
              Name == "ld.sbcs" || Name == "ld.sbeq" || Name == "ld.sbge" ||
              Name == "ld.sbgt" || Name == "ld.sbhi" || Name == "ld.sbhs" ||

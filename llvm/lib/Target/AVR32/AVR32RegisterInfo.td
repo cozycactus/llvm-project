@@ -29,3 +29,5 @@ def GPREven : RegisterClass<"AVR32", [i32], 32,
                             (add R0, R2, R4, R6, R8, R10, R12, LR)>;
 
 def SPOnly : RegisterClass<"AVR32", [i32], 32, (add SP)>;
+
+def PCOnly : RegisterClass<"AVR32", [i32], 32, (add PC)>;
