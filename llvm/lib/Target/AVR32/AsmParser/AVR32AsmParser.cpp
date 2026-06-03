@@ -224,7 +224,7 @@ bool AVR32AsmParser::parseInstruction(ParseInstructionInfo &Info,
       return true;
   } else if (Name == "abs" || Name == "acr" || Name == "brev" ||
              Name == "com" || Name == "neg" || Name == "rol" ||
-             Name == "scr") {
+             Name == "ror" || Name == "scr") {
     if (parseRegisterOperand(Operands))
       return true;
   } else if (Name == "mov") {

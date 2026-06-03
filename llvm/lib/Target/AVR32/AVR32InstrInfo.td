@@ -79,6 +79,7 @@ def MOVri8 : MovRI<0b0011, "mov">;
 def NEGr : CompactReg<0b010111000011, "neg">;
 def ORrr : CompactRegReg<0b00100, "or">;
 def ROLr : CompactReg<0b010111001111, "rol">;
+def RORr : CompactReg<0b010111010000, "ror">;
 def RSUBrr : CompactRegReg<0b00010, "rsub">;
 def SCRr : CompactReg<0b010111000001, "scr">;
 def SUBrr : CompactRegReg<0b00001, "sub">;
