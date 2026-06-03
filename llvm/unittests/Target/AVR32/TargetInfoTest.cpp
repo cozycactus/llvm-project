@@ -395,6 +395,7 @@ TEST(AVR32TargetInfo, LookupTarget) {
   EXPECT_EQ(MII->get(AVR32::ST_W_VC_Disp9).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::ST_W_QS_Disp9).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::STCOND).getSize(), 4u);
+  EXPECT_EQ(MII->get(AVR32::STDSP).getSize(), 2u);
   EXPECT_EQ(MII->get(AVR32::SUBALrrr).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::SUBCCrrr).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::SUBCSrrr).getSize(), 4u);
@@ -2550,6 +2551,21 @@ TEST(AVR32TargetInfo, LookupTarget) {
   EXPECT_EQ(static_cast<uint8_t>(Code[2]), 0xff);
   EXPECT_EQ(static_cast<uint8_t>(Code[3]), 0xff);
 
+  MCInst Stdsp;
+  Stdsp.setOpcode(AVR32::STDSP);
+  Stdsp.addOperand(MCOperand::createReg(AVR32::SP));
+  Stdsp.addOperand(MCOperand::createImm(12));
+  Stdsp.addOperand(MCOperand::createReg(AVR32::R2));
+
+  Code.clear();
+  Fixups.clear();
+  MCE->encodeInstruction(Stdsp, Code, Fixups, *STI);
+
+  EXPECT_TRUE(Fixups.empty());
+  ASSERT_EQ(Code.size(), 2u);
+  EXPECT_EQ(static_cast<uint8_t>(Code[0]), 0x50);
+  EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0x32);
+
   MCInst Scall;
   Scall.setOpcode(AVR32::SCALL);
 
@@ -3943,6 +3959,12 @@ TEST(AVR32TargetInfo, LookupTarget) {
   EXPECT_EQ(Printed, "\tstcond\tr1[-1], r2");
 
   Printed.clear();
+  raw_string_ostream StdspOS(Printed);
+  InstPrinter->printInst(&Stdsp, /*Address=*/0, /*Annot=*/"", *STI, StdspOS);
+  StdspOS.flush();
+  EXPECT_EQ(Printed, "\tstdsp\tsp[12], r2");
+
+  Printed.clear();
   raw_string_ostream ScallOS(Printed);
   InstPrinter->printInst(&Scall, /*Address=*/0, /*Annot=*/"", *STI, ScallOS);
   ScallOS.flush();
@@ -4230,7 +4252,7 @@ TEST(AVR32TargetInfo, LookupTarget) {
           "st.w r1++, r2\nst.w --r1, r2\nst.w r1[12], r2\n"
           "st.w r1[-1], r2\nst.w r1[r2 << 3], r4\n"
           "st.weq r1[12], r2\nst.wal r1[12], r2\n"
-          "stcond r1[-1], r2\n"),
+          "stcond r1[-1], r2\nstdsp sp[12], r2\n"),
       SMLoc());
 
   MCContext StoreParseCtx(TT, *MAI, *MRI, *STI, &StoreSrcMgr);

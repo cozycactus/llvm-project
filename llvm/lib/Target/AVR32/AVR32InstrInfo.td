@@ -58,6 +58,11 @@ def UImm4Shift2AsmOperand : AsmOperandClass {
   let RenderMethod = "addImmOperands";
 }
 
+def UImm7Shift2AsmOperand : AsmOperandClass {
+  let Name = "UImm7Shift2";
+  let RenderMethod = "addImmOperands";
+}
+
 def UImm9Shift1AsmOperand : AsmOperandClass {
   let Name = "UImm9Shift1";
   let RenderMethod = "addImmOperands";
@@ -147,6 +152,13 @@ def uimm4shift2 : Operand<i32>,
                   ImmLeaf<i32, [{ return Imm >= 0 && Imm <= 60 &&
                                          Imm % 4 == 0; }]> {
   let ParserMatchClass = UImm4Shift2AsmOperand;
+  let EncoderMethod = "getShifted2OpValue";
+}
+
+def uimm7shift2 : Operand<i32>,
+                  ImmLeaf<i32, [{ return Imm >= 0 && Imm <= 508 &&
+                                         Imm % 4 == 0; }]> {
+  let ParserMatchClass = UImm7Shift2AsmOperand;
   let EncoderMethod = "getShifted2OpValue";
 }
 
@@ -465,6 +477,17 @@ class CompactSPSubImm<string Mnemonic>
   let Inst{15-12} = 0b0010;
   let Inst{11-4} = Imm;
   let Inst{3-0} = Rd;
+}
+
+class CompactSPStoreDisp7Shift2
+    : AVR32Inst<0, (outs), (ins SPOnly:$Rp, uimm7shift2:$Disp, GPR:$Rs),
+                "stdsp\t${Rp}[$Disp], $Rs"> {
+  bits<7> Disp;
+  bits<4> Rs;
+
+  let Inst{15-11} = 0b01010;
+  let Inst{10-4} = Disp;
+  let Inst{3-0} = Rs;
 }
 
 class CompactRegUImm5NoOut<bits<4> Op, string Mnemonic>
@@ -1142,6 +1165,7 @@ def ST_W_VS_Disp9 : FullStoreCondDisp9Shift2<0b1100, "st.wvs">;
 def ST_W_VC_Disp9 : FullStoreCondDisp9Shift2<0b1101, "st.wvc">;
 def ST_W_QS_Disp9 : FullStoreCondDisp9Shift2<0b1110, "st.wqs">;
 def STCOND : FullStoreDisp16<0b10111, "stcond">;
+def STDSP : CompactSPStoreDisp7Shift2;
 def SUBALrrr : CondRRR<0b1111, 0b0001, "subal">;
 def SUBEQrrr : CondRRR<0b0000, 0b0001, "subeq">;
 def SUBNErrr : CondRRR<0b0001, 0b0001, "subne">;
