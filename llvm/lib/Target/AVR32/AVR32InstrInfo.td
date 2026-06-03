@@ -1093,6 +1093,8 @@ def ST_H_QS_Disp9 : FullStoreCondDisp9Shift1<0b1110, "st.hqs">;
 def ST_W_PostInc : CompactStorePostInc<0b01010, "st.w">;
 def ST_W_PreDec : CompactStorePreDec<0b01101, "st.w">;
 def ST_W_Disp4 : CompactStoreDisp4Shift2<"st.w">;
+def ST_W_Disp16 : FullStoreDisp16<0b10100, "st.w">;
+def ST_W_IndexShift : FullStoreIndexShift<0b0000100100, "st.w">;
 def SUBALrrr : CondRRR<0b1111, 0b0001, "subal">;
 def SUBEQrrr : CondRRR<0b0000, 0b0001, "subeq">;
 def SUBNErrr : CondRRR<0b0001, 0b0001, "subne">;
