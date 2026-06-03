@@ -383,6 +383,15 @@ class RetCond<bits<4> Cond, string Mnemonic>
   let isTerminator = 1;
 }
 
+class SrCond<bits<4> Cond, string Mnemonic>
+    : AVR32Inst<0, (outs GPR:$Rd), (ins), Mnemonic#"\t$Rd"> {
+  bits<4> Rd;
+
+  let Inst{15-8} = 0b01011111;
+  let Inst{7-4} = Cond;
+  let Inst{3-0} = Rd;
+}
+
 def ADCrrr : FullRegRegReg<0b000000000100, "adc">;
 def ABSr : CompactReg<0b010111000100, "abs">;
 def ACRr : CompactReg<0b010111000000, "acr">;
@@ -470,6 +479,24 @@ def SCALL : AVR32Inst<0b1101011100110011, (outs), (ins), "scall">;
 def SSCALL : AVR32Inst<0b1101011101010011, (outs), (ins), "sscall">;
 def SCRr : CompactReg<0b010111000001, "scr">;
 def SLEEPi : FullImm8NoOut<0b1110001101100000, "sleep">;
+def SRALr : SrCond<0b1111, "sral">;
+def SREQr : SrCond<0b0000, "sreq">;
+def SRNEr : SrCond<0b0001, "srne">;
+def SRCCr : SrCond<0b0010, "srcc">;
+def SRHSr : SrCond<0b0010, "srhs">;
+def SRCSr : SrCond<0b0011, "srcs">;
+def SRLOr : SrCond<0b0011, "srlo">;
+def SRGEr : SrCond<0b0100, "srge">;
+def SRLTr : SrCond<0b0101, "srlt">;
+def SRMIr : SrCond<0b0110, "srmi">;
+def SRPLr : SrCond<0b0111, "srpl">;
+def SRLSr : SrCond<0b1000, "srls">;
+def SRGTr : SrCond<0b1001, "srgt">;
+def SRLEr : SrCond<0b1010, "srle">;
+def SRHIr : SrCond<0b1011, "srhi">;
+def SRVSr : SrCond<0b1100, "srvs">;
+def SRVCr : SrCond<0b1101, "srvc">;
+def SRQSr : SrCond<0b1110, "srqs">;
 def SSRFi : CompactImm<0b1101001, "ssrf">;
 def SUBrr : CompactRegReg<0b00001, "sub">;
 def SWAP_BHr : CompactReg<0b010111001100, "swap.bh">;
