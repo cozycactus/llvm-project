@@ -783,6 +783,7 @@ def RSUBVCri : CondRegImm8<0b111110111011, 0b1101, "rsubvc">;
 def RSUBQSri : CondRegImm8<0b111110111011, 0b1110, "rsubqs">;
 def RSUBrr : CompactRegReg<0b00010, "rsub">;
 def SATADD_Wrrr : FullRegRegReg<0b000000001100, "satadd.w">;
+def SATSUB_Hrrr : FullRegRegReg<0b000000111100, "satsub.h">;
 def SBCrrr : FullRegRegReg<0b000000010100, "sbc">;
 def SBRri : CompactRegUImm5NoOut<0b1101, "sbr">;
 def SCALL : AVR32Inst<0b1101011100110011, (outs), (ins), "scall">;
