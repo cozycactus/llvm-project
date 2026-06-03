@@ -351,6 +351,8 @@ TEST(AVR32TargetInfo, LookupTarget) {
   EXPECT_EQ(MII->get(AVR32::ST_H_PostInc).getSize(), 2u);
   EXPECT_EQ(MII->get(AVR32::ST_H_PreDec).getSize(), 2u);
   EXPECT_EQ(MII->get(AVR32::ST_H_Disp3).getSize(), 2u);
+  EXPECT_EQ(MII->get(AVR32::ST_H_Disp16).getSize(), 4u);
+  EXPECT_EQ(MII->get(AVR32::ST_H_IndexShift).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::SUBALrrr).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::SUBCCrrr).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::SUBCSrrr).getSize(), 4u);
@@ -2308,6 +2310,41 @@ TEST(AVR32TargetInfo, LookupTarget) {
   EXPECT_EQ(static_cast<uint8_t>(Code[0]), 0xa2);
   EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0x32);
 
+  MCInst StHDisp16;
+  StHDisp16.setOpcode(AVR32::ST_H_Disp16);
+  StHDisp16.addOperand(MCOperand::createReg(AVR32::R1));
+  StHDisp16.addOperand(MCOperand::createImm(-1));
+  StHDisp16.addOperand(MCOperand::createReg(AVR32::R2));
+
+  Code.clear();
+  Fixups.clear();
+  MCE->encodeInstruction(StHDisp16, Code, Fixups, *STI);
+
+  EXPECT_TRUE(Fixups.empty());
+  ASSERT_EQ(Code.size(), 4u);
+  EXPECT_EQ(static_cast<uint8_t>(Code[0]), 0xe3);
+  EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0x52);
+  EXPECT_EQ(static_cast<uint8_t>(Code[2]), 0xff);
+  EXPECT_EQ(static_cast<uint8_t>(Code[3]), 0xff);
+
+  MCInst StHIndexShift;
+  StHIndexShift.setOpcode(AVR32::ST_H_IndexShift);
+  StHIndexShift.addOperand(MCOperand::createReg(AVR32::R1));
+  StHIndexShift.addOperand(MCOperand::createReg(AVR32::R2));
+  StHIndexShift.addOperand(MCOperand::createImm(3));
+  StHIndexShift.addOperand(MCOperand::createReg(AVR32::R4));
+
+  Code.clear();
+  Fixups.clear();
+  MCE->encodeInstruction(StHIndexShift, Code, Fixups, *STI);
+
+  EXPECT_TRUE(Fixups.empty());
+  ASSERT_EQ(Code.size(), 4u);
+  EXPECT_EQ(static_cast<uint8_t>(Code[0]), 0xe2);
+  EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0x02);
+  EXPECT_EQ(static_cast<uint8_t>(Code[2]), 0x0a);
+  EXPECT_EQ(static_cast<uint8_t>(Code[3]), 0x34);
+
   MCInst Scall;
   Scall.setOpcode(AVR32::SCALL);
 
@@ -3617,6 +3654,20 @@ TEST(AVR32TargetInfo, LookupTarget) {
   EXPECT_EQ(Printed, "\tst.h\tr1[6], r2");
 
   Printed.clear();
+  raw_string_ostream StHDisp16OS(Printed);
+  InstPrinter->printInst(&StHDisp16, /*Address=*/0, /*Annot=*/"", *STI,
+                         StHDisp16OS);
+  StHDisp16OS.flush();
+  EXPECT_EQ(Printed, "\tst.h\tr1[-1], r2");
+
+  Printed.clear();
+  raw_string_ostream StHIndexShiftOS(Printed);
+  InstPrinter->printInst(&StHIndexShift, /*Address=*/0, /*Annot=*/"", *STI,
+                         StHIndexShiftOS);
+  StHIndexShiftOS.flush();
+  EXPECT_EQ(Printed, "\tst.h\tr1[r2 << 3], r4");
+
+  Printed.clear();
   raw_string_ostream ScallOS(Printed);
   InstPrinter->printInst(&Scall, /*Address=*/0, /*Annot=*/"", *STI, ScallOS);
   ScallOS.flush();
@@ -3898,7 +3949,8 @@ TEST(AVR32TargetInfo, LookupTarget) {
           "st.beq r1[3], r2\nst.bal r1[3], r2\n"
           "st.d r1++, r2\nst.d --r1, r2\nst.d r1, r2\n"
           "st.d r1[-1], r2\nst.d r1[r2 << 3], r4\n"
-          "st.h r1++, r2\nst.h --r1, r2\nst.h r1[6], r2\n"),
+          "st.h r1++, r2\nst.h --r1, r2\nst.h r1[6], r2\n"
+          "st.h r1[-1], r2\nst.h r1[r2 << 3], r4\n"),
       SMLoc());
 
   MCContext StoreParseCtx(TT, *MAI, *MRI, *STI, &StoreSrcMgr);

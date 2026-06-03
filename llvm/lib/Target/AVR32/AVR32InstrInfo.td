@@ -1016,6 +1016,8 @@ def ST_D_IndexShift : FullStoreIndexShift<0b0000100000, "st.d", GPREven>;
 def ST_H_PostInc : CompactStorePostInc<0b01011, "st.h">;
 def ST_H_PreDec : CompactStorePreDec<0b01110, "st.h">;
 def ST_H_Disp3 : CompactStoreDisp3Shift1<"st.h">;
+def ST_H_Disp16 : FullStoreDisp16<0b10101, "st.h">;
+def ST_H_IndexShift : FullStoreIndexShift<0b0000101000, "st.h">;
 def SUBALrrr : CondRRR<0b1111, 0b0001, "subal">;
 def SUBEQrrr : CondRRR<0b0000, 0b0001, "subeq">;
 def SUBNErrr : CondRRR<0b0001, 0b0001, "subne">;
