@@ -350,6 +350,14 @@ bool AVR32AsmParser::parseInstruction(ParseInstructionInfo &Info,
              Name == "sbr") {
     if (parseRegisterCommaImmediate(Operands))
       return true;
+  } else if (Name == "rsubal" || Name == "rsubcc" || Name == "rsubcs" ||
+             Name == "rsubeq" || Name == "rsubge" || Name == "rsubgt" ||
+             Name == "rsubhi" || Name == "rsubhs" || Name == "rsuble" ||
+             Name == "rsublo" || Name == "rsubls" || Name == "rsublt" ||
+             Name == "rsubmi" || Name == "rsubne" || Name == "rsubpl" ||
+             Name == "rsubqs" || Name == "rsubvc" || Name == "rsubvs") {
+    if (parseRegisterCommaImmediate(Operands))
+      return true;
   } else if (Name == "cp.w") {
     if (parseRegisterOperand(Operands))
       return true;

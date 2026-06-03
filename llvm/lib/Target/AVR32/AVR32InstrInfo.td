@@ -416,18 +416,21 @@ class MovRR<bits<4> Cond, string Mnemonic>
   let Inst{3-0} = 0b0000;
 }
 
-class MovCondRI<bits<4> Cond, string Mnemonic>
+class CondRegImm8<bits<12> Prefix, bits<4> Cond, string Mnemonic>
     : AVR32Inst32<(outs GPR:$Rd), (ins simm8:$Imm),
                   Mnemonic#"\t$Rd, $Imm"> {
   bits<4> Rd;
   bits<8> Imm;
 
-  let Inst{31-20} = 0b111110011011;
+  let Inst{31-20} = Prefix;
   let Inst{19-16} = Rd;
   let Inst{15-12} = 0;
   let Inst{11-8} = Cond;
   let Inst{7-0} = Imm;
 }
+
+class MovCondRI<bits<4> Cond, string Mnemonic>
+    : CondRegImm8<0b111110011011, Cond, Mnemonic>;
 
 class CondRRR<bits<4> Cond, bits<4> Op, string Mnemonic>
     : AVR32Inst32<(outs GPR:$Rd), (ins GPR:$Rx, GPR:$Ry),
@@ -670,6 +673,24 @@ def RETSS : AVR32Inst<0b1101011101100011, (outs), (ins), "retss">;
 }
 def ROLr : CompactReg<0b010111001111, "rol">;
 def RORr : CompactReg<0b010111010000, "ror">;
+def RSUBALri : CondRegImm8<0b111110111011, 0b1111, "rsubal">;
+def RSUBEQri : CondRegImm8<0b111110111011, 0b0000, "rsubeq">;
+def RSUBNEri : CondRegImm8<0b111110111011, 0b0001, "rsubne">;
+def RSUBCCri : CondRegImm8<0b111110111011, 0b0010, "rsubcc">;
+def RSUBHSri : CondRegImm8<0b111110111011, 0b0010, "rsubhs">;
+def RSUBCSri : CondRegImm8<0b111110111011, 0b0011, "rsubcs">;
+def RSUBLOri : CondRegImm8<0b111110111011, 0b0011, "rsublo">;
+def RSUBGEri : CondRegImm8<0b111110111011, 0b0100, "rsubge">;
+def RSUBLTri : CondRegImm8<0b111110111011, 0b0101, "rsublt">;
+def RSUBMIri : CondRegImm8<0b111110111011, 0b0110, "rsubmi">;
+def RSUBPLri : CondRegImm8<0b111110111011, 0b0111, "rsubpl">;
+def RSUBLSri : CondRegImm8<0b111110111011, 0b1000, "rsubls">;
+def RSUBGTri : CondRegImm8<0b111110111011, 0b1001, "rsubgt">;
+def RSUBLEri : CondRegImm8<0b111110111011, 0b1010, "rsuble">;
+def RSUBHIri : CondRegImm8<0b111110111011, 0b1011, "rsubhi">;
+def RSUBVSri : CondRegImm8<0b111110111011, 0b1100, "rsubvs">;
+def RSUBVCri : CondRegImm8<0b111110111011, 0b1101, "rsubvc">;
+def RSUBQSri : CondRegImm8<0b111110111011, 0b1110, "rsubqs">;
 def RSUBrr : CompactRegReg<0b00010, "rsub">;
 def SBCrrr : FullRegRegReg<0b000000010100, "sbc">;
 def SBRri : CompactRegUImm5NoOut<0b1101, "sbr">;
