@@ -427,6 +427,20 @@ class CompactLoadDisp5Shift2<string Mnemonic>
   let Inst{3-0} = Rd;
 }
 
+class CompactLoadDisp3<string Mnemonic>
+    : AVR32Inst<0, (outs GPR:$Rd), (ins GPR:$Rp, uimm3:$Disp),
+                Mnemonic#"\t$Rd, ${Rp}[$Disp]"> {
+  bits<4> Rd;
+  bits<4> Rp;
+  bits<3> Disp;
+
+  let Inst{15-13} = 0b000;
+  let Inst{12-9} = Rp;
+  let Inst{8-7} = 0b11;
+  let Inst{6-4} = Disp;
+  let Inst{3-0} = Rd;
+}
+
 class FullStoreDisp16<bits<5> Op, string Mnemonic, RegisterClass SrcRC = GPR>
     : AVR32Inst32<(outs), (ins GPR:$Rp, simm16:$Disp, SrcRC:$Rs),
                   Mnemonic#"\t${Rp}[$Disp], $Rs"> {
@@ -795,6 +809,11 @@ def LD_W_HI_Disp9 : FullLoadCondDisp9Shift2<0b1011, "ld.whi">;
 def LD_W_VS_Disp9 : FullLoadCondDisp9Shift2<0b1100, "ld.wvs">;
 def LD_W_VC_Disp9 : FullLoadCondDisp9Shift2<0b1101, "ld.wvc">;
 def LD_W_QS_Disp9 : FullLoadCondDisp9Shift2<0b1110, "ld.wqs">;
+def LD_UB_PostInc : CompactLoadPostInc<0b10011, "ld.ub">;
+def LD_UB_PreDec : CompactLoadPreDec<0b10111, "ld.ub">;
+def LD_UB_Disp3 : CompactLoadDisp3<"ld.ub">;
+def LD_UB_Disp16 : FullLoadDisp16<0b10011, "ld.ub">;
+def LD_UB_IndexShift : FullLoadIndexShift<0b0000011100, "ld.ub">;
 
 class FullRegRegNoOut<bits<16> Op, string Mnemonic>
     : AVR32Inst32<(outs), (ins GPR:$Rd, GPR:$Rs),
