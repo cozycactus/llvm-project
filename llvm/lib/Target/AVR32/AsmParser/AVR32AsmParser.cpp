@@ -68,6 +68,13 @@ public:
     return Const && isInt<8>(Const->getValue());
   }
 
+  bool isSImm6() const {
+    if (Kind != Immediate)
+      return false;
+    auto *Const = dyn_cast<MCConstantExpr>(Imm);
+    return Const && isInt<6>(Const->getValue());
+  }
+
   void print(raw_ostream &OS, const MCAsmInfo &MAI) const override {
     if (Kind == Token)
       OS << "Token " << Tok;
@@ -218,9 +225,16 @@ bool AVR32AsmParser::parseInstruction(ParseInstructionInfo &Info,
                                       OperandVector &Operands) {
   Operands.push_back(AVR32Operand::createToken(Name, NameLoc));
 
-  if (Name == "add" || Name == "and" || Name == "andn" || Name == "cp.w" ||
-      Name == "eor" || Name == "or" || Name == "rsub" || Name == "sub") {
+  if (Name == "add" || Name == "and" || Name == "andn" || Name == "eor" ||
+      Name == "or" || Name == "rsub" || Name == "sub") {
     if (parseRegisterCommaRegister(Operands))
+      return true;
+  } else if (Name == "cp.w") {
+    if (parseRegisterOperand(Operands))
+      return true;
+    if (!parseOptionalToken(AsmToken::Comma))
+      return Error(getLexer().getLoc(), "expected comma");
+    if (parseRegisterOrImmediateOperand(Operands))
       return true;
   } else if (Name == "cpc") {
     if (parseRegisterOperand(Operands))

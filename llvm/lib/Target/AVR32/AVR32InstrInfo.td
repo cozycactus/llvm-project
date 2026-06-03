@@ -8,9 +8,18 @@
 
 include "AVR32InstrFormats.td"
 
+def SImm6AsmOperand : AsmOperandClass {
+  let Name = "SImm6";
+  let RenderMethod = "addImmOperands";
+}
+
 def SImm8AsmOperand : AsmOperandClass {
   let Name = "SImm8";
   let RenderMethod = "addImmOperands";
+}
+
+def simm6 : Operand<i32>, ImmLeaf<i32, [{ return Imm >= -32 && Imm < 32; }]> {
+  let ParserMatchClass = SImm6AsmOperand;
 }
 
 def simm8 : Operand<i32>, ImmLeaf<i32, [{ return Imm >= -128 && Imm < 128; }]> {
@@ -56,6 +65,17 @@ class CompactRegNoOut<bits<12> Op, string Mnemonic>
   bits<4> Rd;
 
   let Inst{15-4} = Op;
+  let Inst{3-0} = Rd;
+}
+
+class CompactRegImmNoOut<bits<6> Op, string Mnemonic>
+    : AVR32Inst<0, (outs), (ins GPR:$Rd, simm6:$Imm),
+                Mnemonic#"\t$Rd, $Imm"> {
+  bits<4> Rd;
+  bits<6> Imm;
+
+  let Inst{15-10} = Op;
+  let Inst{9-4} = Imm;
   let Inst{3-0} = Rd;
 }
 
@@ -111,6 +131,7 @@ def CASTU_Hr : CompactReg<0b010111000111, "castu.h">;
 def COMr : CompactReg<0b010111001101, "com">;
 def CPCr : CompactRegNoOut<0b010111000010, "cpc">;
 def CPCrr : FullRegRegNoOut<0b0001001100000000, "cpc">;
+def CP_Wri6 : CompactRegImmNoOut<0b010110, "cp.w">;
 def CP_Wrr : CompactRegRegNoOut<0b00011, "cp.w">;
 def EORrr : CompactRegReg<0b00101, "eor">;
 def FRS : AVR32Inst<0b1101011101000011, (outs), (ins), "frs">;
