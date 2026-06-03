@@ -438,6 +438,37 @@ class FullStoreIndexShift<bits<10> Op, string Mnemonic, RegisterClass SrcRC = GP
   let Inst{3-0} = Rs;
 }
 
+class FullLoadDisp16<bits<5> Op, string Mnemonic>
+    : AVR32Inst32<(outs GPR:$Rd), (ins GPR:$Rp, simm16:$Disp),
+                  Mnemonic#"\t$Rd, ${Rp}[$Disp]"> {
+  bits<4> Rd;
+  bits<4> Rp;
+  bits<16> Disp;
+
+  let Inst{31-29} = 0b111;
+  let Inst{28-25} = Rp;
+  let Inst{24-20} = Op;
+  let Inst{19-16} = Rd;
+  let Inst{15-0} = Disp;
+}
+
+class FullLoadIndexShift<bits<10> Op, string Mnemonic>
+    : AVR32Inst32<(outs GPR:$Rd), (ins GPR:$Rb, GPR:$Ri, uimm2:$Shift),
+                  Mnemonic#"\t$Rd, ${Rb}[$Ri << $Shift]"> {
+  bits<4> Rd;
+  bits<4> Rb;
+  bits<4> Ri;
+  bits<2> Shift;
+
+  let Inst{31-29} = 0b111;
+  let Inst{28-25} = Rb;
+  let Inst{24-20} = 0b00000;
+  let Inst{19-16} = Ri;
+  let Inst{15-6} = Op;
+  let Inst{5-4} = Shift;
+  let Inst{3-0} = Rd;
+}
+
 class FullStoreHalfwordPairDisp8
     : AVR32Inst32<(outs), (ins GPR:$Rp, uimm8shift2:$Disp, GPR:$Rx,
                                halfpart:$XPart, GPR:$Ry, halfpart:$YPart),
@@ -689,6 +720,8 @@ def INCJOSPi : AVR32Inst<0, (outs), (ins incjospimm:$Imm),
 def LD_W_PostInc : CompactLoadPostInc<0b10000, "ld.w">;
 def LD_W_PreDec : CompactLoadPreDec<0b10100, "ld.w">;
 def LD_W_Disp5 : CompactLoadDisp5Shift2<"ld.w">;
+def LD_W_Disp16 : FullLoadDisp16<0b01111, "ld.w">;
+def LD_W_IndexShift : FullLoadIndexShift<0b0000001100, "ld.w">;
 
 class FullRegRegNoOut<bits<16> Op, string Mnemonic>
     : AVR32Inst32<(outs), (ins GPR:$Rd, GPR:$Rs),

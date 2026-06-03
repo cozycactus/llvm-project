@@ -828,8 +828,28 @@ bool AVR32AsmParser::parseLoadOperands(OperandVector &Operands) {
   if (getLexer().is(AsmToken::LBrac)) {
     Operands.push_back(AVR32Operand::createToken("[", getLexer().getLoc()));
     getLexer().Lex();
-    if (parseImmediateOperand(Operands))
-      return true;
+
+    MCRegister IndexReg;
+    SMLoc IndexStartLoc;
+    SMLoc IndexEndLoc;
+    ParseStatus IndexStatus =
+        tryParseRegister(IndexReg, IndexStartLoc, IndexEndLoc);
+    if (IndexStatus.isSuccess()) {
+      Operands.push_back(
+          AVR32Operand::createReg(IndexReg, IndexStartLoc, IndexEndLoc));
+      if (getLexer().isNot(AsmToken::LessLess))
+        return Error(getLexer().getLoc(), "expected <<");
+      Operands.push_back(AVR32Operand::createToken("<<", getLexer().getLoc()));
+      getLexer().Lex();
+      if (parseImmediateOperand(Operands))
+        return true;
+    } else {
+      if (IndexStatus.isFailure())
+        return Error(IndexStartLoc, "invalid register name");
+      if (parseImmediateOperand(Operands))
+        return true;
+    }
+
     if (getLexer().isNot(AsmToken::RBrac))
       return Error(getLexer().getLoc(), "expected ]");
     Operands.push_back(AVR32Operand::createToken("]", getLexer().getLoc()));
