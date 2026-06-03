@@ -397,6 +397,7 @@ def RORr : CompactReg<0b010111010000, "ror">;
 def RSUBrr : CompactRegReg<0b00010, "rsub">;
 def SBCrrr : FullRegRegReg<0b000000010100, "sbc">;
 def SCALL : AVR32Inst<0b1101011100110011, (outs), (ins), "scall">;
+def SSCALL : AVR32Inst<0b1101011101010011, (outs), (ins), "sscall">;
 def SCRr : CompactReg<0b010111000001, "scr">;
 def SLEEPi : FullImm8NoOut<0b1110001101100000, "sleep">;
 def SSRFi : CompactImm<0b1101001, "ssrf">;
