@@ -301,6 +301,12 @@ bool AVR32AsmParser::parseInstruction(ParseInstructionInfo &Info,
       Name == "eorqs" || Name == "eorvc" || Name == "eorvs" ||
       Name == "lsl" ||
       Name == "lsr" || Name == "max" || Name == "min" ||
+      Name == "oral" || Name == "orcc" || Name == "orcs" ||
+      Name == "oreq" || Name == "orge" || Name == "orgt" ||
+      Name == "orhi" || Name == "orhs" || Name == "orle" ||
+      Name == "orlo" || Name == "orls" || Name == "orlt" ||
+      Name == "ormi" || Name == "orne" || Name == "orpl" ||
+      Name == "orqs" || Name == "orvc" || Name == "orvs" ||
       Name == "muls.d" || Name == "mulu.d" || Name == "sbc") {
     if (parseRegisterCommaRegisterCommaRegister(Operands))
       return true;

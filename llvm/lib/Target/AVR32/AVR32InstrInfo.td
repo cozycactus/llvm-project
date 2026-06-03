@@ -429,7 +429,7 @@ class MovCondRI<bits<4> Cond, string Mnemonic>
   let Inst{7-0} = Imm;
 }
 
-class EorCondRRR<bits<4> Cond, string Mnemonic>
+class CondLogicRRR<bits<4> Cond, bits<4> Op, string Mnemonic>
     : AVR32Inst32<(outs GPR:$Rd), (ins GPR:$Rx, GPR:$Ry),
                   Mnemonic#"\t$Rd, $Rx, $Ry"> {
   bits<4> Rd;
@@ -442,7 +442,7 @@ class EorCondRRR<bits<4> Cond, string Mnemonic>
   let Inst{19-16} = Ry;
   let Inst{15-12} = 0b1110;
   let Inst{11-8} = Cond;
-  let Inst{7-4} = 0b0100;
+  let Inst{7-4} = Op;
   let Inst{3-0} = Rd;
 }
 
@@ -504,24 +504,24 @@ def DIVSrrr : FullRegRegReg<0b000011000000, "divs">;
 def DIVUrrr : FullRegRegReg<0b000011010000, "divu">;
 def EORHri : FullRegUImm16<0b111011100001, "eorh">;
 def EORLri : FullRegUImm16<0b111011000001, "eorl">;
-def EORALrrr : EorCondRRR<0b1111, "eoral">;
-def EOREQrrr : EorCondRRR<0b0000, "eoreq">;
-def EORNErrr : EorCondRRR<0b0001, "eorne">;
-def EORCCrrr : EorCondRRR<0b0010, "eorcc">;
-def EORHSrrr : EorCondRRR<0b0010, "eorhs">;
-def EORCSrrr : EorCondRRR<0b0011, "eorcs">;
-def EORLOrrr : EorCondRRR<0b0011, "eorlo">;
-def EORGErrr : EorCondRRR<0b0100, "eorge">;
-def EORLTrrr : EorCondRRR<0b0101, "eorlt">;
-def EORMIrrr : EorCondRRR<0b0110, "eormi">;
-def EORPLrrr : EorCondRRR<0b0111, "eorpl">;
-def EORLSrrr : EorCondRRR<0b1000, "eorls">;
-def EORGTrrr : EorCondRRR<0b1001, "eorgt">;
-def EORLErrr : EorCondRRR<0b1010, "eorle">;
-def EORHIrrr : EorCondRRR<0b1011, "eorhi">;
-def EORVSrrr : EorCondRRR<0b1100, "eorvs">;
-def EORVCrrr : EorCondRRR<0b1101, "eorvc">;
-def EORQSrrr : EorCondRRR<0b1110, "eorqs">;
+def EORALrrr : CondLogicRRR<0b1111, 0b0100, "eoral">;
+def EOREQrrr : CondLogicRRR<0b0000, 0b0100, "eoreq">;
+def EORNErrr : CondLogicRRR<0b0001, 0b0100, "eorne">;
+def EORCCrrr : CondLogicRRR<0b0010, 0b0100, "eorcc">;
+def EORHSrrr : CondLogicRRR<0b0010, 0b0100, "eorhs">;
+def EORCSrrr : CondLogicRRR<0b0011, 0b0100, "eorcs">;
+def EORLOrrr : CondLogicRRR<0b0011, 0b0100, "eorlo">;
+def EORGErrr : CondLogicRRR<0b0100, 0b0100, "eorge">;
+def EORLTrrr : CondLogicRRR<0b0101, 0b0100, "eorlt">;
+def EORMIrrr : CondLogicRRR<0b0110, 0b0100, "eormi">;
+def EORPLrrr : CondLogicRRR<0b0111, 0b0100, "eorpl">;
+def EORLSrrr : CondLogicRRR<0b1000, 0b0100, "eorls">;
+def EORGTrrr : CondLogicRRR<0b1001, 0b0100, "eorgt">;
+def EORLErrr : CondLogicRRR<0b1010, 0b0100, "eorle">;
+def EORHIrrr : CondLogicRRR<0b1011, 0b0100, "eorhi">;
+def EORVSrrr : CondLogicRRR<0b1100, 0b0100, "eorvs">;
+def EORVCrrr : CondLogicRRR<0b1101, 0b0100, "eorvc">;
+def EORQSrrr : CondLogicRRR<0b1110, 0b0100, "eorqs">;
 def EORrr : CompactRegReg<0b00101, "eor">;
 def FRS : AVR32Inst<0b1101011101000011, (outs), (ins), "frs">;
 def ICALLr : CompactRegNoOut<0b010111010001, "icall">;
@@ -583,6 +583,24 @@ def MTSRi : FullSysRegReg<0b111000111011, "mtsr">;
 def NEGr : CompactReg<0b010111000011, "neg">;
 def ORHri : FullRegUImm16<0b111010100001, "orh">;
 def ORLri : FullRegUImm16<0b111010000001, "orl">;
+def ORALrrr : CondLogicRRR<0b1111, 0b0011, "oral">;
+def OREQrrr : CondLogicRRR<0b0000, 0b0011, "oreq">;
+def ORNErrr : CondLogicRRR<0b0001, 0b0011, "orne">;
+def ORCCrrr : CondLogicRRR<0b0010, 0b0011, "orcc">;
+def ORHSrrr : CondLogicRRR<0b0010, 0b0011, "orhs">;
+def ORCSrrr : CondLogicRRR<0b0011, 0b0011, "orcs">;
+def ORLOrrr : CondLogicRRR<0b0011, 0b0011, "orlo">;
+def ORGErrr : CondLogicRRR<0b0100, 0b0011, "orge">;
+def ORLTrrr : CondLogicRRR<0b0101, 0b0011, "orlt">;
+def ORMIrrr : CondLogicRRR<0b0110, 0b0011, "ormi">;
+def ORPLrrr : CondLogicRRR<0b0111, 0b0011, "orpl">;
+def ORLSrrr : CondLogicRRR<0b1000, 0b0011, "orls">;
+def ORGTrrr : CondLogicRRR<0b1001, 0b0011, "orgt">;
+def ORLErrr : CondLogicRRR<0b1010, 0b0011, "orle">;
+def ORHIrrr : CondLogicRRR<0b1011, 0b0011, "orhi">;
+def ORVSrrr : CondLogicRRR<0b1100, 0b0011, "orvs">;
+def ORVCrrr : CondLogicRRR<0b1101, 0b0011, "orvc">;
+def ORQSrrr : CondLogicRRR<0b1110, 0b0011, "orqs">;
 def ORrr : CompactRegReg<0b00100, "or">;
 def POPJC : AVR32Inst<0b1101011100010011, (outs), (ins), "popjc">;
 def PUSHJC : AVR32Inst<0b1101011100100011, (outs), (ins), "pushjc">;
