@@ -73,6 +73,11 @@ def UImm4Shift2AsmOperand : AsmOperandClass {
   let RenderMethod = "addImmOperands";
 }
 
+def UImm5Shift2AsmOperand : AsmOperandClass {
+  let Name = "UImm5Shift2";
+  let RenderMethod = "addImmOperands";
+}
+
 def UImm7Shift2AsmOperand : AsmOperandClass {
   let Name = "UImm7Shift2";
   let RenderMethod = "addImmOperands";
@@ -186,6 +191,13 @@ def uimm4shift2 : Operand<i32>,
                   ImmLeaf<i32, [{ return Imm >= 0 && Imm <= 60 &&
                                          Imm % 4 == 0; }]> {
   let ParserMatchClass = UImm4Shift2AsmOperand;
+  let EncoderMethod = "getShifted2OpValue";
+}
+
+def uimm5shift2 : Operand<i32>,
+                  ImmLeaf<i32, [{ return Imm >= 0 && Imm <= 124 &&
+                                         Imm % 4 == 0; }]> {
+  let ParserMatchClass = UImm5Shift2AsmOperand;
   let EncoderMethod = "getShifted2OpValue";
 }
 
@@ -356,6 +368,43 @@ class CompactStoreDisp4Shift2<string Mnemonic>
   let Inst{8} = 1;
   let Inst{7-4} = Disp;
   let Inst{3-0} = Rs;
+}
+
+class CompactLoadPostInc<bits<5> Op, string Mnemonic>
+    : AVR32Inst<0, (outs GPR:$Rd), (ins GPR:$Rp),
+                Mnemonic#"\t$Rd, ${Rp}++"> {
+  bits<4> Rd;
+  bits<4> Rp;
+
+  let Inst{15-13} = 0b000;
+  let Inst{12-9} = Rp;
+  let Inst{8-4} = Op;
+  let Inst{3-0} = Rd;
+}
+
+class CompactLoadPreDec<bits<5> Op, string Mnemonic>
+    : AVR32Inst<0, (outs GPR:$Rd), (ins GPR:$Rp),
+                Mnemonic#"\t$Rd, --$Rp"> {
+  bits<4> Rd;
+  bits<4> Rp;
+
+  let Inst{15-13} = 0b000;
+  let Inst{12-9} = Rp;
+  let Inst{8-4} = Op;
+  let Inst{3-0} = Rd;
+}
+
+class CompactLoadDisp5Shift2<string Mnemonic>
+    : AVR32Inst<0, (outs GPR:$Rd), (ins GPR:$Rp, uimm5shift2:$Disp),
+                Mnemonic#"\t$Rd, ${Rp}[$Disp]"> {
+  bits<4> Rd;
+  bits<4> Rp;
+  bits<5> Disp;
+
+  let Inst{15-13} = 0b011;
+  let Inst{12-9} = Rp;
+  let Inst{8-4} = Disp;
+  let Inst{3-0} = Rd;
 }
 
 class FullStoreDisp16<bits<5> Op, string Mnemonic, RegisterClass SrcRC = GPR>
@@ -636,6 +685,10 @@ def INCJOSPi : AVR32Inst<0, (outs), (ins incjospimm:$Imm),
   let Inst{6-4} = Imm;
   let Inst{3-0} = 0b0011;
 }
+
+def LD_W_PostInc : CompactLoadPostInc<0b10000, "ld.w">;
+def LD_W_PreDec : CompactLoadPreDec<0b10100, "ld.w">;
+def LD_W_Disp5 : CompactLoadDisp5Shift2<"ld.w">;
 
 class FullRegRegNoOut<bits<16> Op, string Mnemonic>
     : AVR32Inst32<(outs), (ins GPR:$Rd, GPR:$Rs),

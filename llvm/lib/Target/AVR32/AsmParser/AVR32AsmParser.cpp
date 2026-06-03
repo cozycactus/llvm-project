@@ -150,6 +150,14 @@ public:
            Const->getValue() % 4 == 0;
   }
 
+  bool isUImm5Shift2() const {
+    if (Kind != Immediate)
+      return false;
+    auto *Const = dyn_cast<MCConstantExpr>(Imm);
+    return Const && Const->getValue() >= 0 && Const->getValue() <= 124 &&
+           Const->getValue() % 4 == 0;
+  }
+
   bool isUImm7Shift2() const {
     if (Kind != Immediate)
       return false;
@@ -332,6 +340,7 @@ private:
   bool parseRegisterHalfPart(OperandVector &Operands);
   bool parseRegisterCommaRegisterHalfPartCommaRegisterHalfPart(
       OperandVector &Operands);
+  bool parseLoadOperands(OperandVector &Operands);
   bool parseStoreHalfwordPairOperands(OperandVector &Operands);
   bool parseStoreByteOperands(OperandVector &Operands);
   bool parseStoreDoubleOperands(OperandVector &Operands);
@@ -525,6 +534,9 @@ bool AVR32AsmParser::parseInstruction(ParseInstructionInfo &Info,
       return true;
   } else if (Name == "incjosp" || Name == "sleep" || Name == "sync") {
     if (parseImmediateOperand(Operands))
+      return true;
+  } else if (Name == "ld.w") {
+    if (parseLoadOperands(Operands))
       return true;
   } else if (Name == "st.b" || Name == "st.bal" || Name == "st.bcc" ||
              Name == "st.bcs" || Name == "st.beq" || Name == "st.bge" ||
@@ -791,6 +803,45 @@ bool AVR32AsmParser::parseRegisterCommaRegisterHalfPartCommaRegisterHalfPart(
     return Error(getLexer().getLoc(), "expected comma");
   if (parseRegisterHalfPart(Operands))
     return true;
+  return false;
+}
+
+bool AVR32AsmParser::parseLoadOperands(OperandVector &Operands) {
+  if (parseRegisterOperand(Operands))
+    return true;
+  if (!parseOptionalToken(AsmToken::Comma))
+    return Error(getLexer().getLoc(), "expected comma");
+
+  if (parseOptionalToken(AsmToken::Minus)) {
+    SMLoc MinusLoc = getLexer().getLoc();
+    if (!parseOptionalToken(AsmToken::Minus))
+      return Error(getLexer().getLoc(), "expected --");
+    Operands.push_back(AVR32Operand::createToken("--", MinusLoc));
+    if (parseRegisterOperand(Operands))
+      return true;
+    return false;
+  }
+
+  if (parseRegisterOperand(Operands))
+    return true;
+
+  if (getLexer().is(AsmToken::LBrac)) {
+    Operands.push_back(AVR32Operand::createToken("[", getLexer().getLoc()));
+    getLexer().Lex();
+    if (parseImmediateOperand(Operands))
+      return true;
+    if (getLexer().isNot(AsmToken::RBrac))
+      return Error(getLexer().getLoc(), "expected ]");
+    Operands.push_back(AVR32Operand::createToken("]", getLexer().getLoc()));
+    getLexer().Lex();
+    return false;
+  }
+
+  SMLoc PlusLoc = getLexer().getLoc();
+  if (!parseOptionalToken(AsmToken::Plus) ||
+      !parseOptionalToken(AsmToken::Plus))
+    return Error(PlusLoc, "expected ++ or [disp]");
+  Operands.push_back(AVR32Operand::createToken("++", PlusLoc));
   return false;
 }
 
