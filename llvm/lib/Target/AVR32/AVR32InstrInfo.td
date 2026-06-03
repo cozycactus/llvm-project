@@ -483,6 +483,8 @@ def CP_Wri6 : CompactRegImmNoOut<0b010110, "cp.w">;
 def CP_Wrr : CompactRegRegNoOut<0b00011, "cp.w">;
 def CSRFCZi : CompactImm<0b1101000, "csrfcz">;
 def CSRFi : CompactImm<0b1101010, "csrf">;
+def DIVSrrr : FullRegRegReg<0b000011000000, "divs">;
+def DIVUrrr : FullRegRegReg<0b000011010000, "divu">;
 def EORHri : FullRegUImm16<0b111011100001, "eorh">;
 def EORLri : FullRegUImm16<0b111011000001, "eorl">;
 def EORrr : CompactRegReg<0b00101, "eor">;
