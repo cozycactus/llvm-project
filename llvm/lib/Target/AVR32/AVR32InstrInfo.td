@@ -48,6 +48,11 @@ def UImm3AsmOperand : AsmOperandClass {
   let RenderMethod = "addImmOperands";
 }
 
+def UImm3Shift1AsmOperand : AsmOperandClass {
+  let Name = "UImm3Shift1";
+  let RenderMethod = "addImmOperands";
+}
+
 def UImm8AsmOperand : AsmOperandClass {
   let Name = "UImm8";
   let RenderMethod = "addImmOperands";
@@ -114,6 +119,13 @@ def uimm2 : Operand<i32>, ImmLeaf<i32, [{ return Imm >= 0 && Imm < 4; }]> {
 
 def uimm3 : Operand<i32>, ImmLeaf<i32, [{ return Imm >= 0 && Imm < 8; }]> {
   let ParserMatchClass = UImm3AsmOperand;
+}
+
+def uimm3shift1 : Operand<i32>,
+                  ImmLeaf<i32, [{ return Imm >= 0 && Imm <= 14 &&
+                                         Imm % 2 == 0; }]> {
+  let ParserMatchClass = UImm3Shift1AsmOperand;
+  let EncoderMethod = "getShifted1OpValue";
 }
 
 def uimm5 : Operand<i32>, ImmLeaf<i32, [{ return Imm >= 0 && Imm < 32; }]> {
@@ -220,6 +232,20 @@ class CompactStoreDisp3<string Mnemonic>
   let Inst{15-13} = 0b101;
   let Inst{12-9} = Rp;
   let Inst{8-7} = 0b01;
+  let Inst{6-4} = Disp;
+  let Inst{3-0} = Rs;
+}
+
+class CompactStoreDisp3Shift1<string Mnemonic>
+    : AVR32Inst<0, (outs), (ins GPR:$Rp, uimm3shift1:$Disp, GPR:$Rs),
+                Mnemonic#"\t${Rp}[$Disp], $Rs"> {
+  bits<4> Rp;
+  bits<3> Disp;
+  bits<4> Rs;
+
+  let Inst{15-13} = 0b101;
+  let Inst{12-9} = Rp;
+  let Inst{8-7} = 0b00;
   let Inst{6-4} = Disp;
   let Inst{3-0} = Rs;
 }
@@ -987,6 +1013,9 @@ def ST_D_PreDec : CompactStorePair<0b10010, 1, "st.d\t--$Rp, $Rs">;
 def ST_D_Reg : CompactStorePair<0b10001, 1, "st.d\t$Rp, $Rs">;
 def ST_D_Disp16 : FullStorePairDisp16<0b01110, "st.d">;
 def ST_D_IndexShift : FullStoreIndexShift<0b0000100000, "st.d", GPREven>;
+def ST_H_PostInc : CompactStorePostInc<0b01011, "st.h">;
+def ST_H_PreDec : CompactStorePreDec<0b01110, "st.h">;
+def ST_H_Disp3 : CompactStoreDisp3Shift1<"st.h">;
 def SUBALrrr : CondRRR<0b1111, 0b0001, "subal">;
 def SUBEQrrr : CondRRR<0b0000, 0b0001, "subeq">;
 def SUBNErrr : CondRRR<0b0001, 0b0001, "subne">;

@@ -118,6 +118,14 @@ public:
     return Const && isUInt<3>(Const->getValue());
   }
 
+  bool isUImm3Shift1() const {
+    if (Kind != Immediate)
+      return false;
+    auto *Const = dyn_cast<MCConstantExpr>(Imm);
+    return Const && Const->getValue() >= 0 && Const->getValue() <= 14 &&
+           Const->getValue() % 2 == 0;
+  }
+
   bool isUImm8() const {
     if (Kind != Immediate)
       return false;
@@ -454,7 +462,7 @@ bool AVR32AsmParser::parseInstruction(ParseInstructionInfo &Info,
              Name == "st.ble" || Name == "st.blo" || Name == "st.bls" ||
              Name == "st.blt" || Name == "st.bmi" || Name == "st.bne" ||
              Name == "st.bpl" || Name == "st.bqs" || Name == "st.bvc" ||
-             Name == "st.bvs") {
+             Name == "st.bvs" || Name == "st.h") {
     if (parseStoreByteOperands(Operands))
       return true;
   } else if (Name == "st.d") {

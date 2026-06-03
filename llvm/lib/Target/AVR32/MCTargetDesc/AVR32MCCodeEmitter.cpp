@@ -61,6 +61,15 @@ public:
     return 0;
   }
 
+  unsigned getShifted1OpValue(const MCInst &MI, unsigned OpNo,
+                              SmallVectorImpl<MCFixup> &Fixups,
+                              const MCSubtargetInfo &STI) const {
+    const MCOperand &MO = MI.getOperand(OpNo);
+    if (MO.isImm())
+      return static_cast<unsigned>(MO.getImm()) >> 1;
+    return 0;
+  }
+
   unsigned getIncJOSPImmOpValue(const MCInst &MI, unsigned OpNo,
                                 SmallVectorImpl<MCFixup> &Fixups,
                                 const MCSubtargetInfo &STI) const {
