@@ -492,7 +492,8 @@ bool AVR32AsmParser::parseInstruction(ParseInstructionInfo &Info,
       Name == "orlo" || Name == "orls" || Name == "orlt" ||
       Name == "ormi" || Name == "orne" || Name == "orpl" ||
       Name == "orqs" || Name == "orvc" || Name == "orvs" ||
-      Name == "muls.d" || Name == "mulu.d" || Name == "satadd.w" ||
+      Name == "muls.d" || Name == "mulu.d" || Name == "psad" ||
+      Name == "satadd.w" ||
       Name == "satsub.h" || Name == "sbc" || Name == "xchg") {
     if (parseRegisterCommaRegisterCommaRegister(Operands))
       return true;

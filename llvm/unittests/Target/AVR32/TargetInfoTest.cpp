@@ -245,6 +245,7 @@ TEST(AVR32TargetInfo, LookupTarget) {
   EXPECT_EQ(MII->get(AVR32::ORVSrrr).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::ORrr).getSize(), 2u);
   EXPECT_EQ(MII->get(AVR32::PREF).getSize(), 4u);
+  EXPECT_EQ(MII->get(AVR32::PSADrrr).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::POPJC).getSize(), 2u);
   EXPECT_EQ(MII->get(AVR32::PUSHJC).getSize(), 2u);
   EXPECT_EQ(MII->get(AVR32::RETD).getSize(), 2u);
@@ -2405,6 +2406,23 @@ TEST(AVR32TargetInfo, LookupTarget) {
   EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0x11);
   EXPECT_EQ(static_cast<uint8_t>(Code[2]), 0xff);
   EXPECT_EQ(static_cast<uint8_t>(Code[3]), 0xff);
+
+  MCInst Psad;
+  Psad.setOpcode(AVR32::PSADrrr);
+  Psad.addOperand(MCOperand::createReg(AVR32::R1));
+  Psad.addOperand(MCOperand::createReg(AVR32::R2));
+  Psad.addOperand(MCOperand::createReg(AVR32::R3));
+
+  Code.clear();
+  Fixups.clear();
+  MCE->encodeInstruction(Psad, Code, Fixups, *STI);
+
+  EXPECT_TRUE(Fixups.empty());
+  ASSERT_EQ(Code.size(), 4u);
+  EXPECT_EQ(static_cast<uint8_t>(Code[0]), 0xe4);
+  EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0x03);
+  EXPECT_EQ(static_cast<uint8_t>(Code[2]), 0x24);
+  EXPECT_EQ(static_cast<uint8_t>(Code[3]), 0x01);
 
   MCInst OrEq;
   OrEq.setOpcode(AVR32::OREQrrr);
@@ -4812,6 +4830,12 @@ TEST(AVR32TargetInfo, LookupTarget) {
   EXPECT_EQ(Printed, "\tpref\tr1[-1]");
 
   Printed.clear();
+  raw_string_ostream PsadOS(Printed);
+  InstPrinter->printInst(&Psad, /*Address=*/0, /*Annot=*/"", *STI, PsadOS);
+  PsadOS.flush();
+  EXPECT_EQ(Printed, "\tpsad\tr1, r2, r3");
+
+  Printed.clear();
   raw_string_ostream OrEqOS(Printed);
   InstPrinter->printInst(&OrEq, /*Address=*/0, /*Annot=*/"", *STI, OrEqOS);
   OrEqOS.flush();
@@ -5655,6 +5679,25 @@ TEST(AVR32TargetInfo, LookupTarget) {
   ASSERT_NE(PrefTargetParser.get(), nullptr);
   PrefParser->setTargetParser(*PrefTargetParser);
   EXPECT_FALSE(PrefParser->Run(/*NoInitialTextSection=*/false));
+
+  SourceMgr PsadSrcMgr;
+  PsadSrcMgr.AddNewSourceBuffer(
+      MemoryBuffer::getMemBuffer("psad r1, r2, r3\n"), SMLoc());
+
+  MCContext PsadParseCtx(TT, *MAI, *MRI, *STI, &PsadSrcMgr);
+  std::unique_ptr<MCObjectFileInfo> PsadMOFI(
+      TheTarget->createMCObjectFileInfo(PsadParseCtx, /*PIC=*/false));
+  PsadParseCtx.setObjectFileInfo(PsadMOFI.get());
+
+  std::unique_ptr<MCStreamer> PsadStreamer(
+      TheTarget->createNullStreamer(PsadParseCtx));
+  std::unique_ptr<MCAsmParser> PsadParser(
+      createMCAsmParser(PsadSrcMgr, PsadParseCtx, *PsadStreamer, *MAI));
+  std::unique_ptr<MCTargetAsmParser> PsadTargetParser(
+      TheTarget->createMCAsmParser(*STI, *PsadParser, *MII));
+  ASSERT_NE(PsadTargetParser.get(), nullptr);
+  PsadParser->setTargetParser(*PsadTargetParser);
+  EXPECT_FALSE(PsadParser->Run(/*NoInitialTextSection=*/false));
 }
 
 } // namespace
