@@ -126,6 +126,14 @@ public:
            Const->getValue() % 2 == 0;
   }
 
+  bool isUImm4Shift2() const {
+    if (Kind != Immediate)
+      return false;
+    auto *Const = dyn_cast<MCConstantExpr>(Imm);
+    return Const && Const->getValue() >= 0 && Const->getValue() <= 60 &&
+           Const->getValue() % 4 == 0;
+  }
+
   bool isUImm8() const {
     if (Kind != Immediate)
       return false;
@@ -476,7 +484,7 @@ bool AVR32AsmParser::parseInstruction(ParseInstructionInfo &Info,
              Name == "st.hhs" || Name == "st.hle" || Name == "st.hlo" ||
              Name == "st.hls" || Name == "st.hlt" || Name == "st.hmi" ||
              Name == "st.hne" || Name == "st.hpl" || Name == "st.hqs" ||
-             Name == "st.hvc" || Name == "st.hvs") {
+             Name == "st.hvc" || Name == "st.hvs" || Name == "st.w") {
     if (parseStoreByteOperands(Operands))
       return true;
   } else if (Name == "st.d") {
