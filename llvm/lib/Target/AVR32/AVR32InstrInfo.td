@@ -224,8 +224,8 @@ class CompactStoreDisp3<string Mnemonic>
   let Inst{3-0} = Rs;
 }
 
-class FullStoreDisp16<bits<5> Op, string Mnemonic>
-    : AVR32Inst32<(outs), (ins GPR:$Rp, simm16:$Disp, GPR:$Rs),
+class FullStoreDisp16<bits<5> Op, string Mnemonic, RegisterClass SrcRC = GPR>
+    : AVR32Inst32<(outs), (ins GPR:$Rp, simm16:$Disp, SrcRC:$Rs),
                   Mnemonic#"\t${Rp}[$Disp], $Rs"> {
   bits<4> Rp;
   bits<16> Disp;
@@ -238,8 +238,8 @@ class FullStoreDisp16<bits<5> Op, string Mnemonic>
   let Inst{15-0} = Disp;
 }
 
-class FullStoreIndexShift<bits<10> Op, string Mnemonic>
-    : AVR32Inst32<(outs), (ins GPR:$Rb, GPR:$Ri, uimm2:$Shift, GPR:$Rs),
+class FullStoreIndexShift<bits<10> Op, string Mnemonic, RegisterClass SrcRC = GPR>
+    : AVR32Inst32<(outs), (ins GPR:$Rb, GPR:$Ri, uimm2:$Shift, SrcRC:$Rs),
                   Mnemonic#"\t${Rb}[$Ri << $Shift], $Rs"> {
   bits<4> Rb;
   bits<4> Ri;
@@ -253,6 +253,21 @@ class FullStoreIndexShift<bits<10> Op, string Mnemonic>
   let Inst{15-6} = Op;
   let Inst{5-4} = Shift;
   let Inst{3-0} = Rs;
+}
+
+class FullStorePairDisp16<bits<5> Op, string Mnemonic>
+    : AVR32Inst32<(outs), (ins GPR:$Rp, simm16:$Disp, GPREven:$Rs),
+                  Mnemonic#"\t${Rp}[$Disp], $Rs"> {
+  bits<4> Rp;
+  bits<16> Disp;
+  bits<4> Rs;
+
+  let Inst{31-29} = 0b111;
+  let Inst{28-25} = Rp;
+  let Inst{24-20} = Op;
+  let Inst{19-17} = Rs{3-1};
+  let Inst{16} = 1;
+  let Inst{15-0} = Disp;
 }
 
 class FullStoreCondDisp9<bits<4> Cond, string Mnemonic>
@@ -970,6 +985,8 @@ def ST_B_QS_Disp9 : FullStoreCondDisp9<0b1110, "st.bqs">;
 def ST_D_PostInc : CompactStorePair<0b10010, 0, "st.d\t${Rp}++, $Rs">;
 def ST_D_PreDec : CompactStorePair<0b10010, 1, "st.d\t--$Rp, $Rs">;
 def ST_D_Reg : CompactStorePair<0b10001, 1, "st.d\t$Rp, $Rs">;
+def ST_D_Disp16 : FullStorePairDisp16<0b01110, "st.d">;
+def ST_D_IndexShift : FullStoreIndexShift<0b0000100000, "st.d", GPREven>;
 def SUBALrrr : CondRRR<0b1111, 0b0001, "subal">;
 def SUBEQrrr : CondRRR<0b0000, 0b0001, "subeq">;
 def SUBNErrr : CondRRR<0b0001, 0b0001, "subne">;
