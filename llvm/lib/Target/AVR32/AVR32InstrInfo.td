@@ -777,6 +777,7 @@ def SUBFHIri : SubfCondRI<0b1011, "subfhi">;
 def SUBFVSri : SubfCondRI<0b1100, "subfvs">;
 def SUBFVCri : SubfCondRI<0b1101, "subfvc">;
 def SUBFQSri : SubfCondRI<0b1110, "subfqs">;
+def SUBri21 : FullRegImm<0b0001, "sub">;
 def SUBrr : CompactRegReg<0b00001, "sub">;
 def SWAP_BHr : CompactReg<0b010111001100, "swap.bh">;
 def SWAP_Br : CompactReg<0b010111001011, "swap.b">;
