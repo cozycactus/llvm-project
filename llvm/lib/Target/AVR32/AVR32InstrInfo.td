@@ -797,6 +797,8 @@ def RSUBVCri : CondRegImm8<0b111110111011, 0b1101, "rsubvc">;
 def RSUBQSri : CondRegImm8<0b111110111011, 0b1110, "rsubqs">;
 def RSUBrr : CompactRegReg<0b00010, "rsub">;
 def SATADD_Wrrr : FullRegRegReg<0b000000001100, "satadd.w">;
+def SATRNDSri : FullRegShiftBits<0b111100111011, 0b000000, "satrnds">;
+def SATRNDUri : FullRegShiftBits<0b111100111011, 0b000001, "satrndu">;
 def SATSUB_Hrrr : FullRegRegReg<0b000000111100, "satsub.h">;
 def SATSUB_Wrrr : FullRegRegReg<0b000000011100, "satsub.w">;
 def SATSUB_Wrri16 : FullRegRegSImm16<0b01101, "satsub.w">;
