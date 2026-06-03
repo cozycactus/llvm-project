@@ -461,6 +461,8 @@ def MUSTRr : CompactReg<0b010111010010, "mustr">;
 def MTDRi : FullDebugRegReg<0b111001111011, "mtdr">;
 def MTSRi : FullSysRegReg<0b111000111011, "mtsr">;
 def NEGr : CompactReg<0b010111000011, "neg">;
+def ORHri : FullRegUImm16<0b111010100001, "orh">;
+def ORLri : FullRegUImm16<0b111010000001, "orl">;
 def ORrr : CompactRegReg<0b00100, "or">;
 def POPJC : AVR32Inst<0b1101011100010011, (outs), (ins), "popjc">;
 def PUSHJC : AVR32Inst<0b1101011100100011, (outs), (ins), "pushjc">;

@@ -330,7 +330,8 @@ bool AVR32AsmParser::parseInstruction(ParseInstructionInfo &Info,
   } else if (Name == "incjosp" || Name == "sleep" || Name == "sync") {
     if (parseImmediateOperand(Operands))
       return true;
-  } else if (Name == "mfdr" || Name == "mfsr" || Name == "movh") {
+  } else if (Name == "mfdr" || Name == "mfsr" || Name == "movh" ||
+             Name == "orh" || Name == "orl") {
     if (parseRegisterCommaImmediate(Operands))
       return true;
   } else if (Name == "mtdr" || Name == "mtsr") {
