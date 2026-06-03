@@ -339,6 +339,7 @@ def CPCrr : FullRegRegNoOut<0b0001001100000000, "cpc">;
 def CP_Wri21 : FullRegImmNoOut<0b0010, "cp.w">;
 def CP_Wri6 : CompactRegImmNoOut<0b010110, "cp.w">;
 def CP_Wrr : CompactRegRegNoOut<0b00011, "cp.w">;
+def CSRFCZi : CompactImm<0b1101000, "csrfcz">;
 def CSRFi : CompactImm<0b1101010, "csrf">;
 def EORrr : CompactRegReg<0b00101, "eor">;
 def FRS : AVR32Inst<0b1101011101000011, (outs), (ins), "frs">;
