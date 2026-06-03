@@ -4,6 +4,7 @@ add_llvm_component_library(LLVMAVR32
   AVR32Target.cpp
 
   LINK_COMPONENTS
+  AVR32Desc
   AVR32Info
   Support
 
@@ -11,4 +12,5 @@ add_llvm_component_library(LLVMAVR32
   AVR32
 )
 
+add_subdirectory(MCTargetDesc)
 add_subdirectory(TargetInfo)

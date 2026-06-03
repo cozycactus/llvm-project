@@ -1,4 +1,5 @@
 set(LLVM_LINK_COMPONENTS
+  AVR32Desc
   AVR32Info
   MC
   Support

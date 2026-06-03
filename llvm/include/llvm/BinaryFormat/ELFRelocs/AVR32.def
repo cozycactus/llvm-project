@@ -1,0 +1,12 @@
+
+#ifndef ELF_RELOC
+#error "ELF_RELOC must be defined"
+#endif
+
+ELF_RELOC(R_AVR32_NONE,                0)
+ELF_RELOC(R_AVR32_32,                  1)
+ELF_RELOC(R_AVR32_16,                  2)
+ELF_RELOC(R_AVR32_8,                   3)
+ELF_RELOC(R_AVR32_32_PCREL,            4)
+ELF_RELOC(R_AVR32_16_PCREL,            5)
+ELF_RELOC(R_AVR32_8_PCREL,             6)

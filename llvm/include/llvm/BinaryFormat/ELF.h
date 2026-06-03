@@ -518,6 +518,11 @@ enum {
 #include "ELFRelocs/AVR.def"
 };
 
+// ELF Relocation types for AVR32
+enum {
+#include "ELFRelocs/AVR32.def"
+};
+
 // Mips Specific e_flags
 enum : unsigned {
   EF_MIPS_NOREORDER = 0x00000001, // Don't reorder instructions

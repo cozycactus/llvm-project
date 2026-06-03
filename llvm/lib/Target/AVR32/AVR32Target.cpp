@@ -9,6 +9,3 @@
 #include "llvm/Support/Compiler.h"
 
 extern "C" LLVM_ABI LLVM_EXTERNAL_VISIBILITY void LLVMInitializeAVR32Target() {}
-
-extern "C" LLVM_ABI LLVM_EXTERNAL_VISIBILITY void
-LLVMInitializeAVR32TargetMC() {}
