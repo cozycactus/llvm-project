@@ -287,6 +287,7 @@ TEST(AVR32TargetInfo, LookupTarget) {
   EXPECT_EQ(MII->get(AVR32::RSUBVCri).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::RSUBVSri).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::RSUBrr).getSize(), 2u);
+  EXPECT_EQ(MII->get(AVR32::SATADD_Wrrr).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::SBCrrr).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::SBRri).getSize(), 2u);
   EXPECT_EQ(MII->get(AVR32::SCALL).getSize(), 2u);
@@ -1870,6 +1871,23 @@ TEST(AVR32TargetInfo, LookupTarget) {
   EXPECT_EQ(static_cast<uint8_t>(Code[2]), 0x0f);
   EXPECT_EQ(static_cast<uint8_t>(Code[3]), 0xff);
 
+  MCInst SataddW;
+  SataddW.setOpcode(AVR32::SATADD_Wrrr);
+  SataddW.addOperand(MCOperand::createReg(AVR32::R1));
+  SataddW.addOperand(MCOperand::createReg(AVR32::R2));
+  SataddW.addOperand(MCOperand::createReg(AVR32::R3));
+
+  Code.clear();
+  Fixups.clear();
+  MCE->encodeInstruction(SataddW, Code, Fixups, *STI);
+
+  EXPECT_TRUE(Fixups.empty());
+  ASSERT_EQ(Code.size(), 4u);
+  EXPECT_EQ(static_cast<uint8_t>(Code[0]), 0xe4);
+  EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0x03);
+  EXPECT_EQ(static_cast<uint8_t>(Code[2]), 0x00);
+  EXPECT_EQ(static_cast<uint8_t>(Code[3]), 0xc1);
+
   MCInst Sbc;
   Sbc.setOpcode(AVR32::SBCrrr);
   Sbc.addOperand(MCOperand::createReg(AVR32::R1));
@@ -3040,6 +3058,13 @@ TEST(AVR32TargetInfo, LookupTarget) {
   EXPECT_EQ(Printed, "\trsubal\tr1, -1");
 
   Printed.clear();
+  raw_string_ostream SataddWOS(Printed);
+  InstPrinter->printInst(&SataddW, /*Address=*/0, /*Annot=*/"", *STI,
+                         SataddWOS);
+  SataddWOS.flush();
+  EXPECT_EQ(Printed, "\tsatadd.w\tr1, r2, r3");
+
+  Printed.clear();
   raw_string_ostream SbcOS(Printed);
   InstPrinter->printInst(&Sbc, /*Address=*/0, /*Annot=*/"", *STI, SbcOS);
   SbcOS.flush();
@@ -3303,7 +3328,8 @@ TEST(AVR32TargetInfo, LookupTarget) {
 
   SourceMgr SubRegImmSrcMgr;
   SubRegImmSrcMgr.AddNewSourceBuffer(
-      MemoryBuffer::getMemBuffer("sub r1, r2, -1\nsub r1, r2, r3 << 2\n"),
+      MemoryBuffer::getMemBuffer(
+          "sub r1, r2, -1\nsub r1, r2, r3 << 2\nsatadd.w r1, r2, r3\n"),
       SMLoc());
 
   MCContext SubRegImmParseCtx(TT, *MAI, *MRI, *STI, &SubRegImmSrcMgr);
