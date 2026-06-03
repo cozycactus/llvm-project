@@ -292,6 +292,12 @@ bool AVR32AsmParser::parseInstruction(ParseInstructionInfo &Info,
   Operands.push_back(AVR32Operand::createToken(Name, NameLoc));
 
   if (Name == "adc" || Name == "addabs" ||
+      Name == "addal" || Name == "addcc" || Name == "addcs" ||
+      Name == "addeq" || Name == "addge" || Name == "addgt" ||
+      Name == "addhi" || Name == "addhs" || Name == "addle" ||
+      Name == "addlo" || Name == "addls" || Name == "addlt" ||
+      Name == "addmi" || Name == "addne" || Name == "addpl" ||
+      Name == "addqs" || Name == "addvc" || Name == "addvs" ||
       Name == "andal" || Name == "andcc" || Name == "andcs" ||
       Name == "andeq" || Name == "andge" || Name == "andgt" ||
       Name == "andhi" || Name == "andhs" || Name == "andle" ||
