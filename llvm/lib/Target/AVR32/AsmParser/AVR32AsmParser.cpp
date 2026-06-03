@@ -125,6 +125,13 @@ public:
     return Const && isUInt<8>(Const->getValue());
   }
 
+  bool isUImm9() const {
+    if (Kind != Immediate)
+      return false;
+    auto *Const = dyn_cast<MCConstantExpr>(Imm);
+    return Const && isUInt<9>(Const->getValue());
+  }
+
   bool isUImm16() const {
     if (Kind != Immediate)
       return false;
@@ -440,7 +447,13 @@ bool AVR32AsmParser::parseInstruction(ParseInstructionInfo &Info,
   } else if (Name == "incjosp" || Name == "sleep" || Name == "sync") {
     if (parseImmediateOperand(Operands))
       return true;
-  } else if (Name == "st.b") {
+  } else if (Name == "st.b" || Name == "st.bal" || Name == "st.bcc" ||
+             Name == "st.bcs" || Name == "st.beq" || Name == "st.bge" ||
+             Name == "st.bgt" || Name == "st.bhi" || Name == "st.bhs" ||
+             Name == "st.ble" || Name == "st.blo" || Name == "st.bls" ||
+             Name == "st.blt" || Name == "st.bmi" || Name == "st.bne" ||
+             Name == "st.bpl" || Name == "st.bqs" || Name == "st.bvc" ||
+             Name == "st.bvs") {
     if (parseStoreByteOperands(Operands))
       return true;
   } else if (Name == "eorh" || Name == "eorl" || Name == "mfdr" ||

@@ -53,6 +53,11 @@ def UImm8AsmOperand : AsmOperandClass {
   let RenderMethod = "addImmOperands";
 }
 
+def UImm9AsmOperand : AsmOperandClass {
+  let Name = "UImm9";
+  let RenderMethod = "addImmOperands";
+}
+
 def UImm16AsmOperand : AsmOperandClass {
   let Name = "UImm16";
   let RenderMethod = "addImmOperands";
@@ -117,6 +122,10 @@ def uimm5 : Operand<i32>, ImmLeaf<i32, [{ return Imm >= 0 && Imm < 32; }]> {
 
 def uimm8 : Operand<i32>, ImmLeaf<i32, [{ return Imm >= 0 && Imm < 256; }]> {
   let ParserMatchClass = UImm8AsmOperand;
+}
+
+def uimm9 : Operand<i32>, ImmLeaf<i32, [{ return Imm >= 0 && Imm < 512; }]> {
+  let ParserMatchClass = UImm9AsmOperand;
 }
 
 def uimm16 : Operand<i32>,
@@ -244,6 +253,22 @@ class FullStoreIndexShift<bits<10> Op, string Mnemonic>
   let Inst{15-6} = Op;
   let Inst{5-4} = Shift;
   let Inst{3-0} = Rs;
+}
+
+class FullStoreCondDisp9<bits<4> Cond, string Mnemonic>
+    : AVR32Inst32<(outs), (ins GPR:$Rp, uimm9:$Disp, GPR:$Rs),
+                  Mnemonic#"\t${Rp}[$Disp], $Rs"> {
+  bits<4> Rp;
+  bits<9> Disp;
+  bits<4> Rs;
+
+  let Inst{31-29} = 0b111;
+  let Inst{28-25} = Rp;
+  let Inst{24-20} = 0b11111;
+  let Inst{19-16} = Rs;
+  let Inst{15-12} = Cond;
+  let Inst{11-9} = 0b111;
+  let Inst{8-0} = Disp;
 }
 
 class CompactRegRegWithPrefix<bits<3> Prefix, bits<5> Op, string Mnemonic>
@@ -912,6 +937,24 @@ def ST_B_PreDec : CompactStorePreDec<0b01111, "st.b">;
 def ST_B_Disp3 : CompactStoreDisp3<"st.b">;
 def ST_B_Disp16 : FullStoreDisp16<0b10110, "st.b">;
 def ST_B_IndexShift : FullStoreIndexShift<0b0000101100, "st.b">;
+def ST_B_AL_Disp9 : FullStoreCondDisp9<0b1111, "st.bal">;
+def ST_B_EQ_Disp9 : FullStoreCondDisp9<0b0000, "st.beq">;
+def ST_B_NE_Disp9 : FullStoreCondDisp9<0b0001, "st.bne">;
+def ST_B_CC_Disp9 : FullStoreCondDisp9<0b0010, "st.bcc">;
+def ST_B_HS_Disp9 : FullStoreCondDisp9<0b0010, "st.bhs">;
+def ST_B_CS_Disp9 : FullStoreCondDisp9<0b0011, "st.bcs">;
+def ST_B_LO_Disp9 : FullStoreCondDisp9<0b0011, "st.blo">;
+def ST_B_GE_Disp9 : FullStoreCondDisp9<0b0100, "st.bge">;
+def ST_B_LT_Disp9 : FullStoreCondDisp9<0b0101, "st.blt">;
+def ST_B_MI_Disp9 : FullStoreCondDisp9<0b0110, "st.bmi">;
+def ST_B_PL_Disp9 : FullStoreCondDisp9<0b0111, "st.bpl">;
+def ST_B_LS_Disp9 : FullStoreCondDisp9<0b1000, "st.bls">;
+def ST_B_GT_Disp9 : FullStoreCondDisp9<0b1001, "st.bgt">;
+def ST_B_LE_Disp9 : FullStoreCondDisp9<0b1010, "st.ble">;
+def ST_B_HI_Disp9 : FullStoreCondDisp9<0b1011, "st.bhi">;
+def ST_B_VS_Disp9 : FullStoreCondDisp9<0b1100, "st.bvs">;
+def ST_B_VC_Disp9 : FullStoreCondDisp9<0b1101, "st.bvc">;
+def ST_B_QS_Disp9 : FullStoreCondDisp9<0b1110, "st.bqs">;
 def SUBALrrr : CondRRR<0b1111, 0b0001, "subal">;
 def SUBEQrrr : CondRRR<0b0000, 0b0001, "subeq">;
 def SUBNErrr : CondRRR<0b0001, 0b0001, "subne">;
