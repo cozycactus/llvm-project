@@ -288,7 +288,7 @@ bool AVR32AsmParser::parseInstruction(ParseInstructionInfo &Info,
              Name == "castu.b" || Name == "com" || Name == "icall" ||
              Name == "musfr" ||
              Name == "neg" || Name == "retal" || Name == "retcc" ||
-             Name == "reteq" || Name == "reths" ||
+             Name == "retcs" || Name == "reteq" || Name == "reths" ||
              Name == "retne" ||
              Name == "rol" || Name == "ror" || Name == "scr" ||
              Name == "swap.b" || Name == "swap.bh" || Name == "swap.h") {
