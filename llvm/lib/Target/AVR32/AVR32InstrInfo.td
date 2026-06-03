@@ -33,6 +33,16 @@ def SubSPImmAsmOperand : AsmOperandClass {
   let RenderMethod = "addImmOperands";
 }
 
+def SImm12Shift1AsmOperand : AsmOperandClass {
+  let Name = "SImm12Shift1";
+  let RenderMethod = "addImmOperands";
+}
+
+def SImm12Shift2AsmOperand : AsmOperandClass {
+  let Name = "SImm12Shift2";
+  let RenderMethod = "addImmOperands";
+}
+
 def HalfPartAsmOperand : AsmOperandClass {
   let Name = "HalfPart";
   let RenderMethod = "addImmOperands";
@@ -134,6 +144,20 @@ def simm16 : Operand<i32>,
 def simm21 : Operand<i32>,
              ImmLeaf<i32, [{ return Imm >= -1048576 && Imm < 1048576; }]> {
   let ParserMatchClass = SImm21AsmOperand;
+}
+
+def simm12shift1 : Operand<i32>,
+                   ImmLeaf<i32, [{ return Imm >= -4096 && Imm <= 4094 &&
+                                          Imm % 2 == 0; }]> {
+  let ParserMatchClass = SImm12Shift1AsmOperand;
+  let EncoderMethod = "getShifted1OpValue";
+}
+
+def simm12shift2 : Operand<i32>,
+                   ImmLeaf<i32, [{ return Imm >= -8192 && Imm <= 8188 &&
+                                          Imm % 4 == 0; }]> {
+  let ParserMatchClass = SImm12Shift2AsmOperand;
+  let EncoderMethod = "getShifted2OpValue";
 }
 
 def subspimm : Operand<i32>,
@@ -410,6 +434,21 @@ class FullStoreHalfwordPairIndexShift
   let Inst{7-6} = 0b00;
   let Inst{5-4} = Shift;
   let Inst{3-0} = Rb;
+}
+
+class FullStoreSwapDisp12<bits<4> Prefix, string Mnemonic, Operand DispOp>
+    : AVR32Inst32<(outs), (ins GPR:$Rp, DispOp:$Disp, GPR:$Rs),
+                  Mnemonic#"\t${Rp}[$Disp], $Rs"> {
+  bits<4> Rp;
+  bits<12> Disp;
+  bits<4> Rs;
+
+  let Inst{31-29} = 0b111;
+  let Inst{28-25} = Rp;
+  let Inst{24-20} = 0b11101;
+  let Inst{19-16} = Rs;
+  let Inst{15-12} = Prefix;
+  let Inst{11-0} = Disp;
 }
 
 class FullStorePairDisp16<bits<5> Op, string Mnemonic>
@@ -1237,6 +1276,8 @@ def STCOND : FullStoreDisp16<0b10111, "stcond">;
 def STDSP : CompactSPStoreDisp7Shift2;
 def STHH_W_Disp8 : FullStoreHalfwordPairDisp8;
 def STHH_W_IndexShift : FullStoreHalfwordPairIndexShift;
+def STSWP_H_Disp12 : FullStoreSwapDisp12<0b1001, "stswp.h", simm12shift1>;
+def STSWP_W_Disp12 : FullStoreSwapDisp12<0b1010, "stswp.w", simm12shift2>;
 def SUBALrrr : CondRRR<0b1111, 0b0001, "subal">;
 def SUBEQrrr : CondRRR<0b0000, 0b0001, "subeq">;
 def SUBNErrr : CondRRR<0b0001, 0b0001, "subne">;

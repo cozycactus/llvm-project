@@ -82,6 +82,22 @@ public:
     return Const && isInt<21>(Const->getValue());
   }
 
+  bool isSImm12Shift1() const {
+    if (Kind != Immediate)
+      return false;
+    auto *Const = dyn_cast<MCConstantExpr>(Imm);
+    return Const && Const->getValue() >= -4096 &&
+           Const->getValue() <= 4094 && Const->getValue() % 2 == 0;
+  }
+
+  bool isSImm12Shift2() const {
+    if (Kind != Immediate)
+      return false;
+    auto *Const = dyn_cast<MCConstantExpr>(Imm);
+    return Const && Const->getValue() >= -8192 &&
+           Const->getValue() <= 8188 && Const->getValue() % 4 == 0;
+  }
+
   bool isSubSPImm() const {
     if (Kind != Immediate)
       return false;
@@ -524,7 +540,8 @@ bool AVR32AsmParser::parseInstruction(ParseInstructionInfo &Info,
              Name == "st.wlo" || Name == "st.wls" || Name == "st.wlt" ||
              Name == "st.wmi" || Name == "st.wne" || Name == "st.wpl" ||
              Name == "st.wqs" || Name == "st.wvc" || Name == "st.wvs" ||
-             Name == "stcond" || Name == "stdsp") {
+             Name == "stcond" || Name == "stdsp" || Name == "stswp.h" ||
+             Name == "stswp.w") {
     if (parseStoreByteOperands(Operands))
       return true;
   } else if (Name == "sthh.w") {
