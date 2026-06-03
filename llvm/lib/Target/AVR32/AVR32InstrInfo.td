@@ -367,6 +367,20 @@ class FullRegRegSImm16<bits<5> Op, string Mnemonic>
   let Inst{15-0} = Imm;
 }
 
+class FullRegShiftBits<bits<12> Prefix, bits<6> Op, string Mnemonic>
+    : AVR32Inst32<(outs GPR:$Rd), (ins uimm5:$Sa, uimm5:$Bp),
+                  Mnemonic#"\t$Rd >> $Sa, $Bp"> {
+  bits<4> Rd;
+  bits<5> Sa;
+  bits<5> Bp;
+
+  let Inst{31-20} = Prefix;
+  let Inst{19-16} = Rd;
+  let Inst{15-10} = Op;
+  let Inst{9-5} = Bp;
+  let Inst{4-0} = Sa;
+}
+
 class FullRegImmNoOut<bits<4> Op, string Mnemonic>
     : AVR32Inst32<(outs), (ins GPR:$Rd, simm21:$Imm),
                   Mnemonic#"\t$Rd, $Imm"> {
@@ -786,6 +800,7 @@ def SATADD_Wrrr : FullRegRegReg<0b000000001100, "satadd.w">;
 def SATSUB_Hrrr : FullRegRegReg<0b000000111100, "satsub.h">;
 def SATSUB_Wrrr : FullRegRegReg<0b000000011100, "satsub.w">;
 def SATSUB_Wrri16 : FullRegRegSImm16<0b01101, "satsub.w">;
+def SATSri : FullRegShiftBits<0b111100011011, 0b000000, "sats">;
 def SBCrrr : FullRegRegReg<0b000000010100, "sbc">;
 def SBRri : CompactRegUImm5NoOut<0b1101, "sbr">;
 def SCALL : AVR32Inst<0b1101011100110011, (outs), (ins), "scall">;

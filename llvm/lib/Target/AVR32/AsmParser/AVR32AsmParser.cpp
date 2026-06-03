@@ -241,6 +241,7 @@ private:
       OperandVector &Operands);
   bool parseRegisterCommaRegisterCommaRegisterOrImmediateOperand(
       OperandVector &Operands);
+  bool parseRegisterShiftRightImmediateCommaImmediate(OperandVector &Operands);
   bool parseSubOperands(
       OperandVector &Operands);
   bool parseRegisterCommaImmediate(OperandVector &Operands);
@@ -354,6 +355,9 @@ bool AVR32AsmParser::parseInstruction(ParseInstructionInfo &Info,
       return true;
   } else if (Name == "satsub.w") {
     if (parseRegisterCommaRegisterCommaRegisterOrImmediateOperand(Operands))
+      return true;
+  } else if (Name == "sats") {
+    if (parseRegisterShiftRightImmediateCommaImmediate(Operands))
       return true;
   } else if (Name == "subal" || Name == "subcc" || Name == "subcs" ||
              Name == "subeq" || Name == "subge" || Name == "subgt" ||
@@ -572,6 +576,23 @@ bool AVR32AsmParser::parseRegisterCommaRegisterCommaRegisterOrImmediateOperand(
   if (!parseOptionalToken(AsmToken::Comma))
     return Error(getLexer().getLoc(), "expected comma");
   if (parseRegisterOrImmediateOperand(Operands))
+    return true;
+  return false;
+}
+
+bool AVR32AsmParser::parseRegisterShiftRightImmediateCommaImmediate(
+    OperandVector &Operands) {
+  if (parseRegisterOperand(Operands))
+    return true;
+  if (getLexer().isNot(AsmToken::GreaterGreater))
+    return Error(getLexer().getLoc(), "expected >>");
+  Operands.push_back(AVR32Operand::createToken(">>", getLexer().getLoc()));
+  getLexer().Lex();
+  if (parseImmediateOperand(Operands))
+    return true;
+  if (!parseOptionalToken(AsmToken::Comma))
+    return Error(getLexer().getLoc(), "expected comma");
+  if (parseImmediateOperand(Operands))
     return true;
   return false;
 }
