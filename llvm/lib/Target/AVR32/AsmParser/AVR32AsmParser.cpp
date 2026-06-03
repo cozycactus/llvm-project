@@ -233,9 +233,9 @@ bool AVR32AsmParser::parseInstruction(ParseInstructionInfo &Info,
                                       OperandVector &Operands) {
   Operands.push_back(AVR32Operand::createToken(Name, NameLoc));
 
-  if (Name == "adc" || Name == "asr" || Name == "lsl" || Name == "lsr" ||
-      Name == "max" || Name == "min" || Name == "muls.d" ||
-      Name == "mulu.d" || Name == "sbc") {
+  if (Name == "adc" || Name == "addabs" || Name == "asr" || Name == "lsl" ||
+      Name == "lsr" || Name == "max" || Name == "min" ||
+      Name == "muls.d" || Name == "mulu.d" || Name == "sbc") {
     if (parseRegisterCommaRegisterCommaRegister(Operands))
       return true;
   } else if (Name == "mul") {
