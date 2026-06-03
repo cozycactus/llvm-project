@@ -112,6 +112,14 @@ public:
            Const->getValue() % 4 == 0;
   }
 
+  bool isIncJOSPImm() const {
+    if (Kind != Immediate)
+      return false;
+    auto *Const = dyn_cast<MCConstantExpr>(Imm);
+    return Const && Const->getValue() >= -4 && Const->getValue() <= 4 &&
+           Const->getValue() != 0;
+  }
+
   void print(raw_ostream &OS, const MCAsmInfo &MAI) const override {
     if (Kind == Token)
       OS << "Token " << Tok;
@@ -299,7 +307,7 @@ bool AVR32AsmParser::parseInstruction(ParseInstructionInfo &Info,
   } else if (Name == "csrf" || Name == "csrfcz" || Name == "ssrf") {
     if (parseImmediateOperand(Operands))
       return true;
-  } else if (Name == "sleep" || Name == "sync") {
+  } else if (Name == "incjosp" || Name == "sleep" || Name == "sync") {
     if (parseImmediateOperand(Operands))
       return true;
   } else if (Name == "mfdr" || Name == "mfsr") {

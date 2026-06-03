@@ -43,6 +43,11 @@ def DebugRegAddrAsmOperand : AsmOperandClass {
   let RenderMethod = "addImmOperands";
 }
 
+def IncJOSPImmAsmOperand : AsmOperandClass {
+  let Name = "IncJOSPImm";
+  let RenderMethod = "addImmOperands";
+}
+
 def simm6 : Operand<i32>, ImmLeaf<i32, [{ return Imm >= -32 && Imm < 32; }]> {
   let ParserMatchClass = SImm6AsmOperand;
 }
@@ -76,6 +81,12 @@ def debugregaddr : Operand<i32>,
                                           Imm % 4 == 0; }]> {
   let ParserMatchClass = DebugRegAddrAsmOperand;
   let EncoderMethod = "getSysRegAddrOpValue";
+}
+
+def incjospimm : Operand<i32>,
+                 ImmLeaf<i32, [{ return Imm >= -4 && Imm <= 4 && Imm != 0; }]> {
+  let ParserMatchClass = IncJOSPImmAsmOperand;
+  let EncoderMethod = "getIncJOSPImmOpValue";
 }
 
 def NOP : AVR32Inst<0b1101011100000011, (outs), (ins), "nop">;
@@ -149,6 +160,15 @@ class CompactImm<bits<7> Op, string Mnemonic>
 
   let Inst{15-9} = Op;
   let Inst{8-4} = Imm;
+  let Inst{3-0} = 0b0011;
+}
+
+def INCJOSPi : AVR32Inst<0, (outs), (ins incjospimm:$Imm),
+                         "incjosp\t$Imm"> {
+  bits<3> Imm;
+
+  let Inst{15-7} = 0b110101101;
+  let Inst{6-4} = Imm;
   let Inst{3-0} = 0b0011;
 }
 

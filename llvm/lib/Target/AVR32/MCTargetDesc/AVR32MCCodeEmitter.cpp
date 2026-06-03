@@ -52,6 +52,16 @@ public:
     return 0;
   }
 
+  unsigned getIncJOSPImmOpValue(const MCInst &MI, unsigned OpNo,
+                                SmallVectorImpl<MCFixup> &Fixups,
+                                const MCSubtargetInfo &STI) const {
+    const MCOperand &MO = MI.getOperand(OpNo);
+    if (!MO.isImm())
+      return 0;
+    int64_t Imm = MO.getImm();
+    return Imm > 0 ? Imm - 1 : Imm + 8;
+  }
+
   void encodeInstruction(const MCInst &MI, SmallVectorImpl<char> &CB,
                          SmallVectorImpl<MCFixup> &Fixups,
                          const MCSubtargetInfo &STI) const override {
