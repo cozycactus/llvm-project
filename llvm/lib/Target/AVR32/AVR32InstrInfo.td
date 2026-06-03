@@ -31,6 +31,18 @@ class CompactRegReg<bits<5> Op, string Mnemonic>
   let Inst{3-0} = Rd;
 }
 
+class CompactRegRegNoOut<bits<5> Op, string Mnemonic>
+    : AVR32Inst<0, (outs), (ins GPR:$Rd, GPR:$Rs),
+                Mnemonic#"\t$Rd, $Rs"> {
+  bits<4> Rd;
+  bits<4> Rs;
+
+  let Inst{15-13} = 0b000;
+  let Inst{12-9} = Rs;
+  let Inst{8-4} = Op;
+  let Inst{3-0} = Rd;
+}
+
 class CompactReg<bits<12> Op, string Mnemonic>
     : AVR32Inst<0, (outs GPR:$Rd), (ins), Mnemonic#"\t$Rd"> {
   bits<4> Rd;
@@ -76,6 +88,7 @@ def CASTS_Hr : CompactReg<0b010111001000, "casts.h">;
 def CASTU_Br : CompactReg<0b010111000101, "castu.b">;
 def CASTU_Hr : CompactReg<0b010111000111, "castu.h">;
 def COMr : CompactReg<0b010111001101, "com">;
+def CP_Wrr : CompactRegRegNoOut<0b00011, "cp.w">;
 def EORrr : CompactRegReg<0b00101, "eor">;
 def FRS : AVR32Inst<0b1101011101000011, (outs), (ins), "frs">;
 def MOVrr : MovRR<0b1111, "mov">;
