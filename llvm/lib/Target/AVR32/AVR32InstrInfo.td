@@ -240,6 +240,7 @@ def NEGr : CompactReg<0b010111000011, "neg">;
 def ORrr : CompactRegReg<0b00100, "or">;
 def RETE : AVR32Inst<0b1101011000000011, (outs), (ins), "rete">;
 def RETJ : AVR32Inst<0b1101011000110011, (outs), (ins), "retj">;
+def RETS : AVR32Inst<0b1101011000010011, (outs), (ins), "rets">;
 def ROLr : CompactReg<0b010111001111, "rol">;
 def RORr : CompactReg<0b010111010000, "ror">;
 def RSUBrr : CompactRegReg<0b00010, "rsub">;
