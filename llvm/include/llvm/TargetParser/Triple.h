@@ -56,6 +56,7 @@ public:
     aarch64_32,  // AArch64 (little endian) ILP32: aarch64_32
     arc,         // ARC: Synopsys ARC
     avr,         // AVR: Atmel AVR microcontroller
+    avr32,       // AVR32: Atmel AVR32 32-bit microprocessor
     bpfel,       // eBPF or extended BPF or 64-bit BPF (little endian)
     bpfeb,       // eBPF or extended BPF or 64-bit BPF (big endian)
     csky,        // CSKY: csky
@@ -1046,6 +1047,10 @@ public:
                ? PointerWidth == 32
                : PointerWidth == 64;
   }
+
+  bool isAVR() const { return getArch() == Triple::avr; }
+
+  bool isAVR32() const { return getArch() == Triple::avr32; }
 
   /// Tests whether the target is 32-bit LoongArch.
   bool isLoongArch32() const { return getArch() == Triple::loongarch32; }

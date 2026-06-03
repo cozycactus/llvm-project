@@ -674,6 +674,18 @@ TEST(TripleTest, ParsedIDs) {
   EXPECT_EQ(Triple::UnknownOS, T.getOS());
   EXPECT_EQ(Triple::UnknownEnvironment, T.getEnvironment());
 
+  T = Triple("avr32-unknown-unknown");
+  EXPECT_EQ(Triple::avr32, T.getArch());
+  EXPECT_EQ(Triple::UnknownVendor, T.getVendor());
+  EXPECT_EQ(Triple::UnknownOS, T.getOS());
+  EXPECT_EQ(Triple::UnknownEnvironment, T.getEnvironment());
+
+  T = Triple("avr32");
+  EXPECT_EQ(Triple::avr32, T.getArch());
+  EXPECT_EQ(Triple::UnknownVendor, T.getVendor());
+  EXPECT_EQ(Triple::UnknownOS, T.getOS());
+  EXPECT_EQ(Triple::UnknownEnvironment, T.getEnvironment());
+
   T = Triple("lanai-unknown-unknown");
   EXPECT_EQ(Triple::lanai, T.getArch());
   EXPECT_EQ(Triple::UnknownVendor, T.getVendor());
@@ -1931,6 +1943,11 @@ TEST(TripleTest, BitWidthChecks) {
   EXPECT_FALSE(T.isArch32Bit());
   EXPECT_FALSE(T.isArch64Bit());
 
+  T.setArch(Triple::avr32);
+  EXPECT_FALSE(T.isArch16Bit());
+  EXPECT_TRUE(T.isArch32Bit());
+  EXPECT_FALSE(T.isArch64Bit());
+
   T.setArch(Triple::lanai);
   EXPECT_FALSE(T.isArch16Bit());
   EXPECT_TRUE(T.isArch32Bit());
@@ -1987,6 +2004,10 @@ TEST(TripleTest, BitWidthArchVariants) {
 
   T.setArch(Triple::UnknownArch);
   EXPECT_EQ(Triple::UnknownArch, T.get32BitArchVariant().getArch());
+  EXPECT_EQ(Triple::UnknownArch, T.get64BitArchVariant().getArch());
+
+  T.setArch(Triple::avr32);
+  EXPECT_EQ(Triple::avr32, T.get32BitArchVariant().getArch());
   EXPECT_EQ(Triple::UnknownArch, T.get64BitArchVariant().getArch());
 
   T.setArch(Triple::mips);
@@ -2213,6 +2234,8 @@ TEST(TripleTest, EndianArchVariants) {
   T = Triple("armeb");
   EXPECT_FALSE(T.isLittleEndian());
   T = Triple("thumbeb");
+  EXPECT_FALSE(T.isLittleEndian());
+  T = Triple("avr32");
   EXPECT_FALSE(T.isLittleEndian());
 
   T.setArch(Triple::bpfeb);
@@ -2771,6 +2794,7 @@ TEST(TripleTest, FileFormat) {
 
   EXPECT_EQ(Triple::ELF, Triple("systemz-ibm-linux").getObjectFormat());
   EXPECT_EQ(Triple::ELF, Triple("systemz-ibm-unknown").getObjectFormat());
+  EXPECT_EQ(Triple::ELF, Triple("avr32-unknown-unknown").getObjectFormat());
 
   EXPECT_EQ(Triple::GOFF, Triple("s390x-ibm-zos").getObjectFormat());
   EXPECT_EQ(Triple::GOFF, Triple("systemz-ibm-zos").getObjectFormat());
@@ -3366,6 +3390,11 @@ TEST(DataLayoutTest, UEFI) {
 
   // Test UEFI X86_64 Mangling Component.
   EXPECT_THAT(TT.computeDataLayout(), testing::HasSubstr("-m:w-"));
+}
+
+TEST(DataLayoutTest, AVR32) {
+  Triple TT = Triple("avr32-unknown-unknown");
+  EXPECT_EQ("", TT.computeDataLayout());
 }
 
 } // end anonymous namespace
