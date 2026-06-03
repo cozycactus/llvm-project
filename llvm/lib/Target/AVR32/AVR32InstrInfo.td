@@ -246,6 +246,7 @@ def ROLr : CompactReg<0b010111001111, "rol">;
 def RORr : CompactReg<0b010111010000, "ror">;
 def RSUBrr : CompactRegReg<0b00010, "rsub">;
 def SBCrrr : FullRegRegReg<0b000000010100, "sbc">;
+def SCALL : AVR32Inst<0b1101011100110011, (outs), (ins), "scall">;
 def SCRr : CompactReg<0b010111000001, "scr">;
 def SSRFi : CompactImm<0b1101001, "ssrf">;
 def SUBrr : CompactRegReg<0b00001, "sub">;
