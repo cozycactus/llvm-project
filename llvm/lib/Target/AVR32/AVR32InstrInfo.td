@@ -215,6 +215,20 @@ class CompactStoreDisp3<string Mnemonic>
   let Inst{3-0} = Rs;
 }
 
+class FullStoreDisp16<bits<5> Op, string Mnemonic>
+    : AVR32Inst32<(outs), (ins GPR:$Rp, simm16:$Disp, GPR:$Rs),
+                  Mnemonic#"\t${Rp}[$Disp], $Rs"> {
+  bits<4> Rp;
+  bits<16> Disp;
+  bits<4> Rs;
+
+  let Inst{31-29} = 0b111;
+  let Inst{28-25} = Rp;
+  let Inst{24-20} = Op;
+  let Inst{19-16} = Rs;
+  let Inst{15-0} = Disp;
+}
+
 class CompactRegRegWithPrefix<bits<3> Prefix, bits<5> Op, string Mnemonic>
     : AVR32Inst<0, (outs GPR:$Rd), (ins GPR:$Rs),
                 Mnemonic#"\t$Rd, $Rs"> {
@@ -879,6 +893,7 @@ def SSRFi : CompactImm<0b1101001, "ssrf">;
 def ST_B_PostInc : CompactStorePostInc<0b01100, "st.b">;
 def ST_B_PreDec : CompactStorePreDec<0b01111, "st.b">;
 def ST_B_Disp3 : CompactStoreDisp3<"st.b">;
+def ST_B_Disp16 : FullStoreDisp16<0b10110, "st.b">;
 def SUBALrrr : CondRRR<0b1111, 0b0001, "subal">;
 def SUBEQrrr : CondRRR<0b0000, 0b0001, "subeq">;
 def SUBNErrr : CondRRR<0b0001, 0b0001, "subne">;
