@@ -248,6 +248,8 @@ TEST(AVR32TargetInfo, LookupTarget) {
   EXPECT_EQ(MII->get(AVR32::PSADrrr).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::PSUB_Brrr).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::PSUB_Hrrr).getSize(), 4u);
+  EXPECT_EQ(MII->get(AVR32::PSUBADD_H).getSize(), 4u);
+  EXPECT_EQ(MII->get(AVR32::PSUBADDH_SH).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::POPJC).getSize(), 2u);
   EXPECT_EQ(MII->get(AVR32::PUSHJC).getSize(), 2u);
   EXPECT_EQ(MII->get(AVR32::RETD).getSize(), 2u);
@@ -2459,6 +2461,44 @@ TEST(AVR32TargetInfo, LookupTarget) {
   EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0x03);
   EXPECT_EQ(static_cast<uint8_t>(Code[2]), 0x20);
   EXPECT_EQ(static_cast<uint8_t>(Code[3]), 0x11);
+
+  MCInst PsubaddH;
+  PsubaddH.setOpcode(AVR32::PSUBADD_H);
+  PsubaddH.addOperand(MCOperand::createReg(AVR32::R1));
+  PsubaddH.addOperand(MCOperand::createReg(AVR32::R2));
+  PsubaddH.addOperand(MCOperand::createImm(1));
+  PsubaddH.addOperand(MCOperand::createReg(AVR32::R3));
+  PsubaddH.addOperand(MCOperand::createImm(0));
+
+  Code.clear();
+  Fixups.clear();
+  MCE->encodeInstruction(PsubaddH, Code, Fixups, *STI);
+
+  EXPECT_TRUE(Fixups.empty());
+  ASSERT_EQ(Code.size(), 4u);
+  EXPECT_EQ(static_cast<uint8_t>(Code[0]), 0xe4);
+  EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0x03);
+  EXPECT_EQ(static_cast<uint8_t>(Code[2]), 0x21);
+  EXPECT_EQ(static_cast<uint8_t>(Code[3]), 0x61);
+
+  MCInst PsubaddhSH;
+  PsubaddhSH.setOpcode(AVR32::PSUBADDH_SH);
+  PsubaddhSH.addOperand(MCOperand::createReg(AVR32::R1));
+  PsubaddhSH.addOperand(MCOperand::createReg(AVR32::R2));
+  PsubaddhSH.addOperand(MCOperand::createImm(1));
+  PsubaddhSH.addOperand(MCOperand::createReg(AVR32::R3));
+  PsubaddhSH.addOperand(MCOperand::createImm(0));
+
+  Code.clear();
+  Fixups.clear();
+  MCE->encodeInstruction(PsubaddhSH, Code, Fixups, *STI);
+
+  EXPECT_TRUE(Fixups.empty());
+  ASSERT_EQ(Code.size(), 4u);
+  EXPECT_EQ(static_cast<uint8_t>(Code[0]), 0xe4);
+  EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0x03);
+  EXPECT_EQ(static_cast<uint8_t>(Code[2]), 0x22);
+  EXPECT_EQ(static_cast<uint8_t>(Code[3]), 0xe1);
 
   MCInst OrEq;
   OrEq.setOpcode(AVR32::OREQrrr);
@@ -4884,6 +4924,20 @@ TEST(AVR32TargetInfo, LookupTarget) {
   EXPECT_EQ(Printed, "\tpsub.h\tr1, r2, r3");
 
   Printed.clear();
+  raw_string_ostream PsubaddHOS(Printed);
+  InstPrinter->printInst(&PsubaddH, /*Address=*/0, /*Annot=*/"", *STI,
+                         PsubaddHOS);
+  PsubaddHOS.flush();
+  EXPECT_EQ(Printed, "\tpsubadd.h\tr1, r2:t, r3:b");
+
+  Printed.clear();
+  raw_string_ostream PsubaddhSHOS(Printed);
+  InstPrinter->printInst(&PsubaddhSH, /*Address=*/0, /*Annot=*/"", *STI,
+                         PsubaddhSHOS);
+  PsubaddhSHOS.flush();
+  EXPECT_EQ(Printed, "\tpsubaddh.sh\tr1, r2:t, r3:b");
+
+  Printed.clear();
   raw_string_ostream OrEqOS(Printed);
   InstPrinter->printInst(&OrEq, /*Address=*/0, /*Annot=*/"", *STI, OrEqOS);
   OrEqOS.flush();
@@ -5748,6 +5802,27 @@ TEST(AVR32TargetInfo, LookupTarget) {
   ASSERT_NE(PsadTargetParser.get(), nullptr);
   PsadParser->setTargetParser(*PsadTargetParser);
   EXPECT_FALSE(PsadParser->Run(/*NoInitialTextSection=*/false));
+
+  SourceMgr PsubaddSrcMgr;
+  PsubaddSrcMgr.AddNewSourceBuffer(
+      MemoryBuffer::getMemBuffer(
+          "psubadd.h r1, r2:t, r3:b\npsubaddh.sh r1, r2:t, r3:b\n"),
+      SMLoc());
+
+  MCContext PsubaddParseCtx(TT, *MAI, *MRI, *STI, &PsubaddSrcMgr);
+  std::unique_ptr<MCObjectFileInfo> PsubaddMOFI(
+      TheTarget->createMCObjectFileInfo(PsubaddParseCtx, /*PIC=*/false));
+  PsubaddParseCtx.setObjectFileInfo(PsubaddMOFI.get());
+
+  std::unique_ptr<MCStreamer> PsubaddStreamer(
+      TheTarget->createNullStreamer(PsubaddParseCtx));
+  std::unique_ptr<MCAsmParser> PsubaddParser(createMCAsmParser(
+      PsubaddSrcMgr, PsubaddParseCtx, *PsubaddStreamer, *MAI));
+  std::unique_ptr<MCTargetAsmParser> PsubaddTargetParser(
+      TheTarget->createMCAsmParser(*STI, *PsubaddParser, *MII));
+  ASSERT_NE(PsubaddTargetParser.get(), nullptr);
+  PsubaddParser->setTargetParser(*PsubaddTargetParser);
+  EXPECT_FALSE(PsubaddParser->Run(/*NoInitialTextSection=*/false));
 }
 
 } // namespace

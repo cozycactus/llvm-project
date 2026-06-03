@@ -528,7 +528,8 @@ bool AVR32AsmParser::parseInstruction(ParseInstructionInfo &Info,
   } else if (Name == "sub") {
     if (parseSubOperands(Operands))
       return true;
-  } else if (Name == "subhh.w") {
+  } else if (Name == "psubadd.h" || Name == "psubaddh.sh" ||
+             Name == "subhh.w") {
     if (parseRegisterCommaRegisterHalfPartCommaRegisterHalfPart(Operands))
       return true;
   } else if (Name == "moval" || Name == "movcc" || Name == "movcs" ||
