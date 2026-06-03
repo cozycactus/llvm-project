@@ -229,6 +229,23 @@ class FullStoreDisp16<bits<5> Op, string Mnemonic>
   let Inst{15-0} = Disp;
 }
 
+class FullStoreIndexShift<bits<10> Op, string Mnemonic>
+    : AVR32Inst32<(outs), (ins GPR:$Rb, GPR:$Ri, uimm2:$Shift, GPR:$Rs),
+                  Mnemonic#"\t${Rb}[$Ri << $Shift], $Rs"> {
+  bits<4> Rb;
+  bits<4> Ri;
+  bits<2> Shift;
+  bits<4> Rs;
+
+  let Inst{31-29} = 0b111;
+  let Inst{28-25} = Rb;
+  let Inst{24-20} = 0b00000;
+  let Inst{19-16} = Ri;
+  let Inst{15-6} = Op;
+  let Inst{5-4} = Shift;
+  let Inst{3-0} = Rs;
+}
+
 class CompactRegRegWithPrefix<bits<3> Prefix, bits<5> Op, string Mnemonic>
     : AVR32Inst<0, (outs GPR:$Rd), (ins GPR:$Rs),
                 Mnemonic#"\t$Rd, $Rs"> {
@@ -894,6 +911,7 @@ def ST_B_PostInc : CompactStorePostInc<0b01100, "st.b">;
 def ST_B_PreDec : CompactStorePreDec<0b01111, "st.b">;
 def ST_B_Disp3 : CompactStoreDisp3<"st.b">;
 def ST_B_Disp16 : FullStoreDisp16<0b10110, "st.b">;
+def ST_B_IndexShift : FullStoreIndexShift<0b0000101100, "st.b">;
 def SUBALrrr : CondRRR<0b1111, 0b0001, "subal">;
 def SUBEQrrr : CondRRR<0b0000, 0b0001, "subeq">;
 def SUBNErrr : CondRRR<0b0001, 0b0001, "subne">;

@@ -324,6 +324,7 @@ TEST(AVR32TargetInfo, LookupTarget) {
   EXPECT_EQ(MII->get(AVR32::ST_B_PreDec).getSize(), 2u);
   EXPECT_EQ(MII->get(AVR32::ST_B_Disp3).getSize(), 2u);
   EXPECT_EQ(MII->get(AVR32::ST_B_Disp16).getSize(), 4u);
+  EXPECT_EQ(MII->get(AVR32::ST_B_IndexShift).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::SUBALrrr).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::SUBCCrrr).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::SUBCSrrr).getSize(), 4u);
@@ -2109,6 +2110,24 @@ TEST(AVR32TargetInfo, LookupTarget) {
   EXPECT_EQ(static_cast<uint8_t>(Code[2]), 0xff);
   EXPECT_EQ(static_cast<uint8_t>(Code[3]), 0xff);
 
+  MCInst StBIndexShift;
+  StBIndexShift.setOpcode(AVR32::ST_B_IndexShift);
+  StBIndexShift.addOperand(MCOperand::createReg(AVR32::R1));
+  StBIndexShift.addOperand(MCOperand::createReg(AVR32::R2));
+  StBIndexShift.addOperand(MCOperand::createImm(3));
+  StBIndexShift.addOperand(MCOperand::createReg(AVR32::R4));
+
+  Code.clear();
+  Fixups.clear();
+  MCE->encodeInstruction(StBIndexShift, Code, Fixups, *STI);
+
+  EXPECT_TRUE(Fixups.empty());
+  ASSERT_EQ(Code.size(), 4u);
+  EXPECT_EQ(static_cast<uint8_t>(Code[0]), 0xe2);
+  EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0x02);
+  EXPECT_EQ(static_cast<uint8_t>(Code[2]), 0x0b);
+  EXPECT_EQ(static_cast<uint8_t>(Code[3]), 0x34);
+
   MCInst Scall;
   Scall.setOpcode(AVR32::SCALL);
 
@@ -3342,6 +3361,13 @@ TEST(AVR32TargetInfo, LookupTarget) {
   EXPECT_EQ(Printed, "\tst.b\tr1[-1], r2");
 
   Printed.clear();
+  raw_string_ostream StBIndexShiftOS(Printed);
+  InstPrinter->printInst(&StBIndexShift, /*Address=*/0, /*Annot=*/"", *STI,
+                         StBIndexShiftOS);
+  StBIndexShiftOS.flush();
+  EXPECT_EQ(Printed, "\tst.b\tr1[r2 << 3], r4");
+
+  Printed.clear();
   raw_string_ostream ScallOS(Printed);
   InstPrinter->printInst(&Scall, /*Address=*/0, /*Annot=*/"", *STI, ScallOS);
   ScallOS.flush();
@@ -3619,7 +3645,7 @@ TEST(AVR32TargetInfo, LookupTarget) {
   StoreSrcMgr.AddNewSourceBuffer(
       MemoryBuffer::getMemBuffer(
           "st.b r1++, r2\nst.b --r1, r2\nst.b r1[3], r2\n"
-          "st.b r1[-1], r2\n"),
+          "st.b r1[-1], r2\nst.b r1[r2 << 3], r4\n"),
       SMLoc());
 
   MCContext StoreParseCtx(TT, *MAI, *MRI, *STI, &StoreSrcMgr);
