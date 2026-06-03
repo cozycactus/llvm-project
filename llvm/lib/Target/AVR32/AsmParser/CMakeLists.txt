@@ -4,6 +4,7 @@ add_llvm_component_library(LLVMAVR32AsmParser
   LINK_COMPONENTS
   AVR32Desc
   AVR32Info
+  CodeGenTypes
   MC
   MCParser
   Support

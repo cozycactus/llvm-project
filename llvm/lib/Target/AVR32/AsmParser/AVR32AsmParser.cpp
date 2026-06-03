@@ -59,6 +59,12 @@ public:
       OS << "Register " << Reg.id();
   }
 
+  void addRegOperands(MCInst &Inst, unsigned N) const {
+    assert(Kind == Register && "unexpected operand kind");
+    assert(N == 1 && "invalid number of operands");
+    Inst.addOperand(MCOperand::createReg(Reg));
+  }
+
   static std::unique_ptr<AVR32Operand> createToken(StringRef Tok, SMLoc Loc) {
     return std::make_unique<AVR32Operand>(Tok, Loc);
   }
@@ -71,6 +77,9 @@ public:
 
 class AVR32AsmParser : public MCTargetAsmParser {
   MCAsmParser &Parser;
+
+#define GET_ASSEMBLER_HEADER
+#include "../AVR32GenAsmMatcher.inc"
 
   bool matchAndEmitInstruction(SMLoc IDLoc, unsigned &Opcode,
                                OperandVector &Operands, MCStreamer &Out,
@@ -89,14 +98,12 @@ class AVR32AsmParser : public MCTargetAsmParser {
     return ParseStatus::NoMatch;
   }
 
-  void convertToMapAndConstraints(unsigned Kind,
-                                  const OperandVector &Operands) override {}
-
 public:
   AVR32AsmParser(const MCSubtargetInfo &STI, MCAsmParser &Parser,
                  const MCInstrInfo &MII)
       : MCTargetAsmParser(STI, MII), Parser(Parser) {
     MCAsmParserExtension::Initialize(Parser);
+    setAvailableFeatures(ComputeAvailableFeatures(STI.getFeatureBits()));
   }
 
   MCAsmParser &getParser() const { return Parser; }
@@ -109,36 +116,41 @@ private:
 
 } // end anonymous namespace
 
+static MCRegister MatchRegisterName(StringRef Name);
+
 bool AVR32AsmParser::matchAndEmitInstruction(SMLoc Loc, unsigned &Opcode,
                                              OperandVector &Operands,
                                              MCStreamer &Out,
                                              uint64_t &ErrorInfo,
                                              bool MatchingInlineAsm) {
-  assert(!Operands.empty() && "missing AVR32 mnemonic operand");
-  const auto &Token = static_cast<const AVR32Operand &>(*Operands[0]);
-
   MCInst Inst;
-  if (Token.getToken() == "nop") {
-    if (Operands.size() != 1)
-      return Error(Loc, "invalid operand for instruction");
-    Inst.setOpcode(AVR32::NOP);
-  } else if (Token.getToken() == "mov") {
-    if (Operands.size() != 3)
-      return Error(Loc, "invalid operand for instruction");
-    const auto &Rd = static_cast<const AVR32Operand &>(*Operands[1]);
-    const auto &Rs = static_cast<const AVR32Operand &>(*Operands[2]);
-    if (!Rd.isReg() || !Rs.isReg())
-      return Error(Loc, "invalid operand for instruction");
-    Inst.setOpcode(AVR32::MOVrr);
-    Inst.addOperand(MCOperand::createReg(Rd.getReg()));
-    Inst.addOperand(MCOperand::createReg(Rs.getReg()));
-  } else {
-    return Error(Loc, "invalid instruction mnemonic");
-  }
+  unsigned MatchResult =
+      MatchInstructionImpl(Operands, Inst, ErrorInfo, MatchingInlineAsm);
 
-  Inst.setLoc(Loc);
-  Out.emitInstruction(Inst, *STI);
-  return false;
+  switch (MatchResult) {
+  case Match_Success:
+    Inst.setLoc(Loc);
+    Out.emitInstruction(Inst, *STI);
+    return false;
+  case Match_MnemonicFail:
+    return Error(Loc, "invalid instruction mnemonic");
+  case Match_InvalidOperand: {
+    SMLoc ErrorLoc = Loc;
+    if (ErrorInfo != ~0U) {
+      if (ErrorInfo >= Operands.size())
+        return Error(ErrorLoc, "too few operands for instruction");
+      ErrorLoc = Operands[ErrorInfo]->getStartLoc();
+      if (ErrorLoc == SMLoc())
+        ErrorLoc = Loc;
+    }
+    return Error(ErrorLoc, "invalid operand for instruction");
+  }
+  case Match_MissingFeature:
+    return Error(Loc,
+                 "instruction requires a CPU feature not currently enabled");
+  default:
+    return true;
+  }
 }
 
 bool AVR32AsmParser::parseRegister(MCRegister &Reg, SMLoc &StartLoc,
@@ -193,47 +205,17 @@ bool AVR32AsmParser::parseInstruction(ParseInstructionInfo &Info,
 MCRegister AVR32AsmParser::parseRegisterName(StringRef Name) const {
   std::string LowerStorage = Name.lower();
   StringRef Lower = LowerStorage;
-  if (Lower == "sp")
-    return AVR32::SP;
-  if (Lower == "lr")
-    return AVR32::LR;
-  if (Lower == "pc")
-    return AVR32::PC;
+  if (MCRegister Reg = MatchRegisterName(Lower))
+    return Reg;
 
   if (!Lower.consume_front("r"))
     return AVR32::NoRegister;
 
   unsigned RegNum;
-  if (Lower.getAsInteger(10, RegNum) || RegNum > 15)
+  if (Lower.getAsInteger(10, RegNum))
     return AVR32::NoRegister;
 
   switch (RegNum) {
-  case 0:
-    return AVR32::R0;
-  case 1:
-    return AVR32::R1;
-  case 2:
-    return AVR32::R2;
-  case 3:
-    return AVR32::R3;
-  case 4:
-    return AVR32::R4;
-  case 5:
-    return AVR32::R5;
-  case 6:
-    return AVR32::R6;
-  case 7:
-    return AVR32::R7;
-  case 8:
-    return AVR32::R8;
-  case 9:
-    return AVR32::R9;
-  case 10:
-    return AVR32::R10;
-  case 11:
-    return AVR32::R11;
-  case 12:
-    return AVR32::R12;
   case 13:
     return AVR32::SP;
   case 14:
@@ -241,7 +223,7 @@ MCRegister AVR32AsmParser::parseRegisterName(StringRef Name) const {
   case 15:
     return AVR32::PC;
   default:
-    llvm_unreachable("invalid AVR32 register number");
+    return AVR32::NoRegister;
   }
 }
 
@@ -259,3 +241,7 @@ extern "C" LLVM_ABI LLVM_EXTERNAL_VISIBILITY void
 LLVMInitializeAVR32AsmParser() {
   RegisterMCAsmParser<AVR32AsmParser> X(getTheAVR32Target());
 }
+
+#define GET_REGISTER_MATCHER
+#define GET_MATCHER_IMPLEMENTATION
+#include "../AVR32GenAsmMatcher.inc"
