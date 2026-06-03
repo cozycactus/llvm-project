@@ -38,6 +38,11 @@ def UImm5AsmOperand : AsmOperandClass {
   let RenderMethod = "addImmOperands";
 }
 
+def UImm2AsmOperand : AsmOperandClass {
+  let Name = "UImm2";
+  let RenderMethod = "addImmOperands";
+}
+
 def UImm8AsmOperand : AsmOperandClass {
   let Name = "UImm8";
   let RenderMethod = "addImmOperands";
@@ -91,6 +96,10 @@ def subspimm : Operand<i32>,
                                       Imm % 4 == 0; }]> {
   let ParserMatchClass = SubSPImmAsmOperand;
   let EncoderMethod = "getShifted2OpValue";
+}
+
+def uimm2 : Operand<i32>, ImmLeaf<i32, [{ return Imm >= 0 && Imm < 4; }]> {
+  let ParserMatchClass = UImm2AsmOperand;
 }
 
 def uimm5 : Operand<i32>, ImmLeaf<i32, [{ return Imm >= 0 && Imm < 32; }]> {
@@ -309,6 +318,23 @@ class FullRegRegReg<bits<12> Op, string Mnemonic>
   let Inst{24-20} = 0b00000;
   let Inst{19-16} = Ry;
   let Inst{15-4} = Op;
+  let Inst{3-0} = Rd;
+}
+
+class FullRegRegRegShift<bits<10> Op, string Mnemonic>
+    : AVR32Inst32<(outs GPR:$Rd), (ins GPR:$Rx, GPR:$Ry, uimm2:$Shift),
+                  Mnemonic#"\t$Rd, $Rx, $Ry << $Shift"> {
+  bits<4> Rd;
+  bits<4> Rx;
+  bits<4> Ry;
+  bits<2> Shift;
+
+  let Inst{31-29} = 0b111;
+  let Inst{28-25} = Rx;
+  let Inst{24-20} = 0b00000;
+  let Inst{19-16} = Ry;
+  let Inst{15-6} = Op;
+  let Inst{5-4} = Shift;
   let Inst{3-0} = Rd;
 }
 
@@ -837,6 +863,7 @@ def SUBFVCri : SubfCondRI<0b1101, "subfvc">;
 def SUBFQSri : SubfCondRI<0b1110, "subfqs">;
 def SUBSPri8 : CompactSPSubImm<"sub">;
 def SUBri8 : CompactRegSImm8<0b0010, "sub">;
+def SUBrrrs : FullRegRegRegShift<0b0000000100, "sub">;
 def SUBrri16 : FullRegRegSImm16<0b01100, "sub">;
 def SUBri21 : FullRegImm<0b0001, "sub">;
 def SUBrr : CompactRegReg<0b00001, "sub">;

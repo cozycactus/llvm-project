@@ -368,6 +368,7 @@ TEST(AVR32TargetInfo, LookupTarget) {
   EXPECT_EQ(MII->get(AVR32::SUBFVSri).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::SUBSPri8).getSize(), 2u);
   EXPECT_EQ(MII->get(AVR32::SUBri8).getSize(), 2u);
+  EXPECT_EQ(MII->get(AVR32::SUBrrrs).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::SUBrri16).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::SUBri21).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::SUBrr).getSize(), 2u);
@@ -2033,6 +2034,24 @@ TEST(AVR32TargetInfo, LookupTarget) {
   EXPECT_EQ(static_cast<uint8_t>(Code[0]), 0x2f);
   EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0xfd);
 
+  MCInst SubShift;
+  SubShift.setOpcode(AVR32::SUBrrrs);
+  SubShift.addOperand(MCOperand::createReg(AVR32::R1));
+  SubShift.addOperand(MCOperand::createReg(AVR32::R2));
+  SubShift.addOperand(MCOperand::createReg(AVR32::R3));
+  SubShift.addOperand(MCOperand::createImm(2));
+
+  Code.clear();
+  Fixups.clear();
+  MCE->encodeInstruction(SubShift, Code, Fixups, *STI);
+
+  EXPECT_TRUE(Fixups.empty());
+  ASSERT_EQ(Code.size(), 4u);
+  EXPECT_EQ(static_cast<uint8_t>(Code[0]), 0xe4);
+  EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0x03);
+  EXPECT_EQ(static_cast<uint8_t>(Code[2]), 0x01);
+  EXPECT_EQ(static_cast<uint8_t>(Code[3]), 0x21);
+
   MCInst SubRegImm16;
   SubRegImm16.setOpcode(AVR32::SUBrri16);
   SubRegImm16.addOperand(MCOperand::createReg(AVR32::R1));
@@ -3096,6 +3115,13 @@ TEST(AVR32TargetInfo, LookupTarget) {
   EXPECT_EQ(Printed, "\tsub\tsp, -4");
 
   Printed.clear();
+  raw_string_ostream SubShiftOS(Printed);
+  InstPrinter->printInst(&SubShift, /*Address=*/0, /*Annot=*/"", *STI,
+                         SubShiftOS);
+  SubShiftOS.flush();
+  EXPECT_EQ(Printed, "\tsub\tr1, r2, r3 << 2");
+
+  Printed.clear();
   raw_string_ostream SubRegImm16OS(Printed);
   InstPrinter->printInst(&SubRegImm16, /*Address=*/0, /*Annot=*/"", *STI,
                          SubRegImm16OS);
@@ -3277,7 +3303,8 @@ TEST(AVR32TargetInfo, LookupTarget) {
 
   SourceMgr SubRegImmSrcMgr;
   SubRegImmSrcMgr.AddNewSourceBuffer(
-      MemoryBuffer::getMemBuffer("sub r1, r2, -1\n"), SMLoc());
+      MemoryBuffer::getMemBuffer("sub r1, r2, -1\nsub r1, r2, r3 << 2\n"),
+      SMLoc());
 
   MCContext SubRegImmParseCtx(TT, *MAI, *MRI, *STI, &SubRegImmSrcMgr);
   std::unique_ptr<MCObjectFileInfo> SubRegImmMOFI(

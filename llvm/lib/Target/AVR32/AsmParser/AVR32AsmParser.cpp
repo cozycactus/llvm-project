@@ -104,6 +104,13 @@ public:
     return Const && isUInt<5>(Const->getValue());
   }
 
+  bool isUImm2() const {
+    if (Kind != Immediate)
+      return false;
+    auto *Const = dyn_cast<MCConstantExpr>(Imm);
+    return Const && isUInt<2>(Const->getValue());
+  }
+
   bool isUImm8() const {
     if (Kind != Immediate)
       return false;
@@ -232,7 +239,7 @@ private:
   bool parseRegisterCommaRegisterCommaRegister(OperandVector &Operands);
   bool parseRegisterCommaRegisterCommaRegisterOrImmediate(
       OperandVector &Operands);
-  bool parseRegisterCommaRegisterOrImmediateCommaImmediate(
+  bool parseSubOperands(
       OperandVector &Operands);
   bool parseRegisterCommaImmediate(OperandVector &Operands);
   bool parseRegisterCommaImmediateOptionalCOH(OperandVector &Operands);
@@ -363,7 +370,7 @@ bool AVR32AsmParser::parseInstruction(ParseInstructionInfo &Info,
     if (parseRegisterCommaRegister(Operands))
       return true;
   } else if (Name == "sub") {
-    if (parseRegisterCommaRegisterOrImmediateCommaImmediate(Operands))
+    if (parseSubOperands(Operands))
       return true;
   } else if (Name == "moval" || Name == "movcc" || Name == "movcs" ||
              Name == "moveq" || Name == "movge" || Name == "movgt" ||
@@ -552,8 +559,7 @@ bool AVR32AsmParser::parseRegisterCommaRegisterCommaRegisterOrImmediate(
   return false;
 }
 
-bool AVR32AsmParser::parseRegisterCommaRegisterOrImmediateCommaImmediate(
-    OperandVector &Operands) {
+bool AVR32AsmParser::parseSubOperands(OperandVector &Operands) {
   if (parseRegisterOperand(Operands))
     return true;
   if (!parseOptionalToken(AsmToken::Comma))
@@ -562,6 +568,24 @@ bool AVR32AsmParser::parseRegisterCommaRegisterOrImmediateCommaImmediate(
     return true;
   if (!parseOptionalToken(AsmToken::Comma))
     return false;
+
+  MCRegister Reg;
+  SMLoc StartLoc;
+  SMLoc EndLoc;
+  ParseStatus RegStatus = tryParseRegister(Reg, StartLoc, EndLoc);
+  if (RegStatus.isSuccess()) {
+    Operands.push_back(AVR32Operand::createReg(Reg, StartLoc, EndLoc));
+    if (getLexer().isNot(AsmToken::LessLess))
+      return Error(getLexer().getLoc(), "expected <<");
+    Operands.push_back(AVR32Operand::createToken("<<", getLexer().getLoc()));
+    getLexer().Lex();
+    if (parseImmediateOperand(Operands))
+      return true;
+    return false;
+  }
+  if (RegStatus.isFailure())
+    return Error(StartLoc, "invalid register name");
+
   if (parseImmediateOperand(Operands))
     return true;
   return false;
