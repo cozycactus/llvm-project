@@ -275,7 +275,8 @@ bool AVR32AsmParser::parseInstruction(ParseInstructionInfo &Info,
       return true;
   } else if (Name == "abs" || Name == "acr" || Name == "brev" ||
              Name == "casts.b" || Name == "casts.h" || Name == "castu.h" ||
-             Name == "castu.b" || Name == "com" || Name == "musfr" ||
+             Name == "castu.b" || Name == "com" || Name == "icall" ||
+             Name == "musfr" ||
              Name == "neg" || Name == "retal" ||
              Name == "rol" || Name == "ror" || Name == "scr" ||
              Name == "swap.b" || Name == "swap.bh" || Name == "swap.h") {
