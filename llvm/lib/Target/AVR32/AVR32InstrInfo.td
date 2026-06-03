@@ -248,4 +248,5 @@ def SUBrr : CompactRegReg<0b00001, "sub">;
 def SWAP_BHr : CompactReg<0b010111001100, "swap.bh">;
 def SWAP_Br : CompactReg<0b010111001011, "swap.b">;
 def SWAP_Hr : CompactReg<0b010111001010, "swap.h">;
+def TLBR : AVR32Inst<0b1101011001000011, (outs), (ins), "tlbr">;
 def TSTrr : CompactRegRegNoOut<0b00111, "tst">;
