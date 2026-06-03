@@ -96,6 +96,14 @@ public:
     return Const && isUInt<8>(Const->getValue());
   }
 
+  bool isACallDisp() const {
+    if (Kind != Immediate)
+      return false;
+    auto *Const = dyn_cast<MCConstantExpr>(Imm);
+    return Const && Const->getValue() >= 0 && Const->getValue() <= 1020 &&
+           Const->getValue() % 4 == 0;
+  }
+
   bool isSysRegAddr() const {
     if (Kind != Immediate)
       return false;
@@ -308,7 +316,8 @@ bool AVR32AsmParser::parseInstruction(ParseInstructionInfo &Info,
     if (parseOptionalToken(AsmToken::Comma) &&
         parseRegisterOperand(Operands))
       return true;
-  } else if (Name == "csrf" || Name == "csrfcz" || Name == "ssrf") {
+  } else if (Name == "acall" || Name == "csrf" || Name == "csrfcz" ||
+             Name == "ssrf") {
     if (parseImmediateOperand(Operands))
       return true;
   } else if (Name == "incjosp" || Name == "sleep" || Name == "sync") {

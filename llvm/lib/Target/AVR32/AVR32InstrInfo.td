@@ -33,6 +33,11 @@ def UImm8AsmOperand : AsmOperandClass {
   let RenderMethod = "addImmOperands";
 }
 
+def ACallDispAsmOperand : AsmOperandClass {
+  let Name = "ACallDisp";
+  let RenderMethod = "addImmOperands";
+}
+
 def SysRegAddrAsmOperand : AsmOperandClass {
   let Name = "SysRegAddr";
   let RenderMethod = "addImmOperands";
@@ -67,6 +72,13 @@ def uimm5 : Operand<i32>, ImmLeaf<i32, [{ return Imm >= 0 && Imm < 32; }]> {
 
 def uimm8 : Operand<i32>, ImmLeaf<i32, [{ return Imm >= 0 && Imm < 256; }]> {
   let ParserMatchClass = UImm8AsmOperand;
+}
+
+def acalldisp : Operand<i32>,
+                ImmLeaf<i32, [{ return Imm >= 0 && Imm <= 1020 &&
+                                       Imm % 4 == 0; }]> {
+  let ParserMatchClass = ACallDispAsmOperand;
+  let EncoderMethod = "getShifted2OpValue";
 }
 
 def sysregaddr : Operand<i32>,
@@ -174,6 +186,14 @@ class CompactImm<bits<7> Op, string Mnemonic>
   let Inst{15-9} = Op;
   let Inst{8-4} = Imm;
   let Inst{3-0} = 0b0011;
+}
+
+def ACALLi : AVR32Inst<0, (outs), (ins acalldisp:$Disp), "acall\t$Disp"> {
+  bits<8> Disp;
+
+  let Inst{15-12} = 0b1101;
+  let Inst{11-4} = Disp;
+  let Inst{3-0} = 0;
 }
 
 def INCJOSPi : AVR32Inst<0, (outs), (ins incjospimm:$Imm),
