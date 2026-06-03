@@ -31,6 +31,14 @@ class CompactRegReg<bits<5> Op, string Mnemonic>
   let Inst{3-0} = Rd;
 }
 
+class CompactReg<bits<12> Op, string Mnemonic>
+    : AVR32Inst<0, (outs GPR:$Rd), (ins), Mnemonic#"\t$Rd"> {
+  bits<4> Rd;
+
+  let Inst{15-4} = Op;
+  let Inst{3-0} = Rd;
+}
+
 class MovRI<bits<4> Prefix, string Mnemonic>
     : AVR32Inst<0, (outs GPR:$Rd), (ins simm8:$Imm),
                 Mnemonic#"\t$Rd, $Imm"> {
@@ -60,6 +68,7 @@ class MovRR<bits<4> Cond, string Mnemonic>
 def ADDrr : CompactRegReg<0b00000, "add">;
 def ANDNrr : CompactRegReg<0b01000, "andn">;
 def ANDrr : CompactRegReg<0b00110, "and">;
+def COMr : CompactReg<0b010111001101, "com">;
 def EORrr : CompactRegReg<0b00101, "eor">;
 def MOVrr : MovRR<0b1111, "mov">;
 def MOVri8 : MovRI<0b0011, "mov">;
