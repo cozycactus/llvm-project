@@ -96,6 +96,14 @@ public:
     return Const && isUInt<8>(Const->getValue());
   }
 
+  bool isSysRegAddr() const {
+    if (Kind != Immediate)
+      return false;
+    auto *Const = dyn_cast<MCConstantExpr>(Imm);
+    return Const && Const->getValue() >= 0 && Const->getValue() <= 1020 &&
+           Const->getValue() % 4 == 0;
+  }
+
   void print(raw_ostream &OS, const MCAsmInfo &MAI) const override {
     if (Kind == Token)
       OS << "Token " << Tok;
@@ -176,6 +184,8 @@ private:
   bool parseImmediateOperand(OperandVector &Operands);
   bool parseRegisterCommaRegister(OperandVector &Operands);
   bool parseRegisterCommaRegisterCommaRegister(OperandVector &Operands);
+  bool parseRegisterCommaImmediate(OperandVector &Operands);
+  bool parseImmediateCommaRegister(OperandVector &Operands);
   bool parseRegisterOrImmediateOperand(OperandVector &Operands);
 };
 
@@ -283,6 +293,12 @@ bool AVR32AsmParser::parseInstruction(ParseInstructionInfo &Info,
   } else if (Name == "sleep" || Name == "sync") {
     if (parseImmediateOperand(Operands))
       return true;
+  } else if (Name == "mfsr") {
+    if (parseRegisterCommaImmediate(Operands))
+      return true;
+  } else if (Name == "mtsr") {
+    if (parseImmediateCommaRegister(Operands))
+      return true;
   } else if (Name == "abs" || Name == "acr" || Name == "brev" ||
              Name == "casts.b" || Name == "casts.h" || Name == "castu.h" ||
              Name == "castu.b" || Name == "com" || Name == "icall" ||
@@ -375,6 +391,26 @@ bool AVR32AsmParser::parseRegisterCommaRegister(OperandVector &Operands) {
 bool AVR32AsmParser::parseRegisterCommaRegisterCommaRegister(
     OperandVector &Operands) {
   if (parseRegisterCommaRegister(Operands))
+    return true;
+  if (!parseOptionalToken(AsmToken::Comma))
+    return Error(getLexer().getLoc(), "expected comma");
+  if (parseRegisterOperand(Operands))
+    return true;
+  return false;
+}
+
+bool AVR32AsmParser::parseRegisterCommaImmediate(OperandVector &Operands) {
+  if (parseRegisterOperand(Operands))
+    return true;
+  if (!parseOptionalToken(AsmToken::Comma))
+    return Error(getLexer().getLoc(), "expected comma");
+  if (parseImmediateOperand(Operands))
+    return true;
+  return false;
+}
+
+bool AVR32AsmParser::parseImmediateCommaRegister(OperandVector &Operands) {
+  if (parseImmediateOperand(Operands))
     return true;
   if (!parseOptionalToken(AsmToken::Comma))
     return Error(getLexer().getLoc(), "expected comma");

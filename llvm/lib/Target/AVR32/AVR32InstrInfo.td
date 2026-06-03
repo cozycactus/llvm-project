@@ -33,6 +33,11 @@ def UImm8AsmOperand : AsmOperandClass {
   let RenderMethod = "addImmOperands";
 }
 
+def SysRegAddrAsmOperand : AsmOperandClass {
+  let Name = "SysRegAddr";
+  let RenderMethod = "addImmOperands";
+}
+
 def simm6 : Operand<i32>, ImmLeaf<i32, [{ return Imm >= -32 && Imm < 32; }]> {
   let ParserMatchClass = SImm6AsmOperand;
 }
@@ -52,6 +57,13 @@ def uimm5 : Operand<i32>, ImmLeaf<i32, [{ return Imm >= 0 && Imm < 32; }]> {
 
 def uimm8 : Operand<i32>, ImmLeaf<i32, [{ return Imm >= 0 && Imm < 256; }]> {
   let ParserMatchClass = UImm8AsmOperand;
+}
+
+def sysregaddr : Operand<i32>,
+                 ImmLeaf<i32, [{ return Imm >= 0 && Imm <= 1020 &&
+                                        Imm % 4 == 0; }]> {
+  let ParserMatchClass = SysRegAddrAsmOperand;
+  let EncoderMethod = "getSysRegAddrOpValue";
 }
 
 def NOP : AVR32Inst<0b1101011100000011, (outs), (ins), "nop">;
@@ -194,6 +206,30 @@ class FullImm8NoOut<bits<16> Op, string Mnemonic>
   let Inst{7-0} = Imm;
 }
 
+class FullRegSysReg<bits<12> Op, string Mnemonic>
+    : AVR32Inst32<(outs GPR:$Rd), (ins sysregaddr:$Addr),
+                  Mnemonic#"\t$Rd, $Addr"> {
+  bits<4> Rd;
+  bits<8> Addr;
+
+  let Inst{31-20} = Op;
+  let Inst{19-16} = Rd;
+  let Inst{15-8} = 0;
+  let Inst{7-0} = Addr;
+}
+
+class FullSysRegReg<bits<12> Op, string Mnemonic>
+    : AVR32Inst32<(outs), (ins sysregaddr:$Addr, GPR:$Rs),
+                  Mnemonic#"\t$Addr, $Rs"> {
+  bits<8> Addr;
+  bits<4> Rs;
+
+  let Inst{31-20} = Op;
+  let Inst{19-16} = Rs;
+  let Inst{15-8} = 0;
+  let Inst{7-0} = Addr;
+}
+
 class MovRI<bits<4> Prefix, string Mnemonic>
     : AVR32Inst<0, (outs GPR:$Rd), (ins simm8:$Imm),
                 Mnemonic#"\t$Rd, $Imm"> {
@@ -261,6 +297,7 @@ def LSLrrr : FullRegRegReg<0b000010010100, "lsl">;
 def LSRrrr : FullRegRegReg<0b000010100100, "lsr">;
 def MAXrrr : FullRegRegReg<0b000011000100, "max">;
 def MINrrr : FullRegRegReg<0b000011010100, "min">;
+def MFSRi : FullRegSysReg<0b111000011011, "mfsr">;
 def MOVrr : MovRR<0b1111, "mov">;
 def MOVri8 : MovRI<0b0011, "mov">;
 def MULrr : CompactRegRegWithPrefix<0b101, 0b10011, "mul">;
@@ -269,6 +306,7 @@ def MULrrr : FullRegRegReg<0b000000100100, "mul">;
 def MULS_Drrr : FullRegRegReg<0b000001000100, "muls.d">;
 def MULU_Drrr : FullRegRegReg<0b000001100100, "mulu.d">;
 def MUSFRr : CompactRegNoOut<0b010111010011, "musfr">;
+def MTSRi : FullSysRegReg<0b111000111011, "mtsr">;
 def NEGr : CompactReg<0b010111000011, "neg">;
 def ORrr : CompactRegReg<0b00100, "or">;
 def PUSHJC : AVR32Inst<0b1101011100100011, (outs), (ins), "pushjc">;
