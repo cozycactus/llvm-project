@@ -91,6 +91,7 @@ TEST(AVR32TargetInfo, LookupTarget) {
   EXPECT_EQ(MII->get(AVR32::FRS).getSize(), 2u);
   EXPECT_EQ(MII->get(AVR32::LSLrrr).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::LSRrrr).getSize(), 4u);
+  EXPECT_EQ(MII->get(AVR32::MAXrrr).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::MOVrr).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::MOVri8).getSize(), 2u);
   EXPECT_EQ(MII->get(AVR32::MULrr).getSize(), 2u);
@@ -470,6 +471,23 @@ TEST(AVR32TargetInfo, LookupTarget) {
   EXPECT_EQ(static_cast<uint8_t>(Code[0]), 0xe4);
   EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0x03);
   EXPECT_EQ(static_cast<uint8_t>(Code[2]), 0x0a);
+  EXPECT_EQ(static_cast<uint8_t>(Code[3]), 0x41);
+
+  MCInst Max;
+  Max.setOpcode(AVR32::MAXrrr);
+  Max.addOperand(MCOperand::createReg(AVR32::R1));
+  Max.addOperand(MCOperand::createReg(AVR32::R2));
+  Max.addOperand(MCOperand::createReg(AVR32::R3));
+
+  Code.clear();
+  Fixups.clear();
+  MCE->encodeInstruction(Max, Code, Fixups, *STI);
+
+  EXPECT_TRUE(Fixups.empty());
+  ASSERT_EQ(Code.size(), 4u);
+  EXPECT_EQ(static_cast<uint8_t>(Code[0]), 0xe4);
+  EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0x03);
+  EXPECT_EQ(static_cast<uint8_t>(Code[2]), 0x0c);
   EXPECT_EQ(static_cast<uint8_t>(Code[3]), 0x41);
 
   MCInst MulCompact;
@@ -854,6 +872,12 @@ TEST(AVR32TargetInfo, LookupTarget) {
   EXPECT_EQ(Printed, "\tlsr\tr1, r2, r3");
 
   Printed.clear();
+  raw_string_ostream MaxOS(Printed);
+  InstPrinter->printInst(&Max, /*Address=*/0, /*Annot=*/"", *STI, MaxOS);
+  MaxOS.flush();
+  EXPECT_EQ(Printed, "\tmax\tr1, r2, r3");
+
+  Printed.clear();
   raw_string_ostream MulCompactOS(Printed);
   InstPrinter->printInst(&MulCompact, /*Address=*/0, /*Annot=*/"", *STI,
                          MulCompactOS);
@@ -954,7 +978,7 @@ TEST(AVR32TargetInfo, LookupTarget) {
   SourceMgr SrcMgr;
   SrcMgr.AddNewSourceBuffer(
       MemoryBuffer::getMemBuffer(
-          "nop\nfrs\nabs r1\nacr r1\nadc r1, r2, r3\nadd r1, r2\nand r1, r2\nandn r1, r2\nasr r1, r2, r3\nbrev r1\ncasts.b r1\ncasts.h r1\ncastu.b r1\ncastu.h r1\ncom r1\ncpc r1\ncpc r1, r2\ncp.w r1, r2\ncp.w r1, -1\ncp.w r1, 32\nneg r1\neor r1, r2\nlsl r1, r2, r3\nlsr r1, r2, r3\nmul r1, r2\nmul r1, r2, -1\nmul r1, r2, r3\nor r1, r2\nrol r1\nror r1\nrsub r1, r2\nsbc r1, r2, r3\nscr r1\nsub r1, r2\nswap.bh r1\nswap.b r1\nswap.h r1\ntst r1, r2\nmov r1, r2\nmov r1, -1\n"),
+          "nop\nfrs\nabs r1\nacr r1\nadc r1, r2, r3\nadd r1, r2\nand r1, r2\nandn r1, r2\nasr r1, r2, r3\nbrev r1\ncasts.b r1\ncasts.h r1\ncastu.b r1\ncastu.h r1\ncom r1\ncpc r1\ncpc r1, r2\ncp.w r1, r2\ncp.w r1, -1\ncp.w r1, 32\nneg r1\neor r1, r2\nlsl r1, r2, r3\nlsr r1, r2, r3\nmax r1, r2, r3\nmul r1, r2\nmul r1, r2, -1\nmul r1, r2, r3\nor r1, r2\nrol r1\nror r1\nrsub r1, r2\nsbc r1, r2, r3\nscr r1\nsub r1, r2\nswap.bh r1\nswap.b r1\nswap.h r1\ntst r1, r2\nmov r1, r2\nmov r1, -1\n"),
       SMLoc());
 
   MCContext ParseCtx(TT, *MAI, *MRI, *STI, &SrcMgr);
