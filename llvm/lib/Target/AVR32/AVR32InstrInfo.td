@@ -1675,6 +1675,8 @@ def ORVSrrr : CondRRR<0b1100, 0b0011, "orvs">;
 def ORVCrrr : CondRRR<0b1101, 0b0011, "orvc">;
 def ORQSrrr : CondRRR<0b1110, 0b0011, "orqs">;
 def ORrr : CompactRegReg<0b00100, "or">;
+def PADD_Brrr : FullRegRegReg<0b001000110000, "padd.b">;
+def PADD_Hrrr : FullRegRegReg<0b001000000000, "padd.h">;
 def PREF : FullMemDisp16<0b111100100001, "pref">;
 def PSADrrr : FullRegRegReg<0b001001000000, "psad">;
 def PSUB_Brrr : FullRegRegReg<0b001000110001, "psub.b">;

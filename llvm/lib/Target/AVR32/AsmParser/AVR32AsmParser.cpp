@@ -494,6 +494,7 @@ bool AVR32AsmParser::parseInstruction(ParseInstructionInfo &Info,
       Name == "ormi" || Name == "orne" || Name == "orpl" ||
       Name == "orqs" || Name == "orvc" || Name == "orvs" ||
       Name == "muls.d" || Name == "mulu.d" ||
+      Name == "padd.b" || Name == "padd.h" ||
       Name == "psad" || Name == "psub.b" || Name == "psub.h" ||
       Name == "psubh.sh" || Name == "psubh.ub" ||
       Name == "psubs.sb" || Name == "psubs.sh" ||
