@@ -69,6 +69,7 @@ def ACRr : CompactReg<0b010111000000, "acr">;
 def ADDrr : CompactRegReg<0b00000, "add">;
 def ANDNrr : CompactRegReg<0b01000, "andn">;
 def ANDrr : CompactRegReg<0b00110, "and">;
+def BREVr : CompactReg<0b010111001001, "brev">;
 def COMr : CompactReg<0b010111001101, "com">;
 def EORrr : CompactRegReg<0b00101, "eor">;
 def MOVrr : MovRR<0b1111, "mov">;
