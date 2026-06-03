@@ -52,3 +52,14 @@ void AVR32InstPrinter::printHalfPart(const MCInst *MI, unsigned OpNo,
   assert(Op.isImm() && "halfword part selector must be immediate");
   OS << (Op.getImm() ? "t" : "b");
 }
+
+void AVR32InstPrinter::printBytePart(const MCInst *MI, unsigned OpNo,
+                                     raw_ostream &OS) {
+  const MCOperand &Op = MI->getOperand(OpNo);
+  assert(Op.isImm() && "byte part selector must be immediate");
+  static const char *Parts[] = {"b", "l", "u", "t"};
+  int64_t Part = Op.getImm();
+  if (Part < 0 || Part > 3)
+    llvm_unreachable("invalid byte part selector");
+  OS << Parts[Part];
+}

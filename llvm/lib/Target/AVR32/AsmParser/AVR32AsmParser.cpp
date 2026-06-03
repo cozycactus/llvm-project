@@ -250,6 +250,20 @@ public:
     return Const && (Const->getValue() == 0 || Const->getValue() == 1);
   }
 
+  bool isBytePart() const {
+    if (Kind != Immediate)
+      return false;
+    auto *Const = dyn_cast<MCConstantExpr>(Imm);
+    return Const && isUInt<2>(Const->getValue());
+  }
+
+  bool isFixedShift2() const {
+    if (Kind != Immediate)
+      return false;
+    auto *Const = dyn_cast<MCConstantExpr>(Imm);
+    return Const && Const->getValue() == 2;
+  }
+
   void print(raw_ostream &OS, const MCAsmInfo &MAI) const override {
     if (Kind == Token)
       OS << "Token " << Tok;
@@ -338,6 +352,7 @@ private:
   bool parseSubOperands(
       OperandVector &Operands);
   bool parseRegisterHalfPart(OperandVector &Operands);
+  bool parseBytePartOperand(OperandVector &Operands);
   bool parseRegisterCommaRegisterHalfPartCommaRegisterHalfPart(
       OperandVector &Operands);
   bool parseLoadOperands(OperandVector &Operands);
@@ -791,6 +806,31 @@ bool AVR32AsmParser::parseRegisterHalfPart(OperandVector &Operands) {
   return false;
 }
 
+bool AVR32AsmParser::parseBytePartOperand(OperandVector &Operands) {
+  SMLoc PartLoc = getLexer().getLoc();
+  if (getLexer().isNot(AsmToken::Identifier))
+    return Error(PartLoc, "expected b, l, u, or t");
+
+  StringRef Part = getLexer().getTok().getString();
+  int64_t PartValue;
+  if (Part == "b")
+    PartValue = 0;
+  else if (Part == "l")
+    PartValue = 1;
+  else if (Part == "u")
+    PartValue = 2;
+  else if (Part == "t")
+    PartValue = 3;
+  else
+    return Error(PartLoc, "expected b, l, u, or t");
+
+  const MCExpr *PartExpr = MCConstantExpr::create(PartValue, getContext());
+  getLexer().Lex();
+  Operands.push_back(
+      AVR32Operand::createImm(PartExpr, PartLoc, getLexer().getLoc()));
+  return false;
+}
+
 bool AVR32AsmParser::parseRegisterCommaRegisterHalfPartCommaRegisterHalfPart(
     OperandVector &Operands) {
   if (parseRegisterOperand(Operands))
@@ -837,6 +877,11 @@ bool AVR32AsmParser::parseLoadOperands(OperandVector &Operands) {
     if (IndexStatus.isSuccess()) {
       Operands.push_back(
           AVR32Operand::createReg(IndexReg, IndexStartLoc, IndexEndLoc));
+      if (parseOptionalToken(AsmToken::Colon)) {
+        Operands.push_back(AVR32Operand::createToken(":", getLexer().getLoc()));
+        if (parseBytePartOperand(Operands))
+          return true;
+      }
       if (getLexer().isNot(AsmToken::LessLess))
         return Error(getLexer().getLoc(), "expected <<");
       Operands.push_back(AVR32Operand::createToken("<<", getLexer().getLoc()));

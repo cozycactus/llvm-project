@@ -325,6 +325,7 @@ TEST(AVR32TargetInfo, LookupTarget) {
   EXPECT_EQ(MII->get(AVR32::LD_W_Disp5).getSize(), 2u);
   EXPECT_EQ(MII->get(AVR32::LD_W_Disp16).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::LD_W_IndexShift).getSize(), 4u);
+  EXPECT_EQ(MII->get(AVR32::LD_W_IndexPart).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::ST_B_PostInc).getSize(), 2u);
   EXPECT_EQ(MII->get(AVR32::ST_B_PreDec).getSize(), 2u);
   EXPECT_EQ(MII->get(AVR32::ST_B_Disp3).getSize(), 2u);
@@ -1285,6 +1286,25 @@ TEST(AVR32TargetInfo, LookupTarget) {
   EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0x03);
   EXPECT_EQ(static_cast<uint8_t>(Code[2]), 0x03);
   EXPECT_EQ(static_cast<uint8_t>(Code[3]), 0x21);
+
+  MCInst LdWIndexPart;
+  LdWIndexPart.setOpcode(AVR32::LD_W_IndexPart);
+  LdWIndexPart.addOperand(MCOperand::createReg(AVR32::R1));
+  LdWIndexPart.addOperand(MCOperand::createReg(AVR32::R2));
+  LdWIndexPart.addOperand(MCOperand::createReg(AVR32::R3));
+  LdWIndexPart.addOperand(MCOperand::createImm(1));
+  LdWIndexPart.addOperand(MCOperand::createImm(2));
+
+  Code.clear();
+  Fixups.clear();
+  MCE->encodeInstruction(LdWIndexPart, Code, Fixups, *STI);
+
+  EXPECT_TRUE(Fixups.empty());
+  ASSERT_EQ(Code.size(), 4u);
+  EXPECT_EQ(static_cast<uint8_t>(Code[0]), 0xe4);
+  EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0x03);
+  EXPECT_EQ(static_cast<uint8_t>(Code[2]), 0x0f);
+  EXPECT_EQ(static_cast<uint8_t>(Code[3]), 0x91);
 
   MCInst Icall;
   Icall.setOpcode(AVR32::ICALLr);
@@ -3617,6 +3637,13 @@ TEST(AVR32TargetInfo, LookupTarget) {
   EXPECT_EQ(Printed, "\tld.w\tr1, r2[r3 << 2]");
 
   Printed.clear();
+  raw_string_ostream LdWIndexPartOS(Printed);
+  InstPrinter->printInst(&LdWIndexPart, /*Address=*/0, /*Annot=*/"", *STI,
+                         LdWIndexPartOS);
+  LdWIndexPartOS.flush();
+  EXPECT_EQ(Printed, "\tld.w\tr1, r2[r3:l << 2]");
+
+  Printed.clear();
   raw_string_ostream IcallOS(Printed);
   InstPrinter->printInst(&Icall, /*Address=*/0, /*Annot=*/"", *STI, IcallOS);
   IcallOS.flush();
@@ -4521,6 +4548,7 @@ TEST(AVR32TargetInfo, LookupTarget) {
       MemoryBuffer::getMemBuffer(
           "ld.w r1, r2++\nld.w r1, --r2\nld.w r1, r2[12]\n"
           "ld.w r1, r2[-1]\nld.w r1, r2[r3 << 2]\n"
+          "ld.w r1, r2[r3:l << 2]\n"
           "st.b r1++, r2\nst.b --r1, r2\nst.b r1[3], r2\n"
           "st.b r1[-1], r2\nst.b r1[r2 << 3], r4\n"
           "st.beq r1[3], r2\nst.bal r1[3], r2\n"

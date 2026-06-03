@@ -48,6 +48,16 @@ def HalfPartAsmOperand : AsmOperandClass {
   let RenderMethod = "addImmOperands";
 }
 
+def BytePartAsmOperand : AsmOperandClass {
+  let Name = "BytePart";
+  let RenderMethod = "addImmOperands";
+}
+
+def FixedShift2AsmOperand : AsmOperandClass {
+  let Name = "FixedShift2";
+  let RenderMethod = "addImmOperands";
+}
+
 def UImm5AsmOperand : AsmOperandClass {
   let Name = "UImm5";
   let RenderMethod = "addImmOperands";
@@ -278,6 +288,16 @@ def halfpart : Operand<i32>, ImmLeaf<i32, [{ return Imm == 0 || Imm == 1; }]> {
   let PrintMethod = "printHalfPart";
 }
 
+def bytepart : Operand<i32>,
+               ImmLeaf<i32, [{ return Imm >= 0 && Imm < 4; }]> {
+  let ParserMatchClass = BytePartAsmOperand;
+  let PrintMethod = "printBytePart";
+}
+
+def fixedshift2 : Operand<i32>, ImmLeaf<i32, [{ return Imm == 2; }]> {
+  let ParserMatchClass = FixedShift2AsmOperand;
+}
+
 def NOP : AVR32Inst<0b1101011100000011, (outs), (ins), "nop">;
 
 class CompactRegReg<bits<5> Op, string Mnemonic>
@@ -466,6 +486,24 @@ class FullLoadIndexShift<bits<10> Op, string Mnemonic>
   let Inst{19-16} = Ri;
   let Inst{15-6} = Op;
   let Inst{5-4} = Shift;
+  let Inst{3-0} = Rd;
+}
+
+class FullLoadIndexPart<string Mnemonic>
+    : AVR32Inst32<(outs GPR:$Rd), (ins GPR:$Rb, GPR:$Ri, bytepart:$Part,
+                                       fixedshift2:$Shift),
+                  Mnemonic#"\t$Rd, ${Rb}[${Ri}:$Part << $Shift]"> {
+  bits<4> Rd;
+  bits<4> Rb;
+  bits<4> Ri;
+  bits<2> Part;
+
+  let Inst{31-29} = 0b111;
+  let Inst{28-25} = Rb;
+  let Inst{24-20} = 0b00000;
+  let Inst{19-16} = Ri;
+  let Inst{15-6} = 0b0000111110;
+  let Inst{5-4} = Part;
   let Inst{3-0} = Rd;
 }
 
@@ -722,6 +760,7 @@ def LD_W_PreDec : CompactLoadPreDec<0b10100, "ld.w">;
 def LD_W_Disp5 : CompactLoadDisp5Shift2<"ld.w">;
 def LD_W_Disp16 : FullLoadDisp16<0b01111, "ld.w">;
 def LD_W_IndexShift : FullLoadIndexShift<0b0000001100, "ld.w">;
+def LD_W_IndexPart : FullLoadIndexPart<"ld.w">;
 
 class FullRegRegNoOut<bits<16> Op, string Mnemonic>
     : AVR32Inst32<(outs), (ins GPR:$Rd, GPR:$Rs),
