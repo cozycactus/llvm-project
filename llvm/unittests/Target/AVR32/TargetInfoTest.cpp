@@ -368,6 +368,7 @@ TEST(AVR32TargetInfo, LookupTarget) {
   EXPECT_EQ(MII->get(AVR32::SUBFVSri).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::SUBSPri8).getSize(), 2u);
   EXPECT_EQ(MII->get(AVR32::SUBri8).getSize(), 2u);
+  EXPECT_EQ(MII->get(AVR32::SUBrri16).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::SUBri21).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::SUBrr).getSize(), 2u);
   EXPECT_EQ(MII->get(AVR32::SWAP_BHr).getSize(), 2u);
@@ -2032,6 +2033,23 @@ TEST(AVR32TargetInfo, LookupTarget) {
   EXPECT_EQ(static_cast<uint8_t>(Code[0]), 0x2f);
   EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0xfd);
 
+  MCInst SubRegImm16;
+  SubRegImm16.setOpcode(AVR32::SUBrri16);
+  SubRegImm16.addOperand(MCOperand::createReg(AVR32::R1));
+  SubRegImm16.addOperand(MCOperand::createReg(AVR32::R2));
+  SubRegImm16.addOperand(MCOperand::createImm(-1));
+
+  Code.clear();
+  Fixups.clear();
+  MCE->encodeInstruction(SubRegImm16, Code, Fixups, *STI);
+
+  EXPECT_TRUE(Fixups.empty());
+  ASSERT_EQ(Code.size(), 4u);
+  EXPECT_EQ(static_cast<uint8_t>(Code[0]), 0xe4);
+  EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0xc1);
+  EXPECT_EQ(static_cast<uint8_t>(Code[2]), 0xff);
+  EXPECT_EQ(static_cast<uint8_t>(Code[3]), 0xff);
+
   MCInst SubImm;
   SubImm.setOpcode(AVR32::SUBri21);
   SubImm.addOperand(MCOperand::createReg(AVR32::R1));
@@ -3078,6 +3096,13 @@ TEST(AVR32TargetInfo, LookupTarget) {
   EXPECT_EQ(Printed, "\tsub\tsp, -4");
 
   Printed.clear();
+  raw_string_ostream SubRegImm16OS(Printed);
+  InstPrinter->printInst(&SubRegImm16, /*Address=*/0, /*Annot=*/"", *STI,
+                         SubRegImm16OS);
+  SubRegImm16OS.flush();
+  EXPECT_EQ(Printed, "\tsub\tr1, r2, -1");
+
+  Printed.clear();
   raw_string_ostream SubImmOS(Printed);
   InstPrinter->printInst(&SubImm, /*Address=*/0, /*Annot=*/"", *STI,
                          SubImmOS);
@@ -3249,6 +3274,25 @@ TEST(AVR32TargetInfo, LookupTarget) {
   ASSERT_NE(TargetParser.get(), nullptr);
   Parser->setTargetParser(*TargetParser);
   EXPECT_FALSE(Parser->Run(/*NoInitialTextSection=*/false));
+
+  SourceMgr SubRegImmSrcMgr;
+  SubRegImmSrcMgr.AddNewSourceBuffer(
+      MemoryBuffer::getMemBuffer("sub r1, r2, -1\n"), SMLoc());
+
+  MCContext SubRegImmParseCtx(TT, *MAI, *MRI, *STI, &SubRegImmSrcMgr);
+  std::unique_ptr<MCObjectFileInfo> SubRegImmMOFI(
+      TheTarget->createMCObjectFileInfo(SubRegImmParseCtx, /*PIC=*/false));
+  SubRegImmParseCtx.setObjectFileInfo(SubRegImmMOFI.get());
+
+  std::unique_ptr<MCStreamer> SubRegImmStreamer(
+      TheTarget->createNullStreamer(SubRegImmParseCtx));
+  std::unique_ptr<MCAsmParser> SubRegImmParser(createMCAsmParser(
+      SubRegImmSrcMgr, SubRegImmParseCtx, *SubRegImmStreamer, *MAI));
+  std::unique_ptr<MCTargetAsmParser> SubRegImmTargetParser(
+      TheTarget->createMCAsmParser(*STI, *SubRegImmParser, *MII));
+  ASSERT_NE(SubRegImmTargetParser.get(), nullptr);
+  SubRegImmParser->setTargetParser(*SubRegImmTargetParser);
+  EXPECT_FALSE(SubRegImmParser->Run(/*NoInitialTextSection=*/false));
 }
 
 } // namespace

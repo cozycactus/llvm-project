@@ -68,6 +68,13 @@ public:
     return Const && isInt<8>(Const->getValue());
   }
 
+  bool isSImm16() const {
+    if (Kind != Immediate)
+      return false;
+    auto *Const = dyn_cast<MCConstantExpr>(Imm);
+    return Const && isInt<16>(Const->getValue());
+  }
+
   bool isSImm21() const {
     if (Kind != Immediate)
       return false;
@@ -225,6 +232,8 @@ private:
   bool parseRegisterCommaRegisterCommaRegister(OperandVector &Operands);
   bool parseRegisterCommaRegisterCommaRegisterOrImmediate(
       OperandVector &Operands);
+  bool parseRegisterCommaRegisterOrImmediateCommaImmediate(
+      OperandVector &Operands);
   bool parseRegisterCommaImmediate(OperandVector &Operands);
   bool parseRegisterCommaImmediateOptionalCOH(OperandVector &Operands);
   bool parseRegisterCommaRegisterOrImmediate(OperandVector &Operands);
@@ -354,7 +363,7 @@ bool AVR32AsmParser::parseInstruction(ParseInstructionInfo &Info,
     if (parseRegisterCommaRegister(Operands))
       return true;
   } else if (Name == "sub") {
-    if (parseRegisterCommaRegisterOrImmediate(Operands))
+    if (parseRegisterCommaRegisterOrImmediateCommaImmediate(Operands))
       return true;
   } else if (Name == "moval" || Name == "movcc" || Name == "movcs" ||
              Name == "moveq" || Name == "movge" || Name == "movgt" ||
@@ -538,6 +547,21 @@ bool AVR32AsmParser::parseRegisterCommaRegisterCommaRegisterOrImmediate(
   if (RegStatus.isFailure())
     return Error(StartLoc, "invalid register name");
 
+  if (parseImmediateOperand(Operands))
+    return true;
+  return false;
+}
+
+bool AVR32AsmParser::parseRegisterCommaRegisterOrImmediateCommaImmediate(
+    OperandVector &Operands) {
+  if (parseRegisterOperand(Operands))
+    return true;
+  if (!parseOptionalToken(AsmToken::Comma))
+    return Error(getLexer().getLoc(), "expected comma");
+  if (parseRegisterOrImmediateOperand(Operands))
+    return true;
+  if (!parseOptionalToken(AsmToken::Comma))
+    return false;
   if (parseImmediateOperand(Operands))
     return true;
   return false;

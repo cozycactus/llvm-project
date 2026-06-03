@@ -18,6 +18,11 @@ def SImm8AsmOperand : AsmOperandClass {
   let RenderMethod = "addImmOperands";
 }
 
+def SImm16AsmOperand : AsmOperandClass {
+  let Name = "SImm16";
+  let RenderMethod = "addImmOperands";
+}
+
 def SImm21AsmOperand : AsmOperandClass {
   let Name = "SImm21";
   let RenderMethod = "addImmOperands";
@@ -69,6 +74,11 @@ def simm6 : Operand<i32>, ImmLeaf<i32, [{ return Imm >= -32 && Imm < 32; }]> {
 
 def simm8 : Operand<i32>, ImmLeaf<i32, [{ return Imm >= -128 && Imm < 128; }]> {
   let ParserMatchClass = SImm8AsmOperand;
+}
+
+def simm16 : Operand<i32>,
+             ImmLeaf<i32, [{ return Imm >= -32768 && Imm < 32768; }]> {
+  let ParserMatchClass = SImm16AsmOperand;
 }
 
 def simm21 : Operand<i32>,
@@ -315,6 +325,20 @@ class FullRegRegImm<bits<8> Op, string Mnemonic>
   let Inst{19-16} = Rd;
   let Inst{15-8} = Op;
   let Inst{7-0} = Imm;
+}
+
+class FullRegRegSImm16<bits<5> Op, string Mnemonic>
+    : AVR32Inst32<(outs GPR:$Rd), (ins GPR:$Rs, simm16:$Imm),
+                  Mnemonic#"\t$Rd, $Rs, $Imm"> {
+  bits<4> Rd;
+  bits<4> Rs;
+  bits<16> Imm;
+
+  let Inst{31-29} = 0b111;
+  let Inst{28-25} = Rs;
+  let Inst{24-20} = Op;
+  let Inst{19-16} = Rd;
+  let Inst{15-0} = Imm;
 }
 
 class FullRegImmNoOut<bits<4> Op, string Mnemonic>
@@ -813,6 +837,7 @@ def SUBFVCri : SubfCondRI<0b1101, "subfvc">;
 def SUBFQSri : SubfCondRI<0b1110, "subfqs">;
 def SUBSPri8 : CompactSPSubImm<"sub">;
 def SUBri8 : CompactRegSImm8<0b0010, "sub">;
+def SUBrri16 : FullRegRegSImm16<0b01100, "sub">;
 def SUBri21 : FullRegImm<0b0001, "sub">;
 def SUBrr : CompactRegReg<0b00001, "sub">;
 def SWAP_BHr : CompactReg<0b010111001100, "swap.bh">;
