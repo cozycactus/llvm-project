@@ -165,6 +165,19 @@ class FullRegRegNoOut<bits<16> Op, string Mnemonic>
   let Inst{15-0} = Op;
 }
 
+class FullRegReg<bits<16> Op, string Mnemonic>
+    : AVR32Inst32<(outs GPR:$Rd), (ins GPR:$Rs),
+                  Mnemonic#"\t$Rd, $Rs"> {
+  bits<4> Rd;
+  bits<4> Rs;
+
+  let Inst{31-29} = 0b111;
+  let Inst{28-25} = Rs;
+  let Inst{24-20} = 0b00000;
+  let Inst{19-16} = Rd;
+  let Inst{15-0} = Op;
+}
+
 class FullRegRegReg<bits<12> Op, string Mnemonic>
     : AVR32Inst32<(outs GPR:$Rd), (ins GPR:$Rx, GPR:$Ry),
                   Mnemonic#"\t$Rd, $Rx, $Ry"> {
@@ -319,6 +332,7 @@ def CASTS_Br : CompactReg<0b010111000110, "casts.b">;
 def CASTS_Hr : CompactReg<0b010111001000, "casts.h">;
 def CASTU_Br : CompactReg<0b010111000101, "castu.b">;
 def CASTU_Hr : CompactReg<0b010111000111, "castu.h">;
+def CLZrr : FullRegReg<0b0001001000000000, "clz">;
 def COMr : CompactReg<0b010111001101, "com">;
 def CPCr : CompactRegNoOut<0b010111000010, "cpc">;
 def CPCrr : FullRegRegNoOut<0b0001001100000000, "cpc">;
