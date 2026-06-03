@@ -439,6 +439,8 @@ def CP_Wri6 : CompactRegImmNoOut<0b010110, "cp.w">;
 def CP_Wrr : CompactRegRegNoOut<0b00011, "cp.w">;
 def CSRFCZi : CompactImm<0b1101000, "csrfcz">;
 def CSRFi : CompactImm<0b1101010, "csrf">;
+def EORHri : FullRegUImm16<0b111011100001, "eorh">;
+def EORLri : FullRegUImm16<0b111011000001, "eorl">;
 def EORrr : CompactRegReg<0b00101, "eor">;
 def FRS : AVR32Inst<0b1101011101000011, (outs), (ins), "frs">;
 def ICALLr : CompactRegNoOut<0b010111010001, "icall">;
