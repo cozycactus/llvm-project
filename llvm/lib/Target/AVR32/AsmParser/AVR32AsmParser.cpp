@@ -9,6 +9,7 @@
 #include "../MCTargetDesc/AVR32MCTargetDesc.h"
 #include "../TargetInfo/AVR32TargetInfo.h"
 #include "llvm/MC/MCContext.h"
+#include "llvm/MC/MCExpr.h"
 #include "llvm/MC/MCInst.h"
 #include "llvm/MC/MCParser/AsmLexer.h"
 #include "llvm/MC/MCParser/MCParsedAsmOperand.h"
@@ -19,6 +20,7 @@
 #include "llvm/MC/TargetRegistry.h"
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/ErrorHandling.h"
+#include "llvm/Support/MathExtras.h"
 #include <string>
 
 using namespace llvm;
@@ -28,9 +30,10 @@ using namespace llvm;
 namespace {
 
 class AVR32Operand : public MCParsedAsmOperand {
-  enum KindTy { Token, Register } Kind;
+  enum KindTy { Token, Register, Immediate } Kind;
   StringRef Tok{};
   MCRegister Reg;
+  const MCExpr *Imm = nullptr;
   SMLoc Start;
   SMLoc End;
 
@@ -39,30 +42,55 @@ public:
       : Kind(Token), Tok(Tok), Reg(), Start(Start), End(Start) {}
   AVR32Operand(MCRegister Reg, SMLoc Start, SMLoc End)
       : Kind(Register), Reg(Reg), Start(Start), End(End) {}
+  AVR32Operand(const MCExpr *Imm, SMLoc Start, SMLoc End)
+      : Kind(Immediate), Reg(), Imm(Imm), Start(Start), End(End) {}
 
   bool isToken() const override { return Kind == Token; }
   bool isReg() const override { return Kind == Register; }
-  bool isImm() const override { return false; }
+  bool isImm() const override { return Kind == Immediate; }
   bool isMem() const override { return false; }
   StringRef getToken() const { return Tok; }
   MCRegister getReg() const override {
     assert(Kind == Register && "invalid operand access");
     return Reg;
   }
+  const MCExpr *getImm() const {
+    assert(Kind == Immediate && "invalid operand access");
+    return Imm;
+  }
   SMLoc getStartLoc() const override { return Start; }
   SMLoc getEndLoc() const override { return End; }
+
+  bool isSImm8() const {
+    if (Kind != Immediate)
+      return false;
+    auto *Const = dyn_cast<MCConstantExpr>(Imm);
+    return Const && isInt<8>(Const->getValue());
+  }
 
   void print(raw_ostream &OS, const MCAsmInfo &MAI) const override {
     if (Kind == Token)
       OS << "Token " << Tok;
-    else
+    else if (Kind == Register)
       OS << "Register " << Reg.id();
+    else
+      OS << "Immediate";
   }
 
   void addRegOperands(MCInst &Inst, unsigned N) const {
     assert(Kind == Register && "unexpected operand kind");
     assert(N == 1 && "invalid number of operands");
     Inst.addOperand(MCOperand::createReg(Reg));
+  }
+
+  void addImmOperands(MCInst &Inst, unsigned N) const {
+    assert(Kind == Immediate && "unexpected operand kind");
+    assert(N == 1 && "invalid number of operands");
+    if (auto *Const = dyn_cast<MCConstantExpr>(Imm)) {
+      Inst.addOperand(MCOperand::createImm(Const->getValue()));
+      return;
+    }
+    Inst.addOperand(MCOperand::createExpr(Imm));
   }
 
   static std::unique_ptr<AVR32Operand> createToken(StringRef Tok, SMLoc Loc) {
@@ -72,6 +100,11 @@ public:
   static std::unique_ptr<AVR32Operand> createReg(MCRegister Reg, SMLoc Start,
                                                  SMLoc End) {
     return std::make_unique<AVR32Operand>(Reg, Start, End);
+  }
+
+  static std::unique_ptr<AVR32Operand> createImm(const MCExpr *Imm,
+                                                 SMLoc Start, SMLoc End) {
+    return std::make_unique<AVR32Operand>(Imm, Start, End);
   }
 };
 
@@ -112,6 +145,7 @@ public:
 private:
   MCRegister parseRegisterName(StringRef Name) const;
   bool parseRegisterOperand(OperandVector &Operands);
+  bool parseRegisterOrImmediateOperand(OperandVector &Operands);
 };
 
 } // end anonymous namespace
@@ -188,7 +222,7 @@ bool AVR32AsmParser::parseInstruction(ParseInstructionInfo &Info,
       return true;
     if (!parseOptionalToken(AsmToken::Comma))
       return Error(getLexer().getLoc(), "expected comma");
-    if (parseRegisterOperand(Operands))
+    if (parseRegisterOrImmediateOperand(Operands))
       return true;
   }
 
@@ -234,6 +268,27 @@ bool AVR32AsmParser::parseRegisterOperand(OperandVector &Operands) {
   if (parseRegister(Reg, StartLoc, EndLoc))
     return Error(getLexer().getLoc(), "expected register");
   Operands.push_back(AVR32Operand::createReg(Reg, StartLoc, EndLoc));
+  return false;
+}
+
+bool AVR32AsmParser::parseRegisterOrImmediateOperand(OperandVector &Operands) {
+  MCRegister Reg;
+  SMLoc StartLoc;
+  SMLoc EndLoc;
+  ParseStatus RegStatus = tryParseRegister(Reg, StartLoc, EndLoc);
+  if (RegStatus.isSuccess()) {
+    Operands.push_back(AVR32Operand::createReg(Reg, StartLoc, EndLoc));
+    return false;
+  }
+  if (RegStatus.isFailure())
+    return Error(StartLoc, "invalid register name");
+
+  StartLoc = getLexer().getLoc();
+  const MCExpr *Expr = nullptr;
+  if (getParser().parseExpression(Expr))
+    return Error(StartLoc, "expected register or immediate");
+  Operands.push_back(
+      AVR32Operand::createImm(Expr, StartLoc, getLexer().getLoc()));
   return false;
 }
 

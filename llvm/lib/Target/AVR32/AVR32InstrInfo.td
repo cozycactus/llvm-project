@@ -8,7 +8,27 @@
 
 include "AVR32InstrFormats.td"
 
+def SImm8AsmOperand : AsmOperandClass {
+  let Name = "SImm8";
+  let RenderMethod = "addImmOperands";
+}
+
+def simm8 : Operand<i32>, ImmLeaf<i32, [{ return Imm >= -128 && Imm < 128; }]> {
+  let ParserMatchClass = SImm8AsmOperand;
+}
+
 def NOP : AVR32Inst<0b1101011100000011, (outs), (ins), "nop">;
+
+class MovRI<bits<4> Prefix, string Mnemonic>
+    : AVR32Inst<0, (outs GPR:$Rd), (ins simm8:$Imm),
+                Mnemonic#"\t$Rd, $Imm"> {
+  bits<4> Rd;
+  bits<8> Imm;
+
+  let Inst{15-12} = Prefix;
+  let Inst{11-4} = Imm;
+  let Inst{3-0} = Rd;
+}
 
 class MovRR<bits<4> Cond, string Mnemonic>
     : AVR32Inst32<(outs GPR:$Rd), (ins GPR:$Rs), Mnemonic#"\t$Rd, $Rs"> {
@@ -26,3 +46,4 @@ class MovRR<bits<4> Cond, string Mnemonic>
 }
 
 def MOVrr : MovRR<0b1111, "mov">;
+def MOVri8 : MovRI<0b0011, "mov">;
