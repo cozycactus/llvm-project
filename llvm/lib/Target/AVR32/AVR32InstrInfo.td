@@ -276,6 +276,7 @@ def RETNEr : RetCond<0b0001, "retne">;
 def RETCCr : RetCond<0b0010, "retcc">;
 def RETHSr : RetCond<0b0010, "reths">;
 def RETCSr : RetCond<0b0011, "retcs">;
+def RETLOr : RetCond<0b0011, "retlo">;
 def RETJ : AVR32Inst<0b1101011000110011, (outs), (ins), "retj">;
 def RETS : AVR32Inst<0b1101011000010011, (outs), (ins), "rets">;
 def RETSS : AVR32Inst<0b1101011101100011, (outs), (ins), "retss">;

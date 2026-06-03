@@ -115,6 +115,7 @@ TEST(AVR32TargetInfo, LookupTarget) {
   EXPECT_EQ(MII->get(AVR32::RETCSr).getSize(), 2u);
   EXPECT_EQ(MII->get(AVR32::RETEQr).getSize(), 2u);
   EXPECT_EQ(MII->get(AVR32::RETHSr).getSize(), 2u);
+  EXPECT_EQ(MII->get(AVR32::RETLOr).getSize(), 2u);
   EXPECT_EQ(MII->get(AVR32::RETNEr).getSize(), 2u);
   EXPECT_EQ(MII->get(AVR32::RETJ).getSize(), 2u);
   EXPECT_EQ(MII->get(AVR32::RETS).getSize(), 2u);
@@ -773,6 +774,19 @@ TEST(AVR32TargetInfo, LookupTarget) {
   EXPECT_EQ(static_cast<uint8_t>(Code[0]), 0x5e);
   EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0x3e);
 
+  MCInst Retlo;
+  Retlo.setOpcode(AVR32::RETLOr);
+  Retlo.addOperand(MCOperand::createReg(AVR32::LR));
+
+  Code.clear();
+  Fixups.clear();
+  MCE->encodeInstruction(Retlo, Code, Fixups, *STI);
+
+  EXPECT_TRUE(Fixups.empty());
+  ASSERT_EQ(Code.size(), 2u);
+  EXPECT_EQ(static_cast<uint8_t>(Code[0]), 0x5e);
+  EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0x3e);
+
   MCInst Reths;
   Reths.setOpcode(AVR32::RETHSr);
   Reths.addOperand(MCOperand::createReg(AVR32::LR));
@@ -1378,6 +1392,12 @@ TEST(AVR32TargetInfo, LookupTarget) {
   EXPECT_EQ(Printed, "\tretcs\tlr");
 
   Printed.clear();
+  raw_string_ostream RetloOS(Printed);
+  InstPrinter->printInst(&Retlo, /*Address=*/0, /*Annot=*/"", *STI, RetloOS);
+  RetloOS.flush();
+  EXPECT_EQ(Printed, "\tretlo\tlr");
+
+  Printed.clear();
   raw_string_ostream RethsOS(Printed);
   InstPrinter->printInst(&Reths, /*Address=*/0, /*Annot=*/"", *STI, RethsOS);
   RethsOS.flush();
@@ -1530,7 +1550,7 @@ TEST(AVR32TargetInfo, LookupTarget) {
   SourceMgr SrcMgr;
   SrcMgr.AddNewSourceBuffer(
       MemoryBuffer::getMemBuffer(
-          "nop\nfrs\nabs r1\nacr r1\nadc r1, r2, r3\naddabs r1, r2, r3\nadd r1, r2\nand r1, r2\nandn r1, r2\nasr r1, r2, r3\nbrev r1\nbreakpoint\ncasts.b r1\ncasts.h r1\ncastu.b r1\ncastu.h r1\ncom r1\ncpc r1\ncpc r1, r2\ncp.w r1, r2\ncp.w r1, -1\ncp.w r1, 32\ncsrf 1\nneg r1\neor r1, r2\nicall r1\nlsl r1, r2, r3\nlsr r1, r2, r3\nmax r1, r2, r3\nmin r1, r2, r3\nmul r1, r2\nmul r1, r2, -1\nmul r1, r2, r3\nmuls.d r2, r3, r4\nmulu.d r2, r3, r4\nmusfr r1\nor r1, r2\npushjc\nretd\nrete\nretal lr\nretcc lr\nretcs lr\nreths lr\nreteq lr\nretne lr\nretj\nrets\nretss\nrol r1\nror r1\nrsub r1, r2\nsbc r1, r2, r3\nscall\nscr r1\nsleep 1\nssrf 1\nsub r1, r2\nswap.bh r1\nswap.b r1\nswap.h r1\nsync 1\ntlbr\ntlbs\ntlbw\ntst r1, r2\nmov r1, r2\nmov r1, -1\n"),
+          "nop\nfrs\nabs r1\nacr r1\nadc r1, r2, r3\naddabs r1, r2, r3\nadd r1, r2\nand r1, r2\nandn r1, r2\nasr r1, r2, r3\nbrev r1\nbreakpoint\ncasts.b r1\ncasts.h r1\ncastu.b r1\ncastu.h r1\ncom r1\ncpc r1\ncpc r1, r2\ncp.w r1, r2\ncp.w r1, -1\ncp.w r1, 32\ncsrf 1\nneg r1\neor r1, r2\nicall r1\nlsl r1, r2, r3\nlsr r1, r2, r3\nmax r1, r2, r3\nmin r1, r2, r3\nmul r1, r2\nmul r1, r2, -1\nmul r1, r2, r3\nmuls.d r2, r3, r4\nmulu.d r2, r3, r4\nmusfr r1\nor r1, r2\npushjc\nretd\nrete\nretal lr\nretcc lr\nretcs lr\nretlo lr\nreths lr\nreteq lr\nretne lr\nretj\nrets\nretss\nrol r1\nror r1\nrsub r1, r2\nsbc r1, r2, r3\nscall\nscr r1\nsleep 1\nssrf 1\nsub r1, r2\nswap.bh r1\nswap.b r1\nswap.h r1\nsync 1\ntlbr\ntlbs\ntlbw\ntst r1, r2\nmov r1, r2\nmov r1, -1\n"),
       SMLoc());
 
   MCContext ParseCtx(TT, *MAI, *MRI, *STI, &SrcMgr);
