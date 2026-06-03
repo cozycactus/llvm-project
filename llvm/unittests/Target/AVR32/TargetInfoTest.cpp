@@ -69,6 +69,7 @@ TEST(AVR32TargetInfo, LookupTarget) {
   std::unique_ptr<MCInstrInfo> MII(TheTarget->createMCInstrInfo());
   ASSERT_NE(MII.get(), nullptr);
   EXPECT_EQ(MII->get(AVR32::NOP).getSize(), 2u);
+  EXPECT_EQ(MII->get(AVR32::ABSr).getSize(), 2u);
   EXPECT_EQ(MII->get(AVR32::ACRr).getSize(), 2u);
   EXPECT_EQ(MII->get(AVR32::ADDrr).getSize(), 2u);
   EXPECT_EQ(MII->get(AVR32::ANDNrr).getSize(), 2u);
@@ -119,6 +120,19 @@ TEST(AVR32TargetInfo, LookupTarget) {
   ASSERT_EQ(Code.size(), 2u);
   EXPECT_EQ(static_cast<uint8_t>(Code[0]), 0xd7);
   EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0x03);
+
+  MCInst Abs;
+  Abs.setOpcode(AVR32::ABSr);
+  Abs.addOperand(MCOperand::createReg(AVR32::R1));
+
+  Code.clear();
+  Fixups.clear();
+  MCE->encodeInstruction(Abs, Code, Fixups, *STI);
+
+  EXPECT_TRUE(Fixups.empty());
+  ASSERT_EQ(Code.size(), 2u);
+  EXPECT_EQ(static_cast<uint8_t>(Code[0]), 0x5c);
+  EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0x41);
 
   MCInst Acr;
   Acr.setOpcode(AVR32::ACRr);
@@ -312,6 +326,12 @@ TEST(AVR32TargetInfo, LookupTarget) {
   EXPECT_EQ(Printed, "\tnop");
 
   Printed.clear();
+  raw_string_ostream AbsOS(Printed);
+  InstPrinter->printInst(&Abs, /*Address=*/0, /*Annot=*/"", *STI, AbsOS);
+  AbsOS.flush();
+  EXPECT_EQ(Printed, "\tabs\tr1");
+
+  Printed.clear();
   raw_string_ostream AcrOS(Printed);
   InstPrinter->printInst(&Acr, /*Address=*/0, /*Annot=*/"", *STI, AcrOS);
   AcrOS.flush();
@@ -392,7 +412,7 @@ TEST(AVR32TargetInfo, LookupTarget) {
   SourceMgr SrcMgr;
   SrcMgr.AddNewSourceBuffer(
       MemoryBuffer::getMemBuffer(
-          "nop\nacr r1\nadd r1, r2\nand r1, r2\nandn r1, r2\nbrev r1\ncom r1\nneg r1\neor r1, r2\nor r1, r2\nrsub r1, r2\nsub r1, r2\nmov r1, r2\nmov r1, -1\n"),
+          "nop\nabs r1\nacr r1\nadd r1, r2\nand r1, r2\nandn r1, r2\nbrev r1\ncom r1\nneg r1\neor r1, r2\nor r1, r2\nrsub r1, r2\nsub r1, r2\nmov r1, r2\nmov r1, -1\n"),
       SMLoc());
 
   MCContext ParseCtx(TT, *MAI, *MRI, *STI, &SrcMgr);

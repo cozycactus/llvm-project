@@ -65,6 +65,7 @@ class MovRR<bits<4> Cond, string Mnemonic>
   let Inst{3-0} = 0b0000;
 }
 
+def ABSr : CompactReg<0b010111000100, "abs">;
 def ACRr : CompactReg<0b010111000000, "acr">;
 def ADDrr : CompactRegReg<0b00000, "add">;
 def ANDNrr : CompactRegReg<0b01000, "andn">;
