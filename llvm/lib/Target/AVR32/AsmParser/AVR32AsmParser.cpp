@@ -215,6 +215,8 @@ private:
   bool parseImmediateOperand(OperandVector &Operands);
   bool parseRegisterCommaRegister(OperandVector &Operands);
   bool parseRegisterCommaRegisterCommaRegister(OperandVector &Operands);
+  bool parseRegisterCommaRegisterCommaRegisterOrImmediate(
+      OperandVector &Operands);
   bool parseRegisterCommaImmediate(OperandVector &Operands);
   bool parseRegisterCommaImmediateOptionalCOH(OperandVector &Operands);
   bool parseRegisterCommaRegisterOrImmediate(OperandVector &Operands);
@@ -320,14 +322,16 @@ bool AVR32AsmParser::parseInstruction(ParseInstructionInfo &Info,
       Name == "orlo" || Name == "orls" || Name == "orlt" ||
       Name == "ormi" || Name == "orne" || Name == "orpl" ||
       Name == "orqs" || Name == "orvc" || Name == "orvs" ||
-      Name == "muls.d" || Name == "mulu.d" || Name == "sbc" ||
-      Name == "subal" || Name == "subcc" || Name == "subcs" ||
-      Name == "subeq" || Name == "subge" || Name == "subgt" ||
-      Name == "subhi" || Name == "subhs" || Name == "suble" ||
-      Name == "sublo" || Name == "subls" || Name == "sublt" ||
-      Name == "submi" || Name == "subne" || Name == "subpl" ||
-      Name == "subqs" || Name == "subvc" || Name == "subvs") {
+      Name == "muls.d" || Name == "mulu.d" || Name == "sbc") {
     if (parseRegisterCommaRegisterCommaRegister(Operands))
+      return true;
+  } else if (Name == "subal" || Name == "subcc" || Name == "subcs" ||
+             Name == "subeq" || Name == "subge" || Name == "subgt" ||
+             Name == "subhi" || Name == "subhs" || Name == "suble" ||
+             Name == "sublo" || Name == "subls" || Name == "sublt" ||
+             Name == "submi" || Name == "subne" || Name == "subpl" ||
+             Name == "subqs" || Name == "subvc" || Name == "subvs") {
+    if (parseRegisterCommaRegisterCommaRegisterOrImmediate(Operands))
       return true;
   } else if (Name == "mul") {
     if (parseRegisterCommaRegister(Operands))
@@ -361,7 +365,13 @@ bool AVR32AsmParser::parseInstruction(ParseInstructionInfo &Info,
              Name == "rsubhi" || Name == "rsubhs" || Name == "rsuble" ||
              Name == "rsublo" || Name == "rsubls" || Name == "rsublt" ||
              Name == "rsubmi" || Name == "rsubne" || Name == "rsubpl" ||
-             Name == "rsubqs" || Name == "rsubvc" || Name == "rsubvs") {
+             Name == "rsubqs" || Name == "rsubvc" || Name == "rsubvs" ||
+             Name == "subfal" || Name == "subfcc" || Name == "subfcs" ||
+             Name == "subfeq" || Name == "subfge" || Name == "subfgt" ||
+             Name == "subfhi" || Name == "subfhs" || Name == "subfle" ||
+             Name == "subflo" || Name == "subfls" || Name == "subflt" ||
+             Name == "subfmi" || Name == "subfne" || Name == "subfpl" ||
+             Name == "subfqs" || Name == "subfvc" || Name == "subfvs") {
     if (parseRegisterCommaImmediate(Operands))
       return true;
   } else if (Name == "cp.w") {
@@ -491,6 +501,33 @@ bool AVR32AsmParser::parseRegisterCommaRegisterCommaRegister(
   if (!parseOptionalToken(AsmToken::Comma))
     return Error(getLexer().getLoc(), "expected comma");
   if (parseRegisterOperand(Operands))
+    return true;
+  return false;
+}
+
+bool AVR32AsmParser::parseRegisterCommaRegisterCommaRegisterOrImmediate(
+    OperandVector &Operands) {
+  if (parseRegisterOperand(Operands))
+    return true;
+  if (!parseOptionalToken(AsmToken::Comma))
+    return Error(getLexer().getLoc(), "expected comma");
+
+  MCRegister Reg;
+  SMLoc StartLoc;
+  SMLoc EndLoc;
+  ParseStatus RegStatus = tryParseRegister(Reg, StartLoc, EndLoc);
+  if (RegStatus.isSuccess()) {
+    Operands.push_back(AVR32Operand::createReg(Reg, StartLoc, EndLoc));
+    if (!parseOptionalToken(AsmToken::Comma))
+      return Error(getLexer().getLoc(), "expected comma");
+    if (parseRegisterOperand(Operands))
+      return true;
+    return false;
+  }
+  if (RegStatus.isFailure())
+    return Error(StartLoc, "invalid register name");
+
+  if (parseImmediateOperand(Operands))
     return true;
   return false;
 }

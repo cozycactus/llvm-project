@@ -432,6 +432,12 @@ class CondRegImm8<bits<12> Prefix, bits<4> Cond, string Mnemonic>
 class MovCondRI<bits<4> Cond, string Mnemonic>
     : CondRegImm8<0b111110011011, Cond, Mnemonic>;
 
+class SubCondRI<bits<4> Cond, string Mnemonic>
+    : CondRegImm8<0b111101111011, Cond, Mnemonic>;
+
+class SubfCondRI<bits<4> Cond, string Mnemonic>
+    : CondRegImm8<0b111101011011, Cond, Mnemonic>;
+
 class CondRRR<bits<4> Cond, bits<4> Op, string Mnemonic>
     : AVR32Inst32<(outs GPR:$Rd), (ins GPR:$Rx, GPR:$Ry),
                   Mnemonic#"\t$Rd, $Rx, $Ry"> {
@@ -735,6 +741,42 @@ def SUBHIrrr : CondRRR<0b1011, 0b0001, "subhi">;
 def SUBVSrrr : CondRRR<0b1100, 0b0001, "subvs">;
 def SUBVCrrr : CondRRR<0b1101, 0b0001, "subvc">;
 def SUBQSrrr : CondRRR<0b1110, 0b0001, "subqs">;
+def SUBALri : SubCondRI<0b1111, "subal">;
+def SUBEQri : SubCondRI<0b0000, "subeq">;
+def SUBNEri : SubCondRI<0b0001, "subne">;
+def SUBCCri : SubCondRI<0b0010, "subcc">;
+def SUBHSri : SubCondRI<0b0010, "subhs">;
+def SUBCSri : SubCondRI<0b0011, "subcs">;
+def SUBLOri : SubCondRI<0b0011, "sublo">;
+def SUBGEri : SubCondRI<0b0100, "subge">;
+def SUBLTri : SubCondRI<0b0101, "sublt">;
+def SUBMIri : SubCondRI<0b0110, "submi">;
+def SUBPLri : SubCondRI<0b0111, "subpl">;
+def SUBLSri : SubCondRI<0b1000, "subls">;
+def SUBGTri : SubCondRI<0b1001, "subgt">;
+def SUBLEri : SubCondRI<0b1010, "suble">;
+def SUBHIri : SubCondRI<0b1011, "subhi">;
+def SUBVSri : SubCondRI<0b1100, "subvs">;
+def SUBVCri : SubCondRI<0b1101, "subvc">;
+def SUBQSri : SubCondRI<0b1110, "subqs">;
+def SUBFALri : SubfCondRI<0b1111, "subfal">;
+def SUBFEQri : SubfCondRI<0b0000, "subfeq">;
+def SUBFNEri : SubfCondRI<0b0001, "subfne">;
+def SUBFCCri : SubfCondRI<0b0010, "subfcc">;
+def SUBFHSri : SubfCondRI<0b0010, "subfhs">;
+def SUBFCSri : SubfCondRI<0b0011, "subfcs">;
+def SUBFLOri : SubfCondRI<0b0011, "subflo">;
+def SUBFGEri : SubfCondRI<0b0100, "subfge">;
+def SUBFLTri : SubfCondRI<0b0101, "subflt">;
+def SUBFMIri : SubfCondRI<0b0110, "subfmi">;
+def SUBFPLri : SubfCondRI<0b0111, "subfpl">;
+def SUBFLSri : SubfCondRI<0b1000, "subfls">;
+def SUBFGTri : SubfCondRI<0b1001, "subfgt">;
+def SUBFLEri : SubfCondRI<0b1010, "subfle">;
+def SUBFHIri : SubfCondRI<0b1011, "subfhi">;
+def SUBFVSri : SubfCondRI<0b1100, "subfvs">;
+def SUBFVCri : SubfCondRI<0b1101, "subfvc">;
+def SUBFQSri : SubfCondRI<0b1110, "subfqs">;
 def SUBrr : CompactRegReg<0b00001, "sub">;
 def SWAP_BHr : CompactReg<0b010111001100, "swap.bh">;
 def SWAP_Br : CompactReg<0b010111001011, "swap.b">;
