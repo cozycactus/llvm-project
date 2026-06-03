@@ -156,6 +156,14 @@ public:
            Const->getValue() % 2 == 0;
   }
 
+  bool isUImm9Shift2() const {
+    if (Kind != Immediate)
+      return false;
+    auto *Const = dyn_cast<MCConstantExpr>(Imm);
+    return Const && Const->getValue() >= 0 && Const->getValue() <= 2044 &&
+           Const->getValue() % 4 == 0;
+  }
+
   bool isUImm16() const {
     if (Kind != Immediate)
       return false;
@@ -484,7 +492,13 @@ bool AVR32AsmParser::parseInstruction(ParseInstructionInfo &Info,
              Name == "st.hhs" || Name == "st.hle" || Name == "st.hlo" ||
              Name == "st.hls" || Name == "st.hlt" || Name == "st.hmi" ||
              Name == "st.hne" || Name == "st.hpl" || Name == "st.hqs" ||
-             Name == "st.hvc" || Name == "st.hvs" || Name == "st.w") {
+             Name == "st.hvc" || Name == "st.hvs" || Name == "st.w" ||
+             Name == "st.wal" || Name == "st.wcc" || Name == "st.wcs" ||
+             Name == "st.weq" || Name == "st.wge" || Name == "st.wgt" ||
+             Name == "st.whi" || Name == "st.whs" || Name == "st.wle" ||
+             Name == "st.wlo" || Name == "st.wls" || Name == "st.wlt" ||
+             Name == "st.wmi" || Name == "st.wne" || Name == "st.wpl" ||
+             Name == "st.wqs" || Name == "st.wvc" || Name == "st.wvs") {
     if (parseStoreByteOperands(Operands))
       return true;
   } else if (Name == "st.d") {
