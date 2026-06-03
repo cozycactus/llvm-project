@@ -104,6 +104,14 @@ public:
            Const->getValue() % 4 == 0;
   }
 
+  bool isDebugRegAddr() const {
+    if (Kind != Immediate)
+      return false;
+    auto *Const = dyn_cast<MCConstantExpr>(Imm);
+    return Const && Const->getValue() >= 0 && Const->getValue() <= 1020 &&
+           Const->getValue() % 4 == 0;
+  }
+
   void print(raw_ostream &OS, const MCAsmInfo &MAI) const override {
     if (Kind == Token)
       OS << "Token " << Tok;
@@ -293,10 +301,10 @@ bool AVR32AsmParser::parseInstruction(ParseInstructionInfo &Info,
   } else if (Name == "sleep" || Name == "sync") {
     if (parseImmediateOperand(Operands))
       return true;
-  } else if (Name == "mfsr") {
+  } else if (Name == "mfdr" || Name == "mfsr") {
     if (parseRegisterCommaImmediate(Operands))
       return true;
-  } else if (Name == "mtsr") {
+  } else if (Name == "mtdr" || Name == "mtsr") {
     if (parseImmediateCommaRegister(Operands))
       return true;
   } else if (Name == "abs" || Name == "acr" || Name == "brev" ||
