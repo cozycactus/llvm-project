@@ -348,6 +348,7 @@ def MTDRi : FullDebugRegReg<0b111001111011, "mtdr">;
 def MTSRi : FullSysRegReg<0b111000111011, "mtsr">;
 def NEGr : CompactReg<0b010111000011, "neg">;
 def ORrr : CompactRegReg<0b00100, "or">;
+def POPJC : AVR32Inst<0b1101011100010011, (outs), (ins), "popjc">;
 def PUSHJC : AVR32Inst<0b1101011100100011, (outs), (ins), "pushjc">;
 let isBarrier = 1, isReturn = 1, isTerminator = 1 in {
 def RETD : AVR32Inst<0b1101011000100011, (outs), (ins), "retd">;
