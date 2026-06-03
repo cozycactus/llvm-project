@@ -567,6 +567,22 @@ class FullLoadCondDisp9<bits<4> Cond, string Mnemonic>
   let Inst{8-0} = Disp;
 }
 
+class FullLoadCondDisp9Shift1<bits<4> Cond, string Mnemonic>
+    : AVR32Inst32<(outs GPR:$Rd), (ins GPR:$Rp, uimm9shift1:$Disp),
+                  Mnemonic#"\t$Rd, ${Rp}[$Disp]"> {
+  bits<4> Rd;
+  bits<4> Rp;
+  bits<9> Disp;
+
+  let Inst{31-29} = 0b111;
+  let Inst{28-25} = Rd;
+  let Inst{24-20} = 0b11111;
+  let Inst{19-16} = Rp;
+  let Inst{15-12} = Cond;
+  let Inst{11-9} = 0b001;
+  let Inst{8-0} = Disp;
+}
+
 class FullStoreHalfwordPairDisp8
     : AVR32Inst32<(outs), (ins GPR:$Rp, uimm8shift2:$Disp, GPR:$Rx,
                                halfpart:$XPart, GPR:$Ry, halfpart:$YPart),
@@ -867,6 +883,24 @@ def LD_SH_PreDec : CompactLoadPreDec<0b10101, "ld.sh">;
 def LD_SH_Disp3 : CompactLoadDisp3Shift1<"ld.sh">;
 def LD_SH_Disp16 : FullLoadDisp16<0b10000, "ld.sh">;
 def LD_SH_IndexShift : FullLoadIndexShift<0b0000010000, "ld.sh">;
+def LD_SH_AL_Disp9 : FullLoadCondDisp9Shift1<0b1111, "ld.shal">;
+def LD_SH_EQ_Disp9 : FullLoadCondDisp9Shift1<0b0000, "ld.sheq">;
+def LD_SH_NE_Disp9 : FullLoadCondDisp9Shift1<0b0001, "ld.shne">;
+def LD_SH_CC_Disp9 : FullLoadCondDisp9Shift1<0b0010, "ld.shcc">;
+def LD_SH_HS_Disp9 : FullLoadCondDisp9Shift1<0b0010, "ld.shhs">;
+def LD_SH_CS_Disp9 : FullLoadCondDisp9Shift1<0b0011, "ld.shcs">;
+def LD_SH_LO_Disp9 : FullLoadCondDisp9Shift1<0b0011, "ld.shlo">;
+def LD_SH_GE_Disp9 : FullLoadCondDisp9Shift1<0b0100, "ld.shge">;
+def LD_SH_LT_Disp9 : FullLoadCondDisp9Shift1<0b0101, "ld.shlt">;
+def LD_SH_MI_Disp9 : FullLoadCondDisp9Shift1<0b0110, "ld.shmi">;
+def LD_SH_PL_Disp9 : FullLoadCondDisp9Shift1<0b0111, "ld.shpl">;
+def LD_SH_LS_Disp9 : FullLoadCondDisp9Shift1<0b1000, "ld.shls">;
+def LD_SH_GT_Disp9 : FullLoadCondDisp9Shift1<0b1001, "ld.shgt">;
+def LD_SH_LE_Disp9 : FullLoadCondDisp9Shift1<0b1010, "ld.shle">;
+def LD_SH_HI_Disp9 : FullLoadCondDisp9Shift1<0b1011, "ld.shhi">;
+def LD_SH_VS_Disp9 : FullLoadCondDisp9Shift1<0b1100, "ld.shvs">;
+def LD_SH_VC_Disp9 : FullLoadCondDisp9Shift1<0b1101, "ld.shvc">;
+def LD_SH_QS_Disp9 : FullLoadCondDisp9Shift1<0b1110, "ld.shqs">;
 
 class FullRegRegNoOut<bits<16> Op, string Mnemonic>
     : AVR32Inst32<(outs), (ins GPR:$Rd, GPR:$Rs),
