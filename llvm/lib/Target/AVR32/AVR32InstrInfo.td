@@ -154,6 +154,19 @@ class CompactRegImmNoOut<bits<6> Op, string Mnemonic>
   let Inst{3-0} = Rd;
 }
 
+class CompactRegUImm5NoOut<bits<4> Op, string Mnemonic>
+    : AVR32Inst<0, (outs), (ins GPR:$Rd, uimm5:$Imm),
+                Mnemonic#"\t$Rd, $Imm"> {
+  bits<4> Rd;
+  bits<5> Imm;
+
+  let Inst{15-13} = 0b101;
+  let Inst{12-9} = Imm{4-1};
+  let Inst{8-5} = Op;
+  let Inst{4} = Imm{0};
+  let Inst{3-0} = Rd;
+}
+
 class CompactImm<bits<7> Op, string Mnemonic>
     : AVR32Inst<0, (outs), (ins uimm5:$Imm), Mnemonic#"\t$Imm"> {
   bits<5> Imm;
@@ -431,6 +444,7 @@ def ROLr : CompactReg<0b010111001111, "rol">;
 def RORr : CompactReg<0b010111010000, "ror">;
 def RSUBrr : CompactRegReg<0b00010, "rsub">;
 def SBCrrr : FullRegRegReg<0b000000010100, "sbc">;
+def SBRri : CompactRegUImm5NoOut<0b1101, "sbr">;
 def SCALL : AVR32Inst<0b1101011100110011, (outs), (ins), "scall">;
 def SSCALL : AVR32Inst<0b1101011101010011, (outs), (ins), "sscall">;
 def SCRr : CompactReg<0b010111000001, "scr">;
