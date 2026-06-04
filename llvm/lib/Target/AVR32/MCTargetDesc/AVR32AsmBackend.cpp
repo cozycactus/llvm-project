@@ -8,6 +8,7 @@
 
 #include "AVR32FixupKinds.h"
 #include "AVR32MCTargetDesc.h"
+#include "llvm/ADT/StringSwitch.h"
 #include "llvm/MC/MCAsmBackend.h"
 #include "llvm/MC/MCELFObjectWriter.h"
 #include "llvm/MC/MCFixup.h"
@@ -77,6 +78,17 @@ public:
     assert(unsigned(Kind - FirstTargetFixupKind) < AVR32::NumTargetFixupKinds &&
            "invalid AVR32 fixup kind");
     return Infos[Kind - FirstTargetFixupKind];
+  }
+
+  std::optional<MCFixupKind> getFixupKind(StringRef Name) const override {
+    unsigned Type = llvm::StringSwitch<unsigned>(Name)
+#define ELF_RELOC(X, Y) .Case(#X, Y)
+#include "llvm/BinaryFormat/ELFRelocs/AVR32.def"
+#undef ELF_RELOC
+                        .Default(-1u);
+    if (Type == -1u)
+      return std::nullopt;
+    return static_cast<MCFixupKind>(FirstLiteralRelocationKind + Type);
   }
 
   bool writeNopData(raw_ostream &OS, uint64_t Count,
