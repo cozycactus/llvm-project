@@ -70,6 +70,10 @@ TEST(ELFTest, getELFRelocationTypeNameForAVR32) {
             getELFRelocationTypeName(EM_AVR32, R_AVR32_32_CPENT));
   EXPECT_EQ("R_AVR32_RELATIVE",
             getELFRelocationTypeName(EM_AVR32, R_AVR32_RELATIVE));
+  EXPECT_EQ("R_AVR32_GLOB_DAT",
+            getELFRelocationTypeName(EM_AVR32, R_AVR32_GLOB_DAT));
+  EXPECT_EQ("R_AVR32_JMP_SLOT",
+            getELFRelocationTypeName(EM_AVR32, R_AVR32_JMP_SLOT));
   EXPECT_EQ("R_AVR32_ALIGN",
             getELFRelocationTypeName(EM_AVR32, R_AVR32_ALIGN));
   EXPECT_EQ("R_AVR32_15S",
