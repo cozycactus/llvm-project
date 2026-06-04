@@ -31,8 +31,18 @@ AVR32TargetLowering::AVR32TargetLowering(const TargetMachine &TM,
   setOperationAction(ISD::BR_JT, MVT::Other, Expand);
   setOperationAction(ISD::BRCOND, MVT::Other, Expand);
   setOperationAction(ISD::BSWAP, MVT::i32, Expand);
+  setOperationAction(ISD::CTLZ, MVT::i32, Expand);
+  setOperationAction(ISD::CTLZ_ZERO_POISON, MVT::i32, Expand);
+  setOperationAction(ISD::CTPOP, MVT::i32, Expand);
+  setOperationAction(ISD::CTTZ, MVT::i32, Expand);
+  setOperationAction(ISD::CTTZ_ZERO_POISON, MVT::i32, Expand);
+  setOperationAction(ISD::MULHS, MVT::i32, Expand);
+  setOperationAction(ISD::MULHU, MVT::i32, Expand);
   setOperationAction(ISD::ROTL, MVT::i32, Expand);
   setOperationAction(ISD::ROTR, MVT::i32, Expand);
+  setOperationAction(ISD::SELECT, MVT::i32, Custom);
+  setOperationAction(ISD::SMUL_LOHI, MVT::i32, Expand);
+  setOperationAction(ISD::UMUL_LOHI, MVT::i32, Expand);
   setOperationAction(ISD::SELECT_CC, MVT::i32, Custom);
   setOperationAction(ISD::SETCC, MVT::i32, Custom);
   setMinimumJumpTableEntries(UINT_MAX);
@@ -100,9 +110,17 @@ static AVR32CC::CondCodes intCondCodeToAVR32CC(ISD::CondCode CC) {
 
 SDValue AVR32TargetLowering::LowerOperation(SDValue Op,
                                             SelectionDAG &DAG) const {
-  if (Op.getOpcode() != ISD::BR_CC && Op.getOpcode() != ISD::SETCC &&
-      Op.getOpcode() != ISD::SELECT_CC)
+  if (Op.getOpcode() != ISD::BR_CC && Op.getOpcode() != ISD::SELECT &&
+      Op.getOpcode() != ISD::SETCC && Op.getOpcode() != ISD::SELECT_CC)
     llvm_unreachable("Unsupported AVR32 custom lowering");
+
+  if (Op.getOpcode() == ISD::SELECT) {
+    SDLoc DL(Op);
+    return DAG.getNode(AVR32ISD::SELECT_CC, DL, MVT::i32, Op.getOperand(0),
+                       DAG.getConstant(0, DL, MVT::i32), Op.getOperand(1),
+                       Op.getOperand(2),
+                       DAG.getTargetConstant(AVR32CC::COND_NE, DL, MVT::i32));
+  }
 
   if (Op.getOpcode() == ISD::SETCC || Op.getOpcode() == ISD::SELECT_CC) {
     unsigned CondOperand = Op.getOpcode() == ISD::SETCC ? 2 : 4;
@@ -293,12 +311,6 @@ AVR32TargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
   SDValue Chain = CLI.Chain;
   SDValue Callee = CLI.Callee;
   CLI.IsTailCall = false;
-
-  if (CLI.IsVarArg) {
-    diagnoseUnsupported(DAG, DL,
-                        "AVR32 variadic call arguments are not implemented yet");
-    return Chain;
-  }
 
   unsigned StackBytes =
       CLI.Outs.size() > std::size(ArgRegs)

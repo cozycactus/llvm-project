@@ -62,6 +62,18 @@ unsigned xor_mask(unsigned x) {
   return x ^ 65536u;
 }
 
+int count_leading(unsigned x) {
+  return __builtin_clz(x);
+}
+
+int count_trailing(unsigned x) {
+  return __builtin_ctz(x);
+}
+
+int count_population(unsigned x) {
+  return __builtin_popcount(x);
+}
+
 unsigned shift_left(unsigned x, unsigned y) {
   return x << (y & 31);
 }
@@ -94,6 +106,10 @@ int choose_lt(unsigned c, int a, int b) {
   return c < 7 ? a : b;
 }
 
+int choose_nonzero(int c, int a, int b) {
+  return c ? a : b;
+}
+
 void clear_n(char *p, unsigned n) {
   __builtin_memset(p, 0, n);
 }
@@ -105,6 +121,11 @@ int six_arg_callee(int a, int b, int c, int d, int e, int f) {
 extern int six_arg_extern(int, int, int, int, int, int);
 int call_six_args(int x) {
   return six_arg_extern(1, 2, 3, 4, 5, x);
+}
+
+extern int variadic_extern(const char *, ...);
+int call_variadic(int x) {
+  return variadic_extern("%d", 1, 2, 3, 4, x);
 }
 
 _Bool ready;
@@ -185,6 +206,12 @@ __attribute__((optnone, noinline)) int pick(int a, int b) {
 // CHECK: or i32
 // CHECK: define {{.*}}i32 @xor_mask(i32 {{.*}})
 // CHECK: xor i32
+// CHECK: define {{.*}}i32 @count_leading(i32 {{.*}})
+// CHECK: call i32 @llvm.ctlz.i32
+// CHECK: define {{.*}}i32 @count_trailing(i32 {{.*}})
+// CHECK: call i32 @llvm.cttz.i32
+// CHECK: define {{.*}}i32 @count_population(i32 {{.*}})
+// CHECK: call i32 @llvm.ctpop.i32
 // CHECK: define {{.*}}i32 @shift_left(i32 {{.*}}, i32 {{.*}})
 // CHECK: shl i32
 // CHECK: define {{.*}}i32 @shift_right(i32 {{.*}}, i32 {{.*}})
@@ -203,11 +230,15 @@ __attribute__((optnone, noinline)) int pick(int a, int b) {
 // CHECK: udiv i32
 // CHECK: define {{.*}}i32 @choose_lt(i32 {{.*}}, i32 {{.*}}, i32 {{.*}})
 // CHECK: icmp ult i32
+// CHECK: define {{.*}}i32 @choose_nonzero(i32 {{.*}}, i32 {{.*}}, i32 {{.*}})
+// CHECK: icmp ne i32
 // CHECK: define {{.*}}void @clear_n(ptr {{.*}}, i32 {{.*}})
 // CHECK: call void @llvm.memset
 // CHECK: define {{.*}}i32 @six_arg_callee
 // CHECK: define {{.*}}i32 @call_six_args
 // CHECK: call i32 @six_arg_extern
+// CHECK: define {{.*}}i32 @call_variadic
+// CHECK: call i32 (ptr, ...) @variadic_extern
 // CHECK: define {{.*}}i32 @load_ready()
 // CHECK: load i8, ptr @ready
 // CHECK: define {{.*}}void @store_ready(i1
@@ -288,6 +319,15 @@ __attribute__((optnone, noinline)) int pick(int a, int b) {
 // ASM: eoral
 // ASM: ret r12
 
+// ASM-LABEL: count_leading:
+// ASM: ret r12
+
+// ASM-LABEL: count_trailing:
+// ASM: ret r12
+
+// ASM-LABEL: count_population:
+// ASM: ret r12
+
 // ASM-LABEL: shift_left:
 // ASM: lsl
 // ASM: ret r12
@@ -326,6 +366,11 @@ __attribute__((optnone, noinline)) int pick(int a, int b) {
 // ASM: brcs
 // ASM: ret r12
 
+// ASM-LABEL: choose_nonzero:
+// ASM: cp r12
+// ASM: br{{eq|ne}}
+// ASM: ret r12
+
 // ASM-LABEL: clear_n:
 // ASM: rcall pc[memset]
 // ASM: ret r12
@@ -338,6 +383,13 @@ __attribute__((optnone, noinline)) int pick(int a, int b) {
 // ASM: sub sp, 4
 // ASM: st.w sp[0], r12
 // ASM: rcall pc[six_arg_extern]
+// ASM: sub sp, -4
+// ASM: ret r12
+
+// ASM-LABEL: call_variadic:
+// ASM: sub sp, 4
+// ASM: st.w sp[0], r12
+// ASM: rcall pc[variadic_extern]
 // ASM: sub sp, -4
 // ASM: ret r12
 
