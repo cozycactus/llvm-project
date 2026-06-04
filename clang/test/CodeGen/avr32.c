@@ -102,6 +102,30 @@ unsigned unsigned_div(unsigned a, unsigned b) {
   return a / b;
 }
 
+unsigned long long unsigned_div64(unsigned long long a, unsigned long long b) {
+  return a / b;
+}
+
+double double_sub(double a, double b) {
+  return a - b;
+}
+
+double double_div(double a, double b) {
+  return a / b;
+}
+
+unsigned double_to_uint(double x) {
+  return (unsigned)x;
+}
+
+int double_lt(double a, double b) {
+  return a < b;
+}
+
+double log10_double(double x) {
+  return __builtin_log10(x);
+}
+
 int choose_lt(unsigned c, int a, int b) {
   return c < 7 ? a : b;
 }
@@ -126,6 +150,11 @@ int call_six_args(int x) {
 extern int variadic_extern(const char *, ...);
 int call_variadic(int x) {
   return variadic_extern("%d", 1, 2, 3, 4, x);
+}
+
+extern unsigned long long return_u64(void);
+unsigned call_return_u64(void) {
+  return (unsigned)return_u64();
 }
 
 _Bool ready;
@@ -228,6 +257,18 @@ __attribute__((optnone, noinline)) int pick(int a, int b) {
 // CHECK: sub nsw i32
 // CHECK: define {{.*}}i32 @unsigned_div(i32 {{.*}}, i32 {{.*}})
 // CHECK: udiv i32
+// CHECK: define {{.*}}i64 @unsigned_div64(i64 {{.*}}, i64 {{.*}})
+// CHECK: udiv i64
+// CHECK: define {{.*}}double @double_sub(double {{.*}}, double {{.*}})
+// CHECK: fsub double
+// CHECK: define {{.*}}double @double_div(double {{.*}}, double {{.*}})
+// CHECK: fdiv double
+// CHECK: define {{.*}}i32 @double_to_uint(double {{.*}})
+// CHECK: fptoui double
+// CHECK: define {{.*}}i32 @double_lt(double {{.*}}, double {{.*}})
+// CHECK: fcmp olt double
+// CHECK: define {{.*}}double @log10_double(double {{.*}})
+// CHECK: call double @llvm.log10.f64
 // CHECK: define {{.*}}i32 @choose_lt(i32 {{.*}}, i32 {{.*}}, i32 {{.*}})
 // CHECK: icmp ult i32
 // CHECK: define {{.*}}i32 @choose_nonzero(i32 {{.*}}, i32 {{.*}}, i32 {{.*}})
@@ -239,6 +280,8 @@ __attribute__((optnone, noinline)) int pick(int a, int b) {
 // CHECK: call i32 @six_arg_extern
 // CHECK: define {{.*}}i32 @call_variadic
 // CHECK: call i32 (ptr, ...) @variadic_extern
+// CHECK: define {{.*}}i32 @call_return_u64()
+// CHECK: call i64 @return_u64
 // CHECK: define {{.*}}i32 @load_ready()
 // CHECK: load i8, ptr @ready
 // CHECK: define {{.*}}void @store_ready(i1
@@ -360,6 +403,30 @@ __attribute__((optnone, noinline)) int pick(int a, int b) {
 // ASM: divu
 // ASM: ret r12
 
+// ASM-LABEL: unsigned_div64:
+// ASM: rcall pc[__udivdi3]
+// ASM: ret r12
+
+// ASM-LABEL: double_sub:
+// ASM: rcall pc[__subdf3]
+// ASM: ret r12
+
+// ASM-LABEL: double_div:
+// ASM: rcall pc[__divdf3]
+// ASM: ret r12
+
+// ASM-LABEL: double_to_uint:
+// ASM: rcall pc[__fixunsdfsi]
+// ASM: ret r12
+
+// ASM-LABEL: double_lt:
+// ASM: rcall pc[__ltdf2]
+// ASM: ret r12
+
+// ASM-LABEL: log10_double:
+// ASM: rcall pc[log10]
+// ASM: ret r12
+
 // ASM-LABEL: choose_lt:
 // ASM: mov {{r[0-9]+}}, 7
 // ASM: cp r12, {{r[0-9]+}}
@@ -391,6 +458,10 @@ __attribute__((optnone, noinline)) int pick(int a, int b) {
 // ASM: st.w sp[0], r12
 // ASM: rcall pc[variadic_extern]
 // ASM: sub sp, -4
+// ASM: ret r12
+
+// ASM-LABEL: call_return_u64:
+// ASM: rcall pc[return_u64]
 // ASM: ret r12
 
 // ASM-LABEL: load_ready:

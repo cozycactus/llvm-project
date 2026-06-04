@@ -70,6 +70,12 @@ static bool isSupportedRegValueType(EVT VT) {
   return VT == MVT::i32 || VT == MVT::i16 || VT == MVT::i8;
 }
 
+static ArrayRef<MCPhysReg> getIntArgRegs() {
+  static const MCPhysReg Regs[] = {AVR32::R12, AVR32::R11, AVR32::R10,
+                                   AVR32::R9, AVR32::R8};
+  return Regs;
+}
+
 static SDValue extendToI32(SDValue Value, const ISD::ArgFlagsTy &Flags,
                            const SDLoc &DL, SelectionDAG &DAG) {
   if (Value.getValueType() == MVT::i32)
@@ -259,8 +265,7 @@ SDValue AVR32TargetLowering::LowerFormalArguments(
     SDValue Chain, CallingConv::ID CallConv, bool IsVarArg,
     const SmallVectorImpl<ISD::InputArg> &Ins, const SDLoc &DL,
     SelectionDAG &DAG, SmallVectorImpl<SDValue> &InVals) const {
-  static const MCPhysReg ArgRegs[] = {AVR32::R12, AVR32::R11, AVR32::R10,
-                                      AVR32::R9, AVR32::R8};
+  ArrayRef<MCPhysReg> ArgRegs = getIntArgRegs();
   if (IsVarArg) {
     diagnoseUnsupported(DAG, DL,
                         "AVR32 variadic arguments are not implemented yet");
@@ -304,8 +309,7 @@ SDValue AVR32TargetLowering::LowerFormalArguments(
 SDValue
 AVR32TargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
                                SmallVectorImpl<SDValue> &InVals) const {
-  static const MCPhysReg ArgRegs[] = {AVR32::R12, AVR32::R11, AVR32::R10,
-                                      AVR32::R9, AVR32::R8};
+  ArrayRef<MCPhysReg> ArgRegs = getIntArgRegs();
   SelectionDAG &DAG = CLI.DAG;
   SDLoc DL = CLI.DL;
   SDValue Chain = CLI.Chain;
@@ -375,27 +379,28 @@ AVR32TargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
   Chain = DAG.getCALLSEQ_END(Chain, StackBytes, 0, Glue, DL);
   Glue = Chain.getValue(1);
 
-  if (CLI.Ins.size() > 1) {
+  if (CLI.Ins.size() > ArgRegs.size()) {
     diagnoseUnsupported(DAG, DL,
                         "AVR32 multi-value call returns are not implemented "
                         "yet");
     return Chain;
   }
 
-  if (!CLI.Ins.empty()) {
-    if (!isSupportedRegValueType(CLI.Ins[0].VT)) {
+  for (unsigned I = 0, E = CLI.Ins.size(); I != E; ++I) {
+    if (!isSupportedRegValueType(CLI.Ins[I].VT)) {
       diagnoseUnsupported(DAG, DL,
                           "AVR32 non-integer register call returns are not "
                           "implemented yet");
-      InVals.push_back(DAG.getUNDEF(CLI.Ins[0].VT));
-    } else {
-      SDValue Result =
-          DAG.getCopyFromReg(Chain, DL, AVR32::R12, MVT::i32, Glue);
-      if (CLI.Ins[0].VT != MVT::i32)
-        Result = DAG.getNode(ISD::TRUNCATE, DL, CLI.Ins[0].VT, Result);
-      InVals.push_back(Result);
-      Chain = Result.getValue(1);
+      InVals.push_back(DAG.getUNDEF(CLI.Ins[I].VT));
+      continue;
     }
+
+    SDValue Result = DAG.getCopyFromReg(Chain, DL, ArgRegs[I], MVT::i32, Glue);
+    Chain = Result.getValue(1);
+    Glue = Result.getNode()->getNumValues() > 2 ? Result.getValue(2) : SDValue();
+    if (CLI.Ins[I].VT != MVT::i32)
+      Result = DAG.getNode(ISD::TRUNCATE, DL, CLI.Ins[I].VT, Result);
+    InVals.push_back(Result);
   }
 
   return Chain;
@@ -408,24 +413,27 @@ SDValue AVR32TargetLowering::LowerReturn(
     SelectionDAG &DAG) const {
   SDValue Glue;
   SmallVector<SDValue, 4> RetOps(1, Chain);
+  ArrayRef<MCPhysReg> RetRegs = getIntArgRegs();
 
-  if (Outs.size() > 1) {
+  if (Outs.size() > RetRegs.size()) {
     diagnoseUnsupported(DAG, DL,
                         "AVR32 multi-value returns are not implemented yet");
   }
 
-  if (!Outs.empty()) {
-    if (!isSupportedRegValueType(Outs[0].VT)) {
+  for (unsigned I = 0, E = std::min(Outs.size(), RetRegs.size()); I != E;
+       ++I) {
+    if (!isSupportedRegValueType(Outs[I].VT)) {
       diagnoseUnsupported(DAG, DL,
                           "AVR32 non-integer register returns are not "
                           "implemented yet");
-    } else {
-      SDValue RetVal = extendToI32(OutVals[0], Outs[0].Flags, DL, DAG);
-      Chain = DAG.getCopyToReg(Chain, DL, AVR32::R12, RetVal, Glue);
-      Glue = Chain.getValue(1);
-      RetOps.push_back(DAG.getRegister(AVR32::R12, MVT::i32));
-      RetOps[0] = Chain;
+      continue;
     }
+
+    SDValue RetVal = extendToI32(OutVals[I], Outs[I].Flags, DL, DAG);
+    Chain = DAG.getCopyToReg(Chain, DL, RetRegs[I], RetVal, Glue);
+    Glue = Chain.getValue(1);
+    RetOps.push_back(DAG.getRegister(RetRegs[I], MVT::i32));
+    RetOps[0] = Chain;
   }
 
   if (Glue)
