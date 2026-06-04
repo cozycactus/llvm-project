@@ -15,6 +15,7 @@
 #include "llvm/MC/MCValue.h"
 #include "llvm/Support/Endian.h"
 #include "llvm/Support/ErrorHandling.h"
+#include "llvm/Support/raw_ostream.h"
 
 using namespace llvm;
 
@@ -80,9 +81,13 @@ public:
 
   bool writeNopData(raw_ostream &OS, uint64_t Count,
                     const MCSubtargetInfo *STI) const override {
-    if (Count == 0)
-      return true;
-    return false;
+    if (Count % 2 != 0)
+      return false;
+
+    for (uint64_t I = 0; I != Count; I += 2)
+      OS.write("\xd7\x03", 2);
+
+    return true;
   }
 };
 
