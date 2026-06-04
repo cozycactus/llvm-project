@@ -1,0 +1,107 @@
+## Test that llvm-readobj shows proper relocation type names and values for the
+## AVR32 target.
+
+# RUN: yaml2obj %s -o %t-avr32.o
+# RUN: llvm-readobj -r --expand-relocs %t-avr32.o | FileCheck %s
+
+# CHECK: Type: R_AVR32_NONE (0)
+# CHECK: Type: R_AVR32_32 (1)
+# CHECK: Type: R_AVR32_16 (2)
+# CHECK: Type: R_AVR32_8 (3)
+# CHECK: Type: R_AVR32_32_PCREL (4)
+# CHECK: Type: R_AVR32_16_PCREL (5)
+# CHECK: Type: R_AVR32_8_PCREL (6)
+# CHECK: Type: R_AVR32_DIFF32 (7)
+# CHECK: Type: R_AVR32_DIFF16 (8)
+# CHECK: Type: R_AVR32_DIFF8 (9)
+# CHECK: Type: R_AVR32_GOT32 (10)
+# CHECK: Type: R_AVR32_GOT16 (11)
+# CHECK: Type: R_AVR32_GOT8 (12)
+# CHECK: Type: R_AVR32_21S (13)
+# CHECK: Type: R_AVR32_16U (14)
+# CHECK: Type: R_AVR32_16S (15)
+# CHECK: Type: R_AVR32_8S (16)
+# CHECK: Type: R_AVR32_8S_EXT (17)
+# CHECK: Type: R_AVR32_22H_PCREL (18)
+# CHECK: Type: R_AVR32_18W_PCREL (19)
+# CHECK: Type: R_AVR32_16B_PCREL (20)
+# CHECK: Type: R_AVR32_16N_PCREL (21)
+# CHECK: Type: R_AVR32_14UW_PCREL (22)
+# CHECK: Type: R_AVR32_11H_PCREL (23)
+# CHECK: Type: R_AVR32_10UW_PCREL (24)
+# CHECK: Type: R_AVR32_9H_PCREL (25)
+# CHECK: Type: R_AVR32_9UW_PCREL (26)
+# CHECK: Type: R_AVR32_HI16 (27)
+# CHECK: Type: R_AVR32_LO16 (28)
+# CHECK: Type: R_AVR32_GOTPC (29)
+# CHECK: Type: R_AVR32_GOTCALL (30)
+# CHECK: Type: R_AVR32_LDA_GOT (31)
+# CHECK: Type: R_AVR32_GOT21S (32)
+# CHECK: Type: R_AVR32_GOT18SW (33)
+# CHECK: Type: R_AVR32_GOT16S (34)
+# CHECK: Type: R_AVR32_GOT7UW (35)
+# CHECK: Type: R_AVR32_32_CPENT (36)
+# CHECK: Type: R_AVR32_CPCALL (37)
+# CHECK: Type: R_AVR32_16_CP (38)
+# CHECK: Type: R_AVR32_9W_CP (39)
+# CHECK: Type: R_AVR32_RELATIVE (40)
+# CHECK: Type: R_AVR32_GLOB_DAT (41)
+# CHECK: Type: R_AVR32_JMP_SLOT (42)
+# CHECK: Type: R_AVR32_ALIGN (43)
+# CHECK: Type: R_AVR32_15S (44)
+
+--- !ELF
+FileHeader:
+  Class:   ELFCLASS32
+  Data:    ELFDATA2MSB
+  Type:    ET_REL
+  Machine: EM_AVR32
+Sections:
+  - Name: .rela.text
+    Type: SHT_RELA
+    Relocations:
+      - Type: R_AVR32_NONE
+      - Type: R_AVR32_32
+      - Type: R_AVR32_16
+      - Type: R_AVR32_8
+      - Type: R_AVR32_32_PCREL
+      - Type: R_AVR32_16_PCREL
+      - Type: R_AVR32_8_PCREL
+      - Type: R_AVR32_DIFF32
+      - Type: R_AVR32_DIFF16
+      - Type: R_AVR32_DIFF8
+      - Type: R_AVR32_GOT32
+      - Type: R_AVR32_GOT16
+      - Type: R_AVR32_GOT8
+      - Type: R_AVR32_21S
+      - Type: R_AVR32_16U
+      - Type: R_AVR32_16S
+      - Type: R_AVR32_8S
+      - Type: R_AVR32_8S_EXT
+      - Type: R_AVR32_22H_PCREL
+      - Type: R_AVR32_18W_PCREL
+      - Type: R_AVR32_16B_PCREL
+      - Type: R_AVR32_16N_PCREL
+      - Type: R_AVR32_14UW_PCREL
+      - Type: R_AVR32_11H_PCREL
+      - Type: R_AVR32_10UW_PCREL
+      - Type: R_AVR32_9H_PCREL
+      - Type: R_AVR32_9UW_PCREL
+      - Type: R_AVR32_HI16
+      - Type: R_AVR32_LO16
+      - Type: R_AVR32_GOTPC
+      - Type: R_AVR32_GOTCALL
+      - Type: R_AVR32_LDA_GOT
+      - Type: R_AVR32_GOT21S
+      - Type: R_AVR32_GOT18SW
+      - Type: R_AVR32_GOT16S
+      - Type: R_AVR32_GOT7UW
+      - Type: R_AVR32_32_CPENT
+      - Type: R_AVR32_CPCALL
+      - Type: R_AVR32_16_CP
+      - Type: R_AVR32_9W_CP
+      - Type: R_AVR32_RELATIVE
+      - Type: R_AVR32_GLOB_DAT
+      - Type: R_AVR32_JMP_SLOT
+      - Type: R_AVR32_ALIGN
+      - Type: R_AVR32_15S

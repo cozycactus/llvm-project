@@ -951,6 +951,9 @@ void ScalarEnumerationTraits<ELFYAML::ELF_REL>::enumeration(
   case ELF::EM_ARM:
 #include "llvm/BinaryFormat/ELFRelocs/ARM.def"
     break;
+  case ELF::EM_AVR32:
+#include "llvm/BinaryFormat/ELFRelocs/AVR32.def"
+    break;
   case ELF::EM_ARC:
 #include "llvm/BinaryFormat/ELFRelocs/ARC.def"
     break;
