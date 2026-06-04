@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "AVR32FixupKinds.h"
 #include "AVR32MCTargetDesc.h"
 #include "llvm/MC/MCELFObjectWriter.h"
 #include "llvm/MC/MCFixup.h"
@@ -27,6 +28,8 @@ protected:
   unsigned getRelocType(const MCFixup &Fixup, const MCValue &,
                         bool IsPCRel) const override {
     switch (Fixup.getKind()) {
+    case AVR32::fixup_22h_pcrel:
+      return ELF::R_AVR32_22H_PCREL;
     case FK_Data_1:
       return IsPCRel ? ELF::R_AVR32_8_PCREL : ELF::R_AVR32_8;
     case FK_Data_2:

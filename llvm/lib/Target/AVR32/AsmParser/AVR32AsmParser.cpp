@@ -103,7 +103,9 @@ public:
     if (Kind != Immediate)
       return false;
     auto *Const = dyn_cast<MCConstantExpr>(Imm);
-    return Const && Const->getValue() >= -2097152 &&
+    if (!Const)
+      return true;
+    return Const->getValue() >= -2097152 &&
            Const->getValue() <= 2097150 && Const->getValue() % 2 == 0;
   }
 

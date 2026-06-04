@@ -313,6 +313,14 @@ def simm21shift1 : Operand<i32>,
   let EncoderMethod = "getShifted1OpValue";
 }
 
+def simm21pcrelshift1 : Operand<i32>,
+                        ImmLeaf<i32, [{ return Imm >= -2097152 &&
+                                               Imm <= 2097150 &&
+                                               Imm % 2 == 0; }]> {
+  let ParserMatchClass = SImm21Shift1AsmOperand;
+  let EncoderMethod = "getPCRel22HOpValue";
+}
+
 def simm12shift1 : Operand<i32>,
                    ImmLeaf<i32, [{ return Imm >= -4096 && Imm <= 4094 &&
                                           Imm % 2 == 0; }]> {
@@ -1320,7 +1328,7 @@ def INCJOSPi : AVR32Inst<0, (outs), (ins incjospimm:$Imm),
 }
 
 class FullPCRel21<string Mnemonic>
-    : AVR32Inst32<(outs), (ins PCOnly:$Rp, simm21shift1:$Disp),
+    : AVR32Inst32<(outs), (ins PCOnly:$Rp, simm21pcrelshift1:$Disp),
                   Mnemonic#"\t${Rp}[$Disp]"> {
   bits<21> Disp;
 
@@ -1333,7 +1341,8 @@ class FullPCRel21<string Mnemonic>
 }
 
 class FullBranch<bits<4> Cond, string Mnemonic>
-    : AVR32Inst32<(outs), (ins simm21shift1:$Disp), Mnemonic#"\t$Disp"> {
+    : AVR32Inst32<(outs), (ins simm21pcrelshift1:$Disp),
+                  Mnemonic#"\t$Disp"> {
   bits<21> Disp;
 
   let Inst{31-29} = 0b111;
