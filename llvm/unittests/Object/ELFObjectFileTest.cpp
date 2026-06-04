@@ -259,10 +259,28 @@ TEST(ELFObjectFileTest, AVR32RelocationResolver) {
   ASSERT_NE(Supports, nullptr);
   ASSERT_NE(Resolver, nullptr);
 
+  EXPECT_TRUE(Supports(ELF::R_AVR32_NONE));
+  EXPECT_TRUE(Supports(ELF::R_AVR32_8));
+  EXPECT_TRUE(Supports(ELF::R_AVR32_16));
+  EXPECT_TRUE(Supports(ELF::R_AVR32_32));
+  EXPECT_TRUE(Supports(ELF::R_AVR32_8_PCREL));
+  EXPECT_TRUE(Supports(ELF::R_AVR32_16_PCREL));
+  EXPECT_TRUE(Supports(ELF::R_AVR32_32_PCREL));
   EXPECT_TRUE(Supports(ELF::R_AVR32_22H_PCREL));
   EXPECT_TRUE(Supports(ELF::R_AVR32_11H_PCREL));
   EXPECT_FALSE(Supports(ELF::R_AVR32_21S));
 
+  EXPECT_EQ(0x1234u,
+            Resolver(ELF::R_AVR32_NONE, 0x1000, 0x1004, 0x1234, 0));
+  EXPECT_EQ(0x78u, Resolver(ELF::R_AVR32_8, 0, 0x12345678, 0, 0));
+  EXPECT_EQ(0x5678u, Resolver(ELF::R_AVR32_16, 0, 0x12345678, 0, 0));
+  EXPECT_EQ(0x12345678u, Resolver(ELF::R_AVR32_32, 0, 0x12345678, 0, 0));
+  EXPECT_EQ(0x8u,
+            Resolver(ELF::R_AVR32_8_PCREL, 0x1008, 0x100c, 0, 4));
+  EXPECT_EQ(0x8u,
+            Resolver(ELF::R_AVR32_16_PCREL, 0x1008, 0x100c, 0, 4));
+  EXPECT_EQ(0x8u,
+            Resolver(ELF::R_AVR32_32_PCREL, 0x1008, 0x100c, 0, 4));
   EXPECT_EQ(0xe0a00002u,
             Resolver(ELF::R_AVR32_22H_PCREL, 0x1008, 0x100c, 0xe0a00000, 0));
   EXPECT_EQ(0xc028u,
