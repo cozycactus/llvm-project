@@ -2079,24 +2079,29 @@ bool AVR32AsmParser::parseRegList16Operand(OperandVector &Operands) {
   return false;
 }
 
-static int getRegList8Bit(int StartBit, int EndBit) {
-  if (StartBit == 0 && EndBit == 3)
-    return 0;
-  if (StartBit == 4 && EndBit == 7)
-    return 1;
-  if (StartBit == 8 && EndBit == 9)
-    return 2;
-  if (StartBit == 10 && EndBit == 10)
-    return 3;
-  if (StartBit == 11 && EndBit == 11)
-    return 4;
-  if (StartBit == 12 && EndBit == 12)
-    return 5;
-  if (StartBit == 14 && EndBit == 14)
-    return 6;
-  if (StartBit == 15 && EndBit == 15)
-    return 7;
-  return -1;
+static bool addRegList8Bits(int StartBit, int EndBit, unsigned &Mask) {
+  static const std::pair<int, int> Groups[] = {
+      {0, 3}, {4, 7}, {8, 9}, {10, 10},
+      {11, 11}, {12, 12}, {14, 14}, {15, 15}};
+
+  int NextBit = StartBit;
+  unsigned GroupBit = 0;
+  for (const auto &[GroupStart, GroupEnd] : Groups) {
+    if (GroupStart != NextBit) {
+      ++GroupBit;
+      continue;
+    }
+    if (GroupEnd > EndBit)
+      return false;
+
+    Mask |= 1u << GroupBit;
+    NextBit = GroupEnd + 1;
+    if (NextBit == EndBit + 1)
+      return true;
+    ++GroupBit;
+  }
+
+  return false;
 }
 
 bool AVR32AsmParser::parseRegList8Operand(OperandVector &Operands) {
@@ -2135,10 +2140,8 @@ bool AVR32AsmParser::parseRegList8Operand(OperandVector &Operands) {
         return Error(EndRegStartLoc, "register range must be ascending");
     }
 
-    int RegListBit = getRegList8Bit(StartBit, EndBit);
-    if (RegListBit < 0)
+    if (!addRegList8Bits(StartBit, EndBit, Mask))
       return Error(RegStartLoc, "invalid popm/pushm register-list group");
-    Mask |= 1u << RegListBit;
 
     if (getLexer().is(AsmToken::EndOfStatement))
       break;

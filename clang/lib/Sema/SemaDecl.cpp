@@ -16902,7 +16902,10 @@ Decl *Sema::ActOnFinishFunctionBody(Decl *dcl, Stmt *Body, bool IsInstantiation,
           !CheckConstexprFunctionDefinition(FD, CheckConstexprKind::Diagnose))
         FD->setInvalidDecl();
 
-      if (FD && FD->hasAttr<NakedAttr>()) {
+      bool AllowNonAsmNakedBody =
+          FD && Context.getTargetInfo().getTriple().getArch() ==
+                    llvm::Triple::avr32;
+      if (FD && FD->hasAttr<NakedAttr>() && !AllowNonAsmNakedBody) {
         for (const Stmt *S : Body->children()) {
           // Allow local register variables without initializer as they don't
           // require prologue.
