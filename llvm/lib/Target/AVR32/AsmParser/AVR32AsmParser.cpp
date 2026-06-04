@@ -374,6 +374,8 @@ private:
   bool parseRegisterCommaRegister(OperandVector &Operands);
   bool parseRegisterCommaRegisterCommaRegister(OperandVector &Operands);
   bool parseRegisterCommaRegisterCommaImmediate(OperandVector &Operands);
+  bool parseRegisterCommaRegisterCommaImmediateCommaImmediate(
+      OperandVector &Operands);
   bool parseRegisterCommaRegisterCommaRegisterOrImmediate(
       OperandVector &Operands);
   bool parseRegisterCommaRegisterCommaRegisterOrImmediateOperand(
@@ -521,6 +523,9 @@ bool AVR32AsmParser::parseInstruction(ParseInstructionInfo &Info,
       Name == "satadd.w" ||
       Name == "satsub.h" || Name == "sbc" || Name == "xchg") {
     if (parseRegisterCommaRegisterCommaRegister(Operands))
+      return true;
+  } else if (Name == "bfexts" || Name == "bfextu" || Name == "bfins") {
+    if (parseRegisterCommaRegisterCommaImmediateCommaImmediate(Operands))
       return true;
   } else if (Name == "pasr.b" || Name == "pasr.h" ||
              Name == "plsl.b" || Name == "plsl.h" ||
@@ -810,6 +815,17 @@ bool AVR32AsmParser::parseRegisterCommaRegisterCommaRegister(
 bool AVR32AsmParser::parseRegisterCommaRegisterCommaImmediate(
     OperandVector &Operands) {
   if (parseRegisterCommaRegister(Operands))
+    return true;
+  if (!parseOptionalToken(AsmToken::Comma))
+    return Error(getLexer().getLoc(), "expected comma");
+  if (parseImmediateOperand(Operands))
+    return true;
+  return false;
+}
+
+bool AVR32AsmParser::parseRegisterCommaRegisterCommaImmediateCommaImmediate(
+    OperandVector &Operands) {
+  if (parseRegisterCommaRegisterCommaImmediate(Operands))
     return true;
   if (!parseOptionalToken(AsmToken::Comma))
     return Error(getLexer().getLoc(), "expected comma");

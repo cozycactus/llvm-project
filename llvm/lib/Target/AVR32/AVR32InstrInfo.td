@@ -1316,6 +1316,23 @@ class FullRegRegUImm4Shift<bits<12> Op, string Mnemonic>
   let Inst{3-0} = Rd;
 }
 
+class FullRegRegBitField<bits<6> Op, string Mnemonic>
+    : AVR32Inst32<(outs GPR:$Rd), (ins GPR:$Rs, uimm5:$Bp, uimm5:$Width),
+                  Mnemonic#"\t$Rd, $Rs, $Bp, $Width"> {
+  bits<4> Rd;
+  bits<4> Rs;
+  bits<5> Bp;
+  bits<5> Width;
+
+  let Inst{31-29} = 0b111;
+  let Inst{28-25} = Rd;
+  let Inst{24-20} = 0b11101;
+  let Inst{19-16} = Rs;
+  let Inst{15-10} = Op;
+  let Inst{9-5} = Bp;
+  let Inst{4-0} = Width;
+}
+
 class FullRegRegImm<bits<8> Op, string Mnemonic>
     : AVR32Inst32<(outs GPR:$Rd), (ins GPR:$Rs, simm8:$Imm),
                   Mnemonic#"\t$Rd, $Rs, $Imm"> {
@@ -1601,6 +1618,9 @@ def ANDQSrrr : CondRRR<0b1110, 0b0010, "andqs">;
 def ANDNrr : CompactRegReg<0b01000, "andn">;
 def ANDrr : CompactRegReg<0b00110, "and">;
 def ASRrrr : FullRegRegReg<0b000010000100, "asr">;
+def BFEXTS : FullRegRegBitField<0b101100, "bfexts">;
+def BFEXTU : FullRegRegBitField<0b110000, "bfextu">;
+def BFINS : FullRegRegBitField<0b110100, "bfins">;
 def BLDri : FullRegUImm5NoOut<0b111011011011, "bld">;
 def BREVr : CompactReg<0b010111001001, "brev">;
 def BSTri : FullRegUImm5NoOut<0b111011111011, "bst">;
