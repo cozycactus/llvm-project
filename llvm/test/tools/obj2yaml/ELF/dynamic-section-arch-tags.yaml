@@ -342,3 +342,23 @@ Sections:
     Entries:
       - Tag:             DT_HEXAGON_SYMSZ
         Value:           0x0000000000000001
+
+## Check we can handle AVR32 specific tags.
+# RUN: yaml2obj --docnum=8 %s -o %t8
+# RUN: obj2yaml %t8 | FileCheck %s --check-prefix=AVR32
+
+# AVR32:      - Tag:             DT_AVR32_GOTSZ
+# AVR32-NEXT:   Value:           0x80
+
+--- !ELF
+FileHeader:
+  Class:             ELFCLASS32
+  Data:              ELFDATA2MSB
+  Type:              ET_REL
+  Machine:           EM_AVR32
+Sections:
+  - Name:            .dynamic
+    Type:            SHT_DYNAMIC
+    Entries:
+      - Tag:             DT_AVR32_GOTSZ
+        Value:           0x80
