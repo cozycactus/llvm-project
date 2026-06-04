@@ -94,6 +94,17 @@ int64_t AVR32::getImplicitAddend(const uint8_t *buf, RelType type) const {
   case R_AVR32_32_PCREL:
   case R_AVR32_RELATIVE:
     return SignExtend64<32>(read32be(buf));
+  case R_AVR32_22H_PCREL: {
+    uint32_t word = read32be(buf);
+    uint32_t enc = (word & 0xffff) | ((word >> 4) & 0x10000) |
+                   ((word >> 8) & 0x1e0000);
+    return SignExtend64<21>(enc) << 1;
+  }
+  case R_AVR32_11H_PCREL: {
+    uint16_t word = read16be(buf);
+    uint16_t enc = ((word >> 4) & 0xff) | ((word & 0x3) << 8);
+    return SignExtend64<10>(enc) << 1;
+  }
   default:
     return TargetInfo::getImplicitAddend(buf, type);
   }
