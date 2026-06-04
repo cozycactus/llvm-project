@@ -1,5 +1,6 @@
 # RUN: yaml2obj %s -o %t
 # RUN: llvm-readobj -h %t | FileCheck %s
+# RUN: llvm-readelf -h %t | FileCheck %s --check-prefix=GNU
 
 --- !ELF
 FileHeader:
@@ -15,3 +16,5 @@ FileHeader:
 # CHECK-NEXT:   EF_AVR32_LINKRELAX (0x1)
 # CHECK-NEXT:   EF_AVR32_PIC (0x2)
 # CHECK-NEXT: ]
+
+# GNU: Flags:                             0x3, EF_AVR32_LINKRELAX, EF_AVR32_PIC
