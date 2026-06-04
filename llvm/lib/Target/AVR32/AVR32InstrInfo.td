@@ -1751,6 +1751,8 @@ def PSUB_Brrr : FullRegRegReg<0b001000110001, "psub.b">;
 def PSUB_Hrrr : FullRegRegReg<0b001000000001, "psub.h">;
 def PSUBADD_H : FullRegRegHalfRegHalf<0b0010000101, "psubadd.h">;
 def PSUBADDH_SH : FullRegRegHalfRegHalf<0b0010001011, "psubaddh.sh">;
+def PSUBADDS_UH : FullRegRegHalfRegHalf<0b0010001001, "psubadds.uh">;
+def PSUBADDS_SH : FullRegRegHalfRegHalf<0b0010000111, "psubadds.sh">;
 def PSUBH_UBrrr : FullRegRegReg<0b001000110111, "psubh.ub">;
 def PSUBH_SHrrr : FullRegRegReg<0b001000001101, "psubh.sh">;
 def PSUBS_UBrrr : FullRegRegReg<0b001000110101, "psubs.ub">;

@@ -560,6 +560,7 @@ bool AVR32AsmParser::parseInstruction(ParseInstructionInfo &Info,
   } else if (Name == "paddsub.h" || Name == "paddsubh.sh" ||
              Name == "paddsubs.sh" || Name == "paddsubs.uh" ||
              Name == "psubadd.h" || Name == "psubaddh.sh" ||
+             Name == "psubadds.sh" || Name == "psubadds.uh" ||
              Name == "subhh.w") {
     if (parseRegisterCommaRegisterHalfPartCommaRegisterHalfPart(Operands))
       return true;
