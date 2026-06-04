@@ -697,6 +697,7 @@ bool AVR32AsmParser::parseInstruction(ParseInstructionInfo &Info,
              Name == "eor" || Name == "or" ||
              Name == "fcastrs.sw" || Name == "fcastrs.uw" ||
              Name == "fcastsw.s" || Name == "fcastuw.s" ||
+             Name == "fcmp.s" ||
              Name == "frcpa.s" || Name == "frsqrta.s" ||
              Name == "pabs.sb" || Name == "pabs.sh" || Name == "rsub" ||
              Name == "tst") {
@@ -915,7 +916,7 @@ bool AVR32AsmParser::parseInstruction(ParseInstructionInfo &Info,
   } else if (Name == "abs" || Name == "acr" || Name == "brev" ||
              Name == "casts.b" || Name == "casts.h" || Name == "castu.h" ||
              Name == "castu.b" || Name == "com" || Name == "icall" ||
-             Name == "musfr" || Name == "mustr" ||
+             Name == "fchk.s" || Name == "musfr" || Name == "mustr" ||
              Name == "neg" || Name == "retal" || Name == "retcc" ||
              Name == "retcs" || Name == "reteq" || Name == "reths" ||
              Name == "retge" || Name == "retgt" || Name == "rethi" ||

@@ -1994,6 +1994,29 @@ class FullFPURegReg<bits<4> Op, string Mnemonic>
   let Inst{3-0} = Ry;
 }
 
+class FullFPURegRegNoOut<bits<4> Op, string Mnemonic>
+    : AVR32Inst32<(outs), (ins GPR:$Rx, GPR:$Ry),
+                  Mnemonic#"\t$Rx, $Ry"> {
+  bits<4> Rx;
+  bits<4> Ry;
+
+  let Inst{31-20} = 0b111001011010;
+  let Inst{19-16} = Op;
+  let Inst{15-8} = 0;
+  let Inst{7-4} = Rx;
+  let Inst{3-0} = Ry;
+}
+
+class FullFPURegNoOut<bits<4> Op, string Mnemonic>
+    : AVR32Inst32<(outs), (ins GPR:$Ry), Mnemonic#"\t$Ry"> {
+  bits<4> Ry;
+
+  let Inst{31-20} = 0b111001011010;
+  let Inst{19-16} = Op;
+  let Inst{15-4} = 0;
+  let Inst{3-0} = Ry;
+}
+
 class FullFPURegRegRegReg<bits<12> Prefix, bit Neg, string Mnemonic>
     : AVR32Inst32<(outs GPR:$Rd), (ins GPR:$Ra, GPR:$Rx, GPR:$Ry),
                   Mnemonic#"\t$Rd, $Ra, $Rx, $Ry"> {
@@ -2494,6 +2517,8 @@ def FCASTRS_SWrr : FullFPURegReg<0b1011, "fcastrs.sw">;
 def FCASTRS_UWrr : FullFPURegReg<0b1001, "fcastrs.uw">;
 def FCASTSW_Srr : FullFPURegReg<0b0110, "fcastsw.s">;
 def FCASTUW_Srr : FullFPURegReg<0b0100, "fcastuw.s">;
+def FCHK_Sr : FullFPURegNoOut<0b1101, "fchk.s">;
+def FCMP_Srr : FullFPURegRegNoOut<0b1100, "fcmp.s">;
 def FMAC_Srrrr : FullFPURegRegRegReg<0b111000011010, 0, "fmac.s">;
 def FNMUL_Srrr : FullFPURegRegReg<0b0011, "fnmul.s">;
 def FNMAC_Srrrr : FullFPURegRegRegReg<0b111000011010, 1, "fnmac.s">;
