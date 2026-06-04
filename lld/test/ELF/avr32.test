@@ -50,6 +50,18 @@
 
 # BADRELOC: error: {{.*}}unknown relocation (13) against symbol target
 
+# RUN: yaml2obj --docnum=7 %s -o %t.unaligned.o
+# RUN: not ld.lld %t.unaligned.o -o /dev/null 2>&1 \
+# RUN:   | FileCheck %s --check-prefix=UNALIGNED
+
+# UNALIGNED: error: {{.*}}improper alignment for relocation R_AVR32_22H_PCREL: 0xF is not aligned to 2 bytes
+
+# RUN: yaml2obj --docnum=8 %s -o %t.range.o
+# RUN: not ld.lld %t.range.o -o /dev/null 2>&1 \
+# RUN:   | FileCheck %s --check-prefix=RANGE
+
+# RANGE: error: {{.*}}relocation R_AVR32_11H_PCREL out of range: 512 is not in [-512, 511]
+
 --- !ELF
 FileHeader:
   Class:   ELFCLASS32
@@ -205,4 +217,60 @@ Symbols:
   - Name: target
     Section: .text
     Value: 0
+    Binding: STB_GLOBAL
+
+--- !ELF
+FileHeader:
+  Class:   ELFCLASS32
+  Data:    ELFDATA2MSB
+  Type:    ET_REL
+  Machine: EM_AVR32
+Sections:
+  - Name: .text
+    Type: SHT_PROGBITS
+    Flags: [ SHF_ALLOC, SHF_EXECINSTR ]
+    Content: "00000000"
+  - Name: .rela.text
+    Type: SHT_RELA
+    Info: .text
+    Relocations:
+      - Offset: 0
+        Symbol: target
+        Type: R_AVR32_22H_PCREL
+Symbols:
+  - Name: _start
+    Section: .text
+    Value: 0
+    Binding: STB_GLOBAL
+  - Name: target
+    Section: .text
+    Value: 15
+    Binding: STB_GLOBAL
+
+--- !ELF
+FileHeader:
+  Class:   ELFCLASS32
+  Data:    ELFDATA2MSB
+  Type:    ET_REL
+  Machine: EM_AVR32
+Sections:
+  - Name: .text
+    Type: SHT_PROGBITS
+    Flags: [ SHF_ALLOC, SHF_EXECINSTR ]
+    Content: "0000"
+  - Name: .rela.text
+    Type: SHT_RELA
+    Info: .text
+    Relocations:
+      - Offset: 0
+        Symbol: target
+        Type: R_AVR32_11H_PCREL
+Symbols:
+  - Name: _start
+    Section: .text
+    Value: 0
+    Binding: STB_GLOBAL
+  - Name: target
+    Section: .text
+    Value: 1024
     Binding: STB_GLOBAL
