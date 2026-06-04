@@ -68,6 +68,14 @@ public:
     return Const && isInt<8>(Const->getValue());
   }
 
+  bool isSImm8Shift1() const {
+    if (Kind != Immediate)
+      return false;
+    auto *Const = dyn_cast<MCConstantExpr>(Imm);
+    return Const && Const->getValue() >= -256 &&
+           Const->getValue() <= 254 && Const->getValue() % 2 == 0;
+  }
+
   bool isSImm10Shift1() const {
     if (Kind != Immediate)
       return false;
@@ -641,6 +649,14 @@ bool AVR32AsmParser::parseInstruction(ParseInstructionInfo &Info,
       return true;
   } else if (Name == "acall" || Name == "csrf" || Name == "csrfcz" ||
              Name == "ssrf") {
+    if (parseImmediateOperand(Operands))
+      return true;
+  } else if (Name == "bral" || Name == "brcc" || Name == "brcs" ||
+             Name == "breq" || Name == "brge" || Name == "brgt" ||
+             Name == "brhi" || Name == "brhs" || Name == "brle" ||
+             Name == "brlo" || Name == "brls" || Name == "brlt" ||
+             Name == "brmi" || Name == "brne" || Name == "brpl" ||
+             Name == "brqs" || Name == "brvc" || Name == "brvs") {
     if (parseImmediateOperand(Operands))
       return true;
   } else if (Name == "incjosp" || Name == "sleep" || Name == "sync") {

@@ -18,6 +18,11 @@ def SImm8AsmOperand : AsmOperandClass {
   let RenderMethod = "addImmOperands";
 }
 
+def SImm8Shift1AsmOperand : AsmOperandClass {
+  let Name = "SImm8Shift1";
+  let RenderMethod = "addImmOperands";
+}
+
 def SImm10Shift1AsmOperand : AsmOperandClass {
   let Name = "SImm10Shift1";
   let RenderMethod = "addImmOperands";
@@ -184,6 +189,13 @@ def simm6 : Operand<i32>, ImmLeaf<i32, [{ return Imm >= -32 && Imm < 32; }]> {
 
 def simm8 : Operand<i32>, ImmLeaf<i32, [{ return Imm >= -128 && Imm < 128; }]> {
   let ParserMatchClass = SImm8AsmOperand;
+}
+
+def simm8shift1 : Operand<i32>,
+                  ImmLeaf<i32, [{ return Imm >= -256 && Imm <= 254 &&
+                                         Imm % 2 == 0; }]> {
+  let ParserMatchClass = SImm8Shift1AsmOperand;
+  let EncoderMethod = "getShifted1OpValue";
 }
 
 def simm10shift1 : Operand<i32>,
@@ -1088,6 +1100,16 @@ class CompactPCRel10<bits<2> Op, string Mnemonic>
   let Inst{1-0} = Disp{9-8};
 }
 
+class CompactBranch<bits<3> Cond, string Mnemonic>
+    : AVR32Inst<0, (outs), (ins simm8shift1:$Disp), Mnemonic#"\t$Disp"> {
+  bits<8> Disp;
+
+  let Inst{15-12} = 0b1100;
+  let Inst{11-4} = Disp;
+  let Inst{3} = 0;
+  let Inst{2-0} = Cond;
+}
+
 def ACALLi : AVR32Inst<0, (outs), (ins acalldisp:$Disp), "acall\t$Disp"> {
   bits<8> Disp;
 
@@ -1115,6 +1137,18 @@ class FullPCRel21<string Mnemonic>
   let Inst{24-21} = 0b0101;
   let Inst{20} = Disp{16};
   let Inst{19-16} = 0;
+  let Inst{15-0} = Disp{15-0};
+}
+
+class FullBranch<bits<4> Cond, string Mnemonic>
+    : AVR32Inst32<(outs), (ins simm21shift1:$Disp), Mnemonic#"\t$Disp"> {
+  bits<21> Disp;
+
+  let Inst{31-29} = 0b111;
+  let Inst{28-25} = Disp{20-17};
+  let Inst{24-21} = 0b0100;
+  let Inst{20} = Disp{16};
+  let Inst{19-16} = Cond;
   let Inst{15-0} = Disp{15-0};
 }
 
@@ -1695,6 +1729,34 @@ def BFEXTU : FullRegRegBitField<0b110000, "bfextu">;
 def BFINS : FullRegRegBitField<0b110100, "bfins">;
 def BLDri : FullRegUImm5NoOut<0b111011011011, "bld">;
 def BREVr : CompactReg<0b010111001001, "brev">;
+def BREQc : CompactBranch<0b000, "breq">;
+def BRNEc : CompactBranch<0b001, "brne">;
+def BRCCc : CompactBranch<0b010, "brcc">;
+def BRHSc : CompactBranch<0b010, "brhs">;
+def BRCSc : CompactBranch<0b011, "brcs">;
+def BRLOc : CompactBranch<0b011, "brlo">;
+def BRGEc : CompactBranch<0b100, "brge">;
+def BRLTc : CompactBranch<0b101, "brlt">;
+def BRMIc : CompactBranch<0b110, "brmi">;
+def BRPLc : CompactBranch<0b111, "brpl">;
+def BRALE : FullBranch<0b1111, "bral">;
+def BREQe : FullBranch<0b0000, "breq">;
+def BRNEe : FullBranch<0b0001, "brne">;
+def BRCCe : FullBranch<0b0010, "brcc">;
+def BRHSe : FullBranch<0b0010, "brhs">;
+def BRCSe : FullBranch<0b0011, "brcs">;
+def BRLOe : FullBranch<0b0011, "brlo">;
+def BRGEe : FullBranch<0b0100, "brge">;
+def BRLTe : FullBranch<0b0101, "brlt">;
+def BRMIe : FullBranch<0b0110, "brmi">;
+def BRPLe : FullBranch<0b0111, "brpl">;
+def BRLSe : FullBranch<0b1000, "brls">;
+def BRGTe : FullBranch<0b1001, "brgt">;
+def BRLEe : FullBranch<0b1010, "brle">;
+def BRHIe : FullBranch<0b1011, "brhi">;
+def BRVSe : FullBranch<0b1100, "brvs">;
+def BRVCe : FullBranch<0b1101, "brvc">;
+def BRQSe : FullBranch<0b1110, "brqs">;
 def BSTri : FullRegUImm5NoOut<0b111011111011, "bst">;
 def BREAKPOINT : AVR32Inst<0b1101011001110011, (outs), (ins), "breakpoint">;
 def CBRri : CompactRegUImm5NoOut<0b1110, "cbr">;
