@@ -2391,6 +2391,7 @@ def ADCrrr : FullRegRegReg<0b000000000100, "adc">;
 def ABSr : CompactReg<0b010111000100, "abs">;
 def ACRr : CompactReg<0b010111000000, "acr">;
 def ADDABSrrr : FullRegRegReg<0b000011100100, "addabs">;
+def ADDHH_W : FullRegRegHalfRegHalf<0b0000111000, "addhh.w">;
 def ADDALrrr : CondRRR<0b1111, 0b0000, "addal">;
 def ADDEQrrr : CondRRR<0b0000, 0b0000, "addeq">;
 def ADDNErrr : CondRRR<0b0001, 0b0000, "addne">;

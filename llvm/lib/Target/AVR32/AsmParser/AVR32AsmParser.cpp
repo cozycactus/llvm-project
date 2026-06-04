@@ -706,7 +706,8 @@ bool AVR32AsmParser::parseInstruction(ParseInstructionInfo &Info,
   } else if (Name == "sub") {
     if (parseSubOperands(Operands))
       return true;
-  } else if (Name == "machh.d" || Name == "machh.w" ||
+  } else if (Name == "addhh.w" ||
+             Name == "machh.d" || Name == "machh.w" ||
              Name == "macsathh.w" || Name == "mulhh.w" ||
              Name == "mulnhh.w" || Name == "mulsathh.h" ||
              Name == "mulsathh.w" || Name == "mulsatrndhh.h" ||
