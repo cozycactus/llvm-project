@@ -27,13 +27,14 @@ AVR32FrameLowering::AVR32FrameLowering(const AVR32Subtarget &STI)
                           Align(4)) {}
 
 bool AVR32FrameLowering::hasFPImpl(const MachineFunction &MF) const {
-  return false;
+  return MF.getFrameInfo().hasVarSizedObjects();
 }
 
 void AVR32FrameLowering::emitPrologue(MachineFunction &MF,
                                       MachineBasicBlock &MBB) const {
   uint64_t StackSize = MF.getFrameInfo().getStackSize();
-  if (StackSize == 0)
+  bool HasFP = hasFP(MF);
+  if (StackSize == 0 && !HasFP)
     return;
 
   if (StackSize % 4 != 0 || StackSize > 508)
@@ -44,14 +45,20 @@ void AVR32FrameLowering::emitPrologue(MachineFunction &MF,
   MachineBasicBlock::iterator MBBI = MBB.begin();
   DebugLoc DL = MBBI != MBB.end() ? MBBI->getDebugLoc() : DebugLoc();
 
-  BuildMI(MBB, MBBI, DL, TII.get(AVR32::SUBSPri8), AVR32::SP)
-      .addImm(StackSize);
+  if (StackSize != 0)
+    BuildMI(MBB, MBBI, DL, TII.get(AVR32::SUBSPri8), AVR32::SP)
+        .addImm(StackSize);
+
+  if (HasFP)
+    BuildMI(MBB, MBBI, DL, TII.get(AVR32::MOVrr), AVR32::R7)
+        .addReg(AVR32::SP);
 }
 
 void AVR32FrameLowering::emitEpilogue(MachineFunction &MF,
                                       MachineBasicBlock &MBB) const {
   uint64_t StackSize = MF.getFrameInfo().getStackSize();
-  if (StackSize == 0)
+  bool HasFP = hasFP(MF);
+  if (StackSize == 0 && !HasFP)
     return;
 
   if (StackSize % 4 != 0 || StackSize > 512)
@@ -62,8 +69,13 @@ void AVR32FrameLowering::emitEpilogue(MachineFunction &MF,
   MachineBasicBlock::iterator MBBI = MBB.getFirstTerminator();
   DebugLoc DL = MBBI != MBB.end() ? MBBI->getDebugLoc() : DebugLoc();
 
-  BuildMI(MBB, MBBI, DL, TII.get(AVR32::SUBSPri8), AVR32::SP)
-      .addImm(-static_cast<int64_t>(StackSize));
+  if (HasFP)
+    BuildMI(MBB, MBBI, DL, TII.get(AVR32::MOVrr), AVR32::SP)
+        .addReg(AVR32::R7);
+
+  if (StackSize != 0)
+    BuildMI(MBB, MBBI, DL, TII.get(AVR32::SUBSPri8), AVR32::SP)
+        .addImm(-static_cast<int64_t>(StackSize));
 }
 
 MachineBasicBlock::iterator AVR32FrameLowering::eliminateCallFramePseudoInstr(

@@ -195,6 +195,12 @@ int pass_local(int value) {
   return use_ptr(&local);
 }
 
+int pass_vla(unsigned n) {
+  int local[n];
+  local[0] = n;
+  return use_ptr(local);
+}
+
 unsigned mmio_address(void) {
   return 0x40000044u;
 }
@@ -289,6 +295,9 @@ __attribute__((optnone, noinline)) int pick(int a, int b) {
 // CHECK: define {{.*}}i32 @dense_switch(i32 {{.*}})
 // CHECK: switch i32
 // CHECK: define {{.*}}i32 @pass_local(i32 {{.*}})
+// CHECK: call i32 @use_ptr
+// CHECK: define {{.*}}i32 @pass_vla(i32 {{.*}})
+// CHECK: alloca i32, i32
 // CHECK: call i32 @use_ptr
 // CHECK: define {{.*}}i32 @mmio_address()
 // CHECK: ret i32 1073741892
@@ -470,6 +479,14 @@ __attribute__((optnone, noinline)) int pick(int a, int b) {
 
 // ASM-LABEL: store_ready:
 // ASM: st.b
+// ASM: ret r12
+
+// ASM-LABEL: pass_vla:
+// ASM: mov r7, sp
+// ASM: subal {{r[0-9]+}}, sp
+// ASM: mov sp, {{r[0-9]+}}
+// ASM: rcall pc[use_ptr]
+// ASM: mov sp, r7
 // ASM: ret r12
 
 // ASM-LABEL: mmio_address:

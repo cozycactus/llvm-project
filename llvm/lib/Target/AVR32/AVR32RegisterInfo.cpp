@@ -8,6 +8,7 @@
 
 #include "AVR32RegisterInfo.h"
 #include "AVR32FrameLowering.h"
+#include "AVR32Subtarget.h"
 #include "llvm/ADT/BitVector.h"
 #include "llvm/CodeGen/MachineFrameInfo.h"
 #include "llvm/CodeGen/MachineFunction.h"
@@ -38,6 +39,9 @@ BitVector AVR32RegisterInfo::getReservedRegs(const MachineFunction &MF) const {
   Reserved.set(AVR32::SP);
   Reserved.set(AVR32::LR);
   Reserved.set(AVR32::PC);
+  const TargetFrameLowering *TFI = MF.getSubtarget().getFrameLowering();
+  if (TFI->hasFP(MF))
+    Reserved.set(AVR32::R7);
   return Reserved;
 }
 
@@ -54,6 +58,7 @@ bool AVR32RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
   MachineInstr &MI = *II;
   MachineFunction &MF = *MI.getParent()->getParent();
   MachineFrameInfo &MFI = MF.getFrameInfo();
+  Register FrameReg = getFrameRegister(MF);
 
   int FrameIndex = MI.getOperand(FIOperandNum).getIndex();
   int64_t Offset = MFI.getObjectOffset(FrameIndex) + MFI.getStackSize();
@@ -72,17 +77,18 @@ bool AVR32RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
     DebugLoc DL = MI.getDebugLoc();
     Register DestReg = MI.getOperand(0).getReg();
     BuildMI(MBB, II, DL, TII.get(AVR32::SUBrri16), DestReg)
-        .addReg(AVR32::SP)
+        .addReg(FrameReg)
         .addImm(-Offset);
     MI.eraseFromParent();
     return false;
   }
 
-  MI.getOperand(FIOperandNum).ChangeToRegister(AVR32::SP, false);
+  MI.getOperand(FIOperandNum).ChangeToRegister(FrameReg, false);
   MI.getOperand(FIOperandNum + 1).ChangeToImmediate(Offset);
   return false;
 }
 
 Register AVR32RegisterInfo::getFrameRegister(const MachineFunction &MF) const {
-  return AVR32::SP;
+  const TargetFrameLowering *TFI = MF.getSubtarget().getFrameLowering();
+  return TFI->hasFP(MF) ? AVR32::R7 : AVR32::SP;
 }

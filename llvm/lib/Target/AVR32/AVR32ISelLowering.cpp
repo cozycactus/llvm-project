@@ -36,6 +36,9 @@ AVR32TargetLowering::AVR32TargetLowering(const TargetMachine &TM,
   setOperationAction(ISD::CTPOP, MVT::i32, Expand);
   setOperationAction(ISD::CTTZ, MVT::i32, Expand);
   setOperationAction(ISD::CTTZ_ZERO_POISON, MVT::i32, Expand);
+  setOperationAction(ISD::DYNAMIC_STACKALLOC, MVT::i32, Expand);
+  setOperationAction(ISD::STACKSAVE, MVT::Other, Expand);
+  setOperationAction(ISD::STACKRESTORE, MVT::Other, Expand);
   setOperationAction(ISD::MULHS, MVT::i32, Expand);
   setOperationAction(ISD::MULHU, MVT::i32, Expand);
   setOperationAction(ISD::ROTL, MVT::i32, Expand);
