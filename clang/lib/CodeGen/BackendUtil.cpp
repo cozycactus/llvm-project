@@ -629,6 +629,10 @@ void EmitAssemblyHelper::CreateTargetMachine(bool MustCreateTM) {
     return;
   TM.reset(TheTarget->createTargetMachine(Triple, TargetOpts.CPU, FeaturesStr,
                                           Options, RM, CM, OptLevel));
+  if (!TM && MustCreateTM)
+    Diags.Report(diag::err_fe_unable_to_create_target)
+        << ("target machine is not available for triple \"" + Triple.str() +
+            "\"");
   if (TM)
     TM->setLargeDataThreshold(CodeGenOpts.LargeDataThreshold);
 }
