@@ -29,6 +29,7 @@ public:
   uint32_t calcEFlags() const override;
   RelExpr getRelExpr(RelType type, const Symbol &s,
                      const uint8_t *loc) const override;
+  int64_t getImplicitAddend(const uint8_t *buf, RelType type) const override;
   void relocate(uint8_t *loc, const Relocation &rel,
                 uint64_t val) const override;
 };
@@ -68,6 +69,12 @@ RelExpr AVR32::getRelExpr(RelType type, const Symbol &s,
              << ") against symbol " << &s;
     return R_NONE;
   }
+}
+
+int64_t AVR32::getImplicitAddend(const uint8_t *buf, RelType type) const {
+  if (type == R_AVR32_NONE)
+    return 0;
+  return TargetInfo::getImplicitAddend(buf, type);
 }
 
 void AVR32::relocate(uint8_t *loc, const Relocation &rel, uint64_t val) const {

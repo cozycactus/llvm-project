@@ -15,6 +15,10 @@
 # RUN: ld.lld -r %t.o -o %t
 # RUN: llvm-readobj -r %t | FileCheck --check-prefix=RELOC %s
 
+# RUN: yaml2obj -DBITS=32 -DENDIAN=MSB -DMACHINE=AVR32 %s -o %t.o
+# RUN: ld.lld -r %t.o -o %t
+# RUN: llvm-readobj -r %t | FileCheck --check-prefix=RELOC %s
+
 # RUN: yaml2obj -DBITS=32 -DMACHINE=PPC %s -o %t.o
 # RUN: ld.lld -r %t.o -o %t
 # RUN: llvm-readobj -r %t | FileCheck --check-prefix=RELOC %s
@@ -50,7 +54,7 @@
 --- !ELF
 FileHeader:
   Class:           ELFCLASS[[BITS=64]]
-  Data:            ELFDATA2LSB
+  Data:            ELFDATA2[[ENDIAN=LSB]]
   Type:            ET_REL
   Machine:         EM_[[MACHINE]]
 Sections:
