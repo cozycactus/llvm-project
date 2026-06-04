@@ -782,7 +782,7 @@ bool AVR32AsmParser::parseInstruction(ParseInstructionInfo &Info,
              Name == "subfqs" || Name == "subfvc" || Name == "subfvs") {
     if (parseRegisterCommaImmediate(Operands))
       return true;
-  } else if (Name == "cp.w") {
+  } else if (Name == "cp" || Name == "cp.w") {
     if (parseRegisterOperand(Operands))
       return true;
     if (!parseOptionalToken(AsmToken::Comma))
