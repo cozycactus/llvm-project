@@ -518,7 +518,9 @@ bool AVR32AsmParser::parseInstruction(ParseInstructionInfo &Info,
       Name == "satsub.h" || Name == "sbc" || Name == "xchg") {
     if (parseRegisterCommaRegisterCommaRegister(Operands))
       return true;
-  } else if (Name == "pasr.b" || Name == "pasr.h") {
+  } else if (Name == "pasr.b" || Name == "pasr.h" ||
+             Name == "plsl.b" || Name == "plsl.h" ||
+             Name == "plsr.b" || Name == "plsr.h") {
     if (parseRegisterCommaRegisterCommaImmediate(Operands))
       return true;
   } else if (Name == "satsub.w") {

@@ -262,6 +262,10 @@ TEST(AVR32TargetInfo, LookupTarget) {
   EXPECT_EQ(MII->get(AVR32::PADDXS_SHrrr).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::PASR_Brri).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::PASR_Hrri).getSize(), 4u);
+  EXPECT_EQ(MII->get(AVR32::PLSL_Brri).getSize(), 4u);
+  EXPECT_EQ(MII->get(AVR32::PLSL_Hrri).getSize(), 4u);
+  EXPECT_EQ(MII->get(AVR32::PLSR_Brri).getSize(), 4u);
+  EXPECT_EQ(MII->get(AVR32::PLSR_Hrri).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::PREF).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::PSADrrr).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::PSUB_Brrr).getSize(), 4u);
@@ -2754,6 +2758,74 @@ TEST(AVR32TargetInfo, LookupTarget) {
   EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0x0f);
   EXPECT_EQ(static_cast<uint8_t>(Code[2]), 0x24);
   EXPECT_EQ(static_cast<uint8_t>(Code[3]), 0x41);
+
+  MCInst PlslB;
+  PlslB.setOpcode(AVR32::PLSL_Brri);
+  PlslB.addOperand(MCOperand::createReg(AVR32::R1));
+  PlslB.addOperand(MCOperand::createReg(AVR32::R2));
+  PlslB.addOperand(MCOperand::createImm(3));
+
+  Code.clear();
+  Fixups.clear();
+  MCE->encodeInstruction(PlslB, Code, Fixups, *STI);
+
+  EXPECT_TRUE(Fixups.empty());
+  ASSERT_EQ(Code.size(), 4u);
+  EXPECT_EQ(static_cast<uint8_t>(Code[0]), 0xe4);
+  EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0x03);
+  EXPECT_EQ(static_cast<uint8_t>(Code[2]), 0x24);
+  EXPECT_EQ(static_cast<uint8_t>(Code[3]), 0x21);
+
+  MCInst PlslH;
+  PlslH.setOpcode(AVR32::PLSL_Hrri);
+  PlslH.addOperand(MCOperand::createReg(AVR32::R1));
+  PlslH.addOperand(MCOperand::createReg(AVR32::R2));
+  PlslH.addOperand(MCOperand::createImm(15));
+
+  Code.clear();
+  Fixups.clear();
+  MCE->encodeInstruction(PlslH, Code, Fixups, *STI);
+
+  EXPECT_TRUE(Fixups.empty());
+  ASSERT_EQ(Code.size(), 4u);
+  EXPECT_EQ(static_cast<uint8_t>(Code[0]), 0xe4);
+  EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0x0f);
+  EXPECT_EQ(static_cast<uint8_t>(Code[2]), 0x24);
+  EXPECT_EQ(static_cast<uint8_t>(Code[3]), 0x51);
+
+  MCInst PlsrB;
+  PlsrB.setOpcode(AVR32::PLSR_Brri);
+  PlsrB.addOperand(MCOperand::createReg(AVR32::R1));
+  PlsrB.addOperand(MCOperand::createReg(AVR32::R2));
+  PlsrB.addOperand(MCOperand::createImm(3));
+
+  Code.clear();
+  Fixups.clear();
+  MCE->encodeInstruction(PlsrB, Code, Fixups, *STI);
+
+  EXPECT_TRUE(Fixups.empty());
+  ASSERT_EQ(Code.size(), 4u);
+  EXPECT_EQ(static_cast<uint8_t>(Code[0]), 0xe4);
+  EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0x03);
+  EXPECT_EQ(static_cast<uint8_t>(Code[2]), 0x24);
+  EXPECT_EQ(static_cast<uint8_t>(Code[3]), 0x31);
+
+  MCInst PlsrH;
+  PlsrH.setOpcode(AVR32::PLSR_Hrri);
+  PlsrH.addOperand(MCOperand::createReg(AVR32::R1));
+  PlsrH.addOperand(MCOperand::createReg(AVR32::R2));
+  PlsrH.addOperand(MCOperand::createImm(15));
+
+  Code.clear();
+  Fixups.clear();
+  MCE->encodeInstruction(PlsrH, Code, Fixups, *STI);
+
+  EXPECT_TRUE(Fixups.empty());
+  ASSERT_EQ(Code.size(), 4u);
+  EXPECT_EQ(static_cast<uint8_t>(Code[0]), 0xe4);
+  EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0x0f);
+  EXPECT_EQ(static_cast<uint8_t>(Code[2]), 0x24);
+  EXPECT_EQ(static_cast<uint8_t>(Code[3]), 0x61);
 
   MCInst Psad;
   Psad.setOpcode(AVR32::PSADrrr);
@@ -5576,6 +5648,30 @@ TEST(AVR32TargetInfo, LookupTarget) {
   EXPECT_EQ(Printed, "\tpasr.h\tr1, r2, 15");
 
   Printed.clear();
+  raw_string_ostream PlslBOS(Printed);
+  InstPrinter->printInst(&PlslB, /*Address=*/0, /*Annot=*/"", *STI, PlslBOS);
+  PlslBOS.flush();
+  EXPECT_EQ(Printed, "\tplsl.b\tr1, r2, 3");
+
+  Printed.clear();
+  raw_string_ostream PlslHOS(Printed);
+  InstPrinter->printInst(&PlslH, /*Address=*/0, /*Annot=*/"", *STI, PlslHOS);
+  PlslHOS.flush();
+  EXPECT_EQ(Printed, "\tplsl.h\tr1, r2, 15");
+
+  Printed.clear();
+  raw_string_ostream PlsrBOS(Printed);
+  InstPrinter->printInst(&PlsrB, /*Address=*/0, /*Annot=*/"", *STI, PlsrBOS);
+  PlsrBOS.flush();
+  EXPECT_EQ(Printed, "\tplsr.b\tr1, r2, 3");
+
+  Printed.clear();
+  raw_string_ostream PlsrHOS(Printed);
+  InstPrinter->printInst(&PlsrH, /*Address=*/0, /*Annot=*/"", *STI, PlsrHOS);
+  PlsrHOS.flush();
+  EXPECT_EQ(Printed, "\tplsr.h\tr1, r2, 15");
+
+  Printed.clear();
   raw_string_ostream PsadOS(Printed);
   InstPrinter->printInst(&Psad, /*Address=*/0, /*Annot=*/"", *STI, PsadOS);
   PsadOS.flush();
@@ -6546,6 +6642,8 @@ TEST(AVR32TargetInfo, LookupTarget) {
           "paddx.h r1, r2, r3\npaddxh.sh r1, r2, r3\n"
           "paddxs.uh r1, r2, r3\npaddxs.sh r1, r2, r3\n"
           "pasr.b r1, r2, 3\npasr.h r1, r2, 15\n"
+          "plsl.b r1, r2, 3\nplsl.h r1, r2, 15\n"
+          "plsr.b r1, r2, 3\nplsr.h r1, r2, 15\n"
           "psad r1, r2, r3\npsub.b r1, r2, r3\npsub.h r1, r2, r3\n"
           "psubh.ub r1, r2, r3\npsubh.sh r1, r2, r3\n"
           "psubs.ub r1, r2, r3\npsubs.sb r1, r2, r3\n"
