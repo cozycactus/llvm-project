@@ -294,6 +294,28 @@ public:
     return Const && Const->getValue() > 0 && Const->getValue() < 256;
   }
 
+  bool isCoprocessorRegListD() const {
+    if (Kind != Immediate)
+      return false;
+    auto *Const = dyn_cast<MCConstantExpr>(Imm);
+    return Const && Const->getValue() > 0 && Const->getValue() < 256;
+  }
+
+  bool isCoprocessorRegListLow() const {
+    if (Kind != Immediate)
+      return false;
+    auto *Const = dyn_cast<MCConstantExpr>(Imm);
+    return Const && Const->getValue() > 0 && Const->getValue() < 256;
+  }
+
+  bool isCoprocessorRegListHigh() const {
+    if (Kind != Immediate)
+      return false;
+    auto *Const = dyn_cast<MCConstantExpr>(Imm);
+    return Const && Const->getValue() > 0 && Const->getValue() < 65536 &&
+           (Const->getValue() & 0xff) == 0;
+  }
+
   bool isCoprocessor() const {
     if (Kind != Immediate)
       return false;
@@ -475,6 +497,7 @@ private:
   bool parseStoreMultipleOperands(OperandVector &Operands);
   bool parseRegList16Operand(OperandVector &Operands);
   bool parseRegList8Operand(OperandVector &Operands);
+  bool parseCoprocessorRegListOperand(OperandVector &Operands, bool IsDouble);
   bool parseCoprocessorOperand(OperandVector &Operands);
   bool parseCoprocessorRegisterOperand(OperandVector &Operands);
   bool parseCoprocessorCommaRegisterCommaCoprocessorRegister(
@@ -485,6 +508,10 @@ private:
   bool parseCoprocessor0LoadOperands(OperandVector &Operands);
   bool parseCoprocessorStoreOperands(OperandVector &Operands);
   bool parseCoprocessor0StoreOperands(OperandVector &Operands);
+  bool parseCoprocessorLoadMultipleOperands(OperandVector &Operands,
+                                            bool IsDouble);
+  bool parseCoprocessorStoreMultipleOperands(OperandVector &Operands,
+                                             bool IsDouble);
   bool parseMemoryDispOrIndexSuffix(OperandVector &Operands);
   bool parseMemoryDispOrIndexOperand(OperandVector &Operands);
   bool parseMemoryDispOrPostIncOperand(OperandVector &Operands);
@@ -686,11 +713,17 @@ bool AVR32AsmParser::parseInstruction(ParseInstructionInfo &Info,
   } else if (Name == "ldc0.d" || Name == "ldc0.w") {
     if (parseCoprocessor0LoadOperands(Operands))
       return true;
+  } else if (Name == "ldcm.d" || Name == "ldcm.w") {
+    if (parseCoprocessorLoadMultipleOperands(Operands, Name == "ldcm.d"))
+      return true;
   } else if (Name == "stc.d" || Name == "stc.w") {
     if (parseCoprocessorStoreOperands(Operands))
       return true;
   } else if (Name == "stc0.d" || Name == "stc0.w") {
     if (parseCoprocessor0StoreOperands(Operands))
+      return true;
+  } else if (Name == "stcm.d" || Name == "stcm.w") {
+    if (parseCoprocessorStoreMultipleOperands(Operands, Name == "stcm.d"))
       return true;
   } else if (Name == "andh" || Name == "andl") {
     if (parseRegisterCommaImmediateOptionalCOH(Operands))
@@ -1732,6 +1765,61 @@ bool AVR32AsmParser::parseRegList8Operand(OperandVector &Operands) {
   return false;
 }
 
+bool AVR32AsmParser::parseCoprocessorRegListOperand(OperandVector &Operands,
+                                                    bool IsDouble) {
+  SMLoc StartLoc = getLexer().getLoc();
+  unsigned Mask = 0;
+
+  while (true) {
+    SMLoc RegStartLoc = getLexer().getLoc();
+    if (getLexer().isNot(AsmToken::Identifier))
+      return Error(RegStartLoc, "expected coprocessor register in list");
+
+    unsigned StartReg;
+    if (parsePrefixedNumber(getLexer().getTok().getString(), "cr", 15,
+                            StartReg))
+      return Error(RegStartLoc, "expected coprocessor register in list");
+    getLexer().Lex();
+
+    unsigned EndReg = StartReg;
+    if (parseOptionalToken(AsmToken::Minus)) {
+      SMLoc EndRegStartLoc = getLexer().getLoc();
+      if (getLexer().isNot(AsmToken::Identifier))
+        return Error(EndRegStartLoc, "expected coprocessor register after -");
+
+      if (parsePrefixedNumber(getLexer().getTok().getString(), "cr", 15,
+                              EndReg))
+        return Error(EndRegStartLoc, "expected coprocessor register after -");
+      getLexer().Lex();
+
+      if (EndReg < StartReg)
+        return Error(EndRegStartLoc, "coprocessor register range must be "
+                                     "ascending");
+    }
+
+    if (IsDouble) {
+      if (StartReg % 2 != 0 || EndReg % 2 != 1)
+        return Error(RegStartLoc, "double coprocessor register list range "
+                                  "must cover even/odd register pairs");
+      for (unsigned Reg = StartReg; Reg <= EndReg; Reg += 2)
+        Mask |= 1u << (Reg / 2);
+    } else {
+      for (unsigned Reg = StartReg; Reg <= EndReg; ++Reg)
+        Mask |= 1u << Reg;
+    }
+
+    if (getLexer().is(AsmToken::EndOfStatement))
+      break;
+    if (!parseOptionalToken(AsmToken::Comma))
+      return Error(getLexer().getLoc(), "expected comma");
+  }
+
+  const MCExpr *MaskExpr = MCConstantExpr::create(Mask, getContext());
+  Operands.push_back(
+      AVR32Operand::createImm(MaskExpr, StartLoc, getLexer().getLoc()));
+  return false;
+}
+
 bool AVR32AsmParser::parseLoadMultipleOperands(OperandVector &Operands) {
   if (parseRegisterOperand(Operands))
     return true;
@@ -1748,6 +1836,27 @@ bool AVR32AsmParser::parseLoadMultipleOperands(OperandVector &Operands) {
   return parseRegList16Operand(Operands);
 }
 
+bool AVR32AsmParser::parseCoprocessorLoadMultipleOperands(
+    OperandVector &Operands, bool IsDouble) {
+  if (parseCoprocessorOperand(Operands))
+    return true;
+  if (!parseOptionalToken(AsmToken::Comma))
+    return Error(getLexer().getLoc(), "expected comma");
+  if (parseRegisterOperand(Operands))
+    return true;
+
+  if (parseOptionalToken(AsmToken::Plus)) {
+    SMLoc PlusLoc = getLexer().getLoc();
+    if (!parseOptionalToken(AsmToken::Plus))
+      return Error(getLexer().getLoc(), "expected ++");
+    Operands.push_back(AVR32Operand::createToken("++", PlusLoc));
+  }
+
+  if (!parseOptionalToken(AsmToken::Comma))
+    return Error(getLexer().getLoc(), "expected comma");
+  return parseCoprocessorRegListOperand(Operands, IsDouble);
+}
+
 bool AVR32AsmParser::parseStoreMultipleOperands(OperandVector &Operands) {
   if (parseOptionalToken(AsmToken::Minus)) {
     SMLoc MinusLoc = getLexer().getLoc();
@@ -1762,6 +1871,27 @@ bool AVR32AsmParser::parseStoreMultipleOperands(OperandVector &Operands) {
   if (!parseOptionalToken(AsmToken::Comma))
     return Error(getLexer().getLoc(), "expected comma");
   return parseRegList16Operand(Operands);
+}
+
+bool AVR32AsmParser::parseCoprocessorStoreMultipleOperands(
+    OperandVector &Operands, bool IsDouble) {
+  if (parseCoprocessorOperand(Operands))
+    return true;
+  if (!parseOptionalToken(AsmToken::Comma))
+    return Error(getLexer().getLoc(), "expected comma");
+
+  if (parseOptionalToken(AsmToken::Minus)) {
+    SMLoc MinusLoc = getLexer().getLoc();
+    if (!parseOptionalToken(AsmToken::Minus))
+      return Error(getLexer().getLoc(), "expected --");
+    Operands.push_back(AVR32Operand::createToken("--", MinusLoc));
+  }
+
+  if (parseRegisterOperand(Operands))
+    return true;
+  if (!parseOptionalToken(AsmToken::Comma))
+    return Error(getLexer().getLoc(), "expected comma");
+  return parseCoprocessorRegListOperand(Operands, IsDouble);
 }
 
 bool AVR32AsmParser::parseMemoryDispOperand(OperandVector &Operands) {

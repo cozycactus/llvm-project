@@ -459,6 +459,12 @@ TEST(AVR32TargetInfo, LookupTarget) {
   EXPECT_EQ(MII->get(AVR32::LD_D_Reg).getSize(), 2u);
   EXPECT_EQ(MII->get(AVR32::LD_D_Disp16).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::LD_D_IndexShift).getSize(), 4u);
+  EXPECT_EQ(MII->get(AVR32::LDCM_D).getSize(), 4u);
+  EXPECT_EQ(MII->get(AVR32::LDCM_D_UPD).getSize(), 4u);
+  EXPECT_EQ(MII->get(AVR32::LDCM_W_High).getSize(), 4u);
+  EXPECT_EQ(MII->get(AVR32::LDCM_W_High_UPD).getSize(), 4u);
+  EXPECT_EQ(MII->get(AVR32::LDCM_W_Low).getSize(), 4u);
+  EXPECT_EQ(MII->get(AVR32::LDCM_W_Low_UPD).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::LDDPC).getSize(), 2u);
   EXPECT_EQ(MII->get(AVR32::LDDSP).getSize(), 2u);
   EXPECT_EQ(MII->get(AVR32::LDINS_B).getSize(), 4u);
@@ -644,6 +650,12 @@ TEST(AVR32TargetInfo, LookupTarget) {
   EXPECT_EQ(MII->get(AVR32::STM_PRE).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::STMTS).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::STMTS_PRE).getSize(), 4u);
+  EXPECT_EQ(MII->get(AVR32::STCM_D).getSize(), 4u);
+  EXPECT_EQ(MII->get(AVR32::STCM_D_PRE).getSize(), 4u);
+  EXPECT_EQ(MII->get(AVR32::STCM_W_High).getSize(), 4u);
+  EXPECT_EQ(MII->get(AVR32::STCM_W_High_PRE).getSize(), 4u);
+  EXPECT_EQ(MII->get(AVR32::STCM_W_Low).getSize(), 4u);
+  EXPECT_EQ(MII->get(AVR32::STCM_W_Low_PRE).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::SUBALrrr).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::SUBCCrrr).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::SUBCSrrr).getSize(), 4u);
@@ -2331,6 +2343,108 @@ TEST(AVR32TargetInfo, LookupTarget) {
   EXPECT_EQ(static_cast<uint8_t>(Code[2]), 0x40);
   EXPECT_EQ(static_cast<uint8_t>(Code[3]), 0x0f);
 
+  MCInst LdcmD;
+  LdcmD.setOpcode(AVR32::LDCM_D);
+  LdcmD.addOperand(MCOperand::createImm(2));
+  LdcmD.addOperand(MCOperand::createReg(AVR32::R2));
+  LdcmD.addOperand(MCOperand::createImm(0x03));
+
+  Code.clear();
+  Fixups.clear();
+  MCE->encodeInstruction(LdcmD, Code, Fixups, *STI);
+
+  EXPECT_TRUE(Fixups.empty());
+  ASSERT_EQ(Code.size(), 4u);
+  EXPECT_EQ(static_cast<uint8_t>(Code[0]), 0xed);
+  EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0xa2);
+  EXPECT_EQ(static_cast<uint8_t>(Code[2]), 0x44);
+  EXPECT_EQ(static_cast<uint8_t>(Code[3]), 0x03);
+
+  MCInst LdcmDUpd;
+  LdcmDUpd.setOpcode(AVR32::LDCM_D_UPD);
+  LdcmDUpd.addOperand(MCOperand::createImm(2));
+  LdcmDUpd.addOperand(MCOperand::createReg(AVR32::R2));
+  LdcmDUpd.addOperand(MCOperand::createImm(0x03));
+
+  Code.clear();
+  Fixups.clear();
+  MCE->encodeInstruction(LdcmDUpd, Code, Fixups, *STI);
+
+  EXPECT_TRUE(Fixups.empty());
+  ASSERT_EQ(Code.size(), 4u);
+  EXPECT_EQ(static_cast<uint8_t>(Code[0]), 0xed);
+  EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0xa2);
+  EXPECT_EQ(static_cast<uint8_t>(Code[2]), 0x54);
+  EXPECT_EQ(static_cast<uint8_t>(Code[3]), 0x03);
+
+  MCInst LdcmWLow;
+  LdcmWLow.setOpcode(AVR32::LDCM_W_Low);
+  LdcmWLow.addOperand(MCOperand::createImm(2));
+  LdcmWLow.addOperand(MCOperand::createReg(AVR32::R2));
+  LdcmWLow.addOperand(MCOperand::createImm(0x003c));
+
+  Code.clear();
+  Fixups.clear();
+  MCE->encodeInstruction(LdcmWLow, Code, Fixups, *STI);
+
+  EXPECT_TRUE(Fixups.empty());
+  ASSERT_EQ(Code.size(), 4u);
+  EXPECT_EQ(static_cast<uint8_t>(Code[0]), 0xed);
+  EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0xa2);
+  EXPECT_EQ(static_cast<uint8_t>(Code[2]), 0x40);
+  EXPECT_EQ(static_cast<uint8_t>(Code[3]), 0x3c);
+
+  MCInst LdcmWLowUpd;
+  LdcmWLowUpd.setOpcode(AVR32::LDCM_W_Low_UPD);
+  LdcmWLowUpd.addOperand(MCOperand::createImm(2));
+  LdcmWLowUpd.addOperand(MCOperand::createReg(AVR32::R2));
+  LdcmWLowUpd.addOperand(MCOperand::createImm(0x003c));
+
+  Code.clear();
+  Fixups.clear();
+  MCE->encodeInstruction(LdcmWLowUpd, Code, Fixups, *STI);
+
+  EXPECT_TRUE(Fixups.empty());
+  ASSERT_EQ(Code.size(), 4u);
+  EXPECT_EQ(static_cast<uint8_t>(Code[0]), 0xed);
+  EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0xa2);
+  EXPECT_EQ(static_cast<uint8_t>(Code[2]), 0x50);
+  EXPECT_EQ(static_cast<uint8_t>(Code[3]), 0x3c);
+
+  MCInst LdcmWHigh;
+  LdcmWHigh.setOpcode(AVR32::LDCM_W_High);
+  LdcmWHigh.addOperand(MCOperand::createImm(2));
+  LdcmWHigh.addOperand(MCOperand::createReg(AVR32::R2));
+  LdcmWHigh.addOperand(MCOperand::createImm(0x0f00));
+
+  Code.clear();
+  Fixups.clear();
+  MCE->encodeInstruction(LdcmWHigh, Code, Fixups, *STI);
+
+  EXPECT_TRUE(Fixups.empty());
+  ASSERT_EQ(Code.size(), 4u);
+  EXPECT_EQ(static_cast<uint8_t>(Code[0]), 0xed);
+  EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0xa2);
+  EXPECT_EQ(static_cast<uint8_t>(Code[2]), 0x41);
+  EXPECT_EQ(static_cast<uint8_t>(Code[3]), 0x0f);
+
+  MCInst LdcmWHighUpd;
+  LdcmWHighUpd.setOpcode(AVR32::LDCM_W_High_UPD);
+  LdcmWHighUpd.addOperand(MCOperand::createImm(2));
+  LdcmWHighUpd.addOperand(MCOperand::createReg(AVR32::R2));
+  LdcmWHighUpd.addOperand(MCOperand::createImm(0x0f00));
+
+  Code.clear();
+  Fixups.clear();
+  MCE->encodeInstruction(LdcmWHighUpd, Code, Fixups, *STI);
+
+  EXPECT_TRUE(Fixups.empty());
+  ASSERT_EQ(Code.size(), 4u);
+  EXPECT_EQ(static_cast<uint8_t>(Code[0]), 0xed);
+  EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0xa2);
+  EXPECT_EQ(static_cast<uint8_t>(Code[2]), 0x51);
+  EXPECT_EQ(static_cast<uint8_t>(Code[3]), 0x0f);
+
   MCInst Stm;
   Stm.setOpcode(AVR32::STM);
   Stm.addOperand(MCOperand::createReg(AVR32::R1));
@@ -2393,6 +2507,108 @@ TEST(AVR32TargetInfo, LookupTarget) {
   EXPECT_EQ(static_cast<uint8_t>(Code[0]), 0xef);
   EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0xc1);
   EXPECT_EQ(static_cast<uint8_t>(Code[2]), 0x40);
+  EXPECT_EQ(static_cast<uint8_t>(Code[3]), 0x0f);
+
+  MCInst StcmD;
+  StcmD.setOpcode(AVR32::STCM_D);
+  StcmD.addOperand(MCOperand::createImm(2));
+  StcmD.addOperand(MCOperand::createReg(AVR32::R2));
+  StcmD.addOperand(MCOperand::createImm(0x03));
+
+  Code.clear();
+  Fixups.clear();
+  MCE->encodeInstruction(StcmD, Code, Fixups, *STI);
+
+  EXPECT_TRUE(Fixups.empty());
+  ASSERT_EQ(Code.size(), 4u);
+  EXPECT_EQ(static_cast<uint8_t>(Code[0]), 0xed);
+  EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0xa2);
+  EXPECT_EQ(static_cast<uint8_t>(Code[2]), 0x45);
+  EXPECT_EQ(static_cast<uint8_t>(Code[3]), 0x03);
+
+  MCInst StcmDPre;
+  StcmDPre.setOpcode(AVR32::STCM_D_PRE);
+  StcmDPre.addOperand(MCOperand::createImm(2));
+  StcmDPre.addOperand(MCOperand::createReg(AVR32::R2));
+  StcmDPre.addOperand(MCOperand::createImm(0x03));
+
+  Code.clear();
+  Fixups.clear();
+  MCE->encodeInstruction(StcmDPre, Code, Fixups, *STI);
+
+  EXPECT_TRUE(Fixups.empty());
+  ASSERT_EQ(Code.size(), 4u);
+  EXPECT_EQ(static_cast<uint8_t>(Code[0]), 0xed);
+  EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0xa2);
+  EXPECT_EQ(static_cast<uint8_t>(Code[2]), 0x55);
+  EXPECT_EQ(static_cast<uint8_t>(Code[3]), 0x03);
+
+  MCInst StcmWLow;
+  StcmWLow.setOpcode(AVR32::STCM_W_Low);
+  StcmWLow.addOperand(MCOperand::createImm(2));
+  StcmWLow.addOperand(MCOperand::createReg(AVR32::R2));
+  StcmWLow.addOperand(MCOperand::createImm(0x003c));
+
+  Code.clear();
+  Fixups.clear();
+  MCE->encodeInstruction(StcmWLow, Code, Fixups, *STI);
+
+  EXPECT_TRUE(Fixups.empty());
+  ASSERT_EQ(Code.size(), 4u);
+  EXPECT_EQ(static_cast<uint8_t>(Code[0]), 0xed);
+  EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0xa2);
+  EXPECT_EQ(static_cast<uint8_t>(Code[2]), 0x42);
+  EXPECT_EQ(static_cast<uint8_t>(Code[3]), 0x3c);
+
+  MCInst StcmWLowPre;
+  StcmWLowPre.setOpcode(AVR32::STCM_W_Low_PRE);
+  StcmWLowPre.addOperand(MCOperand::createImm(2));
+  StcmWLowPre.addOperand(MCOperand::createReg(AVR32::R2));
+  StcmWLowPre.addOperand(MCOperand::createImm(0x003c));
+
+  Code.clear();
+  Fixups.clear();
+  MCE->encodeInstruction(StcmWLowPre, Code, Fixups, *STI);
+
+  EXPECT_TRUE(Fixups.empty());
+  ASSERT_EQ(Code.size(), 4u);
+  EXPECT_EQ(static_cast<uint8_t>(Code[0]), 0xed);
+  EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0xa2);
+  EXPECT_EQ(static_cast<uint8_t>(Code[2]), 0x52);
+  EXPECT_EQ(static_cast<uint8_t>(Code[3]), 0x3c);
+
+  MCInst StcmWHigh;
+  StcmWHigh.setOpcode(AVR32::STCM_W_High);
+  StcmWHigh.addOperand(MCOperand::createImm(2));
+  StcmWHigh.addOperand(MCOperand::createReg(AVR32::R2));
+  StcmWHigh.addOperand(MCOperand::createImm(0x0f00));
+
+  Code.clear();
+  Fixups.clear();
+  MCE->encodeInstruction(StcmWHigh, Code, Fixups, *STI);
+
+  EXPECT_TRUE(Fixups.empty());
+  ASSERT_EQ(Code.size(), 4u);
+  EXPECT_EQ(static_cast<uint8_t>(Code[0]), 0xed);
+  EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0xa2);
+  EXPECT_EQ(static_cast<uint8_t>(Code[2]), 0x43);
+  EXPECT_EQ(static_cast<uint8_t>(Code[3]), 0x0f);
+
+  MCInst StcmWHighPre;
+  StcmWHighPre.setOpcode(AVR32::STCM_W_High_PRE);
+  StcmWHighPre.addOperand(MCOperand::createImm(2));
+  StcmWHighPre.addOperand(MCOperand::createReg(AVR32::R2));
+  StcmWHighPre.addOperand(MCOperand::createImm(0x0f00));
+
+  Code.clear();
+  Fixups.clear();
+  MCE->encodeInstruction(StcmWHighPre, Code, Fixups, *STI);
+
+  EXPECT_TRUE(Fixups.empty());
+  ASSERT_EQ(Code.size(), 4u);
+  EXPECT_EQ(static_cast<uint8_t>(Code[0]), 0xed);
+  EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0xa2);
+  EXPECT_EQ(static_cast<uint8_t>(Code[2]), 0x53);
   EXPECT_EQ(static_cast<uint8_t>(Code[3]), 0x0f);
 
   MCInst Lsl;
@@ -6438,6 +6654,33 @@ TEST(AVR32TargetInfo, LookupTarget) {
   EXPECT_EQ(Printed, "\tldmts\tr1++, r0-r3, lr");
 
   Printed.clear();
+  raw_string_ostream LdcmDOS(Printed);
+  InstPrinter->printInst(&LdcmD, /*Address=*/0, /*Annot=*/"", *STI, LdcmDOS);
+  LdcmDOS.flush();
+  EXPECT_EQ(Printed, "\tldcm.d\tcp2, r2, cr0-cr3");
+
+  Printed.clear();
+  raw_string_ostream LdcmDUpdOS(Printed);
+  InstPrinter->printInst(&LdcmDUpd, /*Address=*/0, /*Annot=*/"", *STI,
+                         LdcmDUpdOS);
+  LdcmDUpdOS.flush();
+  EXPECT_EQ(Printed, "\tldcm.d\tcp2, r2++, cr0-cr3");
+
+  Printed.clear();
+  raw_string_ostream LdcmWLowOS(Printed);
+  InstPrinter->printInst(&LdcmWLow, /*Address=*/0, /*Annot=*/"", *STI,
+                         LdcmWLowOS);
+  LdcmWLowOS.flush();
+  EXPECT_EQ(Printed, "\tldcm.w\tcp2, r2, cr2-cr5");
+
+  Printed.clear();
+  raw_string_ostream LdcmWHighUpdOS(Printed);
+  InstPrinter->printInst(&LdcmWHighUpd, /*Address=*/0, /*Annot=*/"", *STI,
+                         LdcmWHighUpdOS);
+  LdcmWHighUpdOS.flush();
+  EXPECT_EQ(Printed, "\tldcm.w\tcp2, r2++, cr8-cr11");
+
+  Printed.clear();
   raw_string_ostream StmOS(Printed);
   InstPrinter->printInst(&Stm, /*Address=*/0, /*Annot=*/"", *STI, StmOS);
   StmOS.flush();
@@ -6462,6 +6705,33 @@ TEST(AVR32TargetInfo, LookupTarget) {
                          StmtsPreOS);
   StmtsPreOS.flush();
   EXPECT_EQ(Printed, "\tstmts\t--r1, r0-r3, lr");
+
+  Printed.clear();
+  raw_string_ostream StcmDOS(Printed);
+  InstPrinter->printInst(&StcmD, /*Address=*/0, /*Annot=*/"", *STI, StcmDOS);
+  StcmDOS.flush();
+  EXPECT_EQ(Printed, "\tstcm.d\tcp2, r2, cr0-cr3");
+
+  Printed.clear();
+  raw_string_ostream StcmDPreOS(Printed);
+  InstPrinter->printInst(&StcmDPre, /*Address=*/0, /*Annot=*/"", *STI,
+                         StcmDPreOS);
+  StcmDPreOS.flush();
+  EXPECT_EQ(Printed, "\tstcm.d\tcp2, --r2, cr0-cr3");
+
+  Printed.clear();
+  raw_string_ostream StcmWLowPreOS(Printed);
+  InstPrinter->printInst(&StcmWLowPre, /*Address=*/0, /*Annot=*/"", *STI,
+                         StcmWLowPreOS);
+  StcmWLowPreOS.flush();
+  EXPECT_EQ(Printed, "\tstcm.w\tcp2, --r2, cr2-cr5");
+
+  Printed.clear();
+  raw_string_ostream StcmWHighOS(Printed);
+  InstPrinter->printInst(&StcmWHigh, /*Address=*/0, /*Annot=*/"", *STI,
+                         StcmWHighOS);
+  StcmWHighOS.flush();
+  EXPECT_EQ(Printed, "\tstcm.w\tcp2, r2, cr8-cr11");
 
   Printed.clear();
   raw_string_ostream LslOS(Printed);
@@ -7909,6 +8179,10 @@ TEST(AVR32TargetInfo, LookupTarget) {
           "ld.weq r1, r2[12]\nld.wal r1, r2[12]\n"
           "ld.d r2, r1++\nld.d r2, --r1\nld.d r2, r1\n"
           "ld.d r2, r1[-1]\nld.d r2, r1[r3 << 3]\n"
+          "ldcm.d cp2, r2, cr0-cr3\n"
+          "ldcm.d cp2, r2++, cr0-cr3\n"
+          "ldcm.w cp2, r2, cr2-cr5\n"
+          "ldcm.w cp2, r2++, cr8-cr11\n"
           "lddpc r2, pc[12]\nlddsp r2, sp[12]\n"
           "ldins.b r1:u, r2[-1]\nldins.h r1:t, r2[-2]\n"
           "ld.sb r1, r2[-1]\nld.sb r1, r2[r3 << 2]\n"
@@ -7927,6 +8201,10 @@ TEST(AVR32TargetInfo, LookupTarget) {
           "st.beq r1[3], r2\nst.bal r1[3], r2\n"
           "st.d r1++, r2\nst.d --r1, r2\nst.d r1, r2\n"
           "st.d r1[-1], r2\nst.d r1[r2 << 3], r4\n"
+          "stcm.d cp2, r2, cr0-cr3\n"
+          "stcm.d cp2, --r2, cr0-cr3\n"
+          "stcm.w cp2, r2, cr8-cr11\n"
+          "stcm.w cp2, --r2, cr2-cr5\n"
           "st.h r1++, r2\nst.h --r1, r2\nst.h r1[6], r2\n"
           "st.h r1[-1], r2\nst.h r1[r2 << 3], r4\n"
           "st.heq r1[6], r2\nst.hal r1[6], r2\n"

@@ -127,3 +127,52 @@ void AVR32InstPrinter::printCoprocessorRegister(const MCInst *MI,
   assert(Op.isImm() && "coprocessor register must be immediate");
   OS << "cr" << Op.getImm();
 }
+
+static void printCoprocessorRegListMask(uint16_t Mask, unsigned BaseReg,
+                                        unsigned Scale, raw_ostream &OS) {
+  bool NeedComma = false;
+  for (unsigned Start = 0; Start < 8;) {
+    if ((Mask & (1u << Start)) == 0) {
+      ++Start;
+      continue;
+    }
+
+    unsigned End = Start;
+    while (End + 1 < 8 && (Mask & (1u << (End + 1))))
+      ++End;
+
+    if (NeedComma)
+      OS << ", ";
+    OS << "cr" << (BaseReg + Start * Scale);
+    unsigned EndReg = BaseReg + End * Scale + Scale - 1;
+    if (EndReg != BaseReg + Start * Scale)
+      OS << "-cr" << EndReg;
+    NeedComma = true;
+    Start = End + 1;
+  }
+}
+
+void AVR32InstPrinter::printCoprocessorRegListD(const MCInst *MI,
+                                                unsigned OpNo,
+                                                raw_ostream &OS) {
+  const MCOperand &Op = MI->getOperand(OpNo);
+  assert(Op.isImm() && "coprocessor register list must be immediate mask");
+  printCoprocessorRegListMask(static_cast<uint8_t>(Op.getImm()), 0, 2, OS);
+}
+
+void AVR32InstPrinter::printCoprocessorRegListLow(const MCInst *MI,
+                                                  unsigned OpNo,
+                                                  raw_ostream &OS) {
+  const MCOperand &Op = MI->getOperand(OpNo);
+  assert(Op.isImm() && "coprocessor register list must be immediate mask");
+  printCoprocessorRegListMask(static_cast<uint8_t>(Op.getImm()), 0, 1, OS);
+}
+
+void AVR32InstPrinter::printCoprocessorRegListHigh(const MCInst *MI,
+                                                   unsigned OpNo,
+                                                   raw_ostream &OS) {
+  const MCOperand &Op = MI->getOperand(OpNo);
+  assert(Op.isImm() && "coprocessor register list must be immediate mask");
+  printCoprocessorRegListMask(static_cast<uint16_t>(Op.getImm()) >> 8, 8, 1,
+                              OS);
+}

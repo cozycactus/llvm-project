@@ -42,6 +42,12 @@ private:
   void printCoprocessor(const MCInst *MI, unsigned OpNo, raw_ostream &OS);
   void printCoprocessorRegister(const MCInst *MI, unsigned OpNo,
                                 raw_ostream &OS);
+  void printCoprocessorRegListD(const MCInst *MI, unsigned OpNo,
+                                raw_ostream &OS);
+  void printCoprocessorRegListLow(const MCInst *MI, unsigned OpNo,
+                                  raw_ostream &OS);
+  void printCoprocessorRegListHigh(const MCInst *MI, unsigned OpNo,
+                                   raw_ostream &OS);
 };
 
 } // end namespace llvm

@@ -193,6 +193,21 @@ def CoprocessorEvenRegisterAsmOperand : AsmOperandClass {
   let RenderMethod = "addImmOperands";
 }
 
+def CoprocessorRegListDAsmOperand : AsmOperandClass {
+  let Name = "CoprocessorRegListD";
+  let RenderMethod = "addImmOperands";
+}
+
+def CoprocessorRegListLowAsmOperand : AsmOperandClass {
+  let Name = "CoprocessorRegListLow";
+  let RenderMethod = "addImmOperands";
+}
+
+def CoprocessorRegListHighAsmOperand : AsmOperandClass {
+  let Name = "CoprocessorRegListHigh";
+  let RenderMethod = "addImmOperands";
+}
+
 def ACallDispAsmOperand : AsmOperandClass {
   let Name = "ACallDisp";
   let RenderMethod = "addImmOperands";
@@ -412,6 +427,27 @@ def coprocessorevenreg : Operand<i32>,
                                                 Imm % 2 == 0; }]> {
   let ParserMatchClass = CoprocessorEvenRegisterAsmOperand;
   let PrintMethod = "printCoprocessorRegister";
+}
+
+def coprocessorreglistd : Operand<i32>,
+                          ImmLeaf<i32, [{ return Imm > 0 && Imm < 256; }]> {
+  let ParserMatchClass = CoprocessorRegListDAsmOperand;
+  let PrintMethod = "printCoprocessorRegListD";
+}
+
+def coprocessorreglistlow : Operand<i32>,
+                             ImmLeaf<i32, [{ return Imm > 0 &&
+                                                    Imm < 256; }]> {
+  let ParserMatchClass = CoprocessorRegListLowAsmOperand;
+  let PrintMethod = "printCoprocessorRegListLow";
+}
+
+def coprocessorreglisthigh : Operand<i32>,
+                              ImmLeaf<i32, [{ return (Imm & 0xff) == 0 &&
+                                                     Imm > 0 &&
+                                                     Imm < 65536; }]> {
+  let ParserMatchClass = CoprocessorRegListHighAsmOperand;
+  let PrintMethod = "printCoprocessorRegListHigh";
 }
 
 def acalldisp : Operand<i32>,
@@ -1628,6 +1664,60 @@ class Cop0StoreDispW<bits<7> Op, string Mnemonic>
   let Inst{7-0} = Disp{7-0};
 }
 
+class CopLoadMultiple<bits<4> Sub, bit Update, Operand RegListOp,
+                      string Asm>
+    : AVR32Inst32<(outs), (ins coprocessor:$CP, GPR:$Rp, RegListOp:$Mask),
+                  Asm> {
+  bits<3> CP;
+  bits<4> Rp;
+  bits<16> Mask;
+
+  let Inst{31-27} = 0b11101;
+  let Inst{26-20} = 0b1011010;
+  let Inst{19-16} = Rp;
+  let Inst{15-13} = CP;
+  let Inst{12} = Update;
+  let Inst{11-8} = Sub;
+}
+
+class CopLoadMultipleLow<bits<4> Sub, bit Update, Operand RegListOp,
+                         string Asm>
+    : CopLoadMultiple<Sub, Update, RegListOp, Asm> {
+  let Inst{7-0} = Mask{7-0};
+}
+
+class CopLoadMultipleHigh<bits<4> Sub, bit Update, string Asm>
+    : CopLoadMultiple<Sub, Update, coprocessorreglisthigh, Asm> {
+  let Inst{7-0} = Mask{15-8};
+}
+
+class CopStoreMultiple<bits<4> Sub, bit Update, Operand RegListOp,
+                       string Asm>
+    : AVR32Inst32<(outs), (ins coprocessor:$CP, GPR:$Rp, RegListOp:$Mask),
+                  Asm> {
+  bits<3> CP;
+  bits<4> Rp;
+  bits<16> Mask;
+
+  let Inst{31-27} = 0b11101;
+  let Inst{26-20} = 0b1011010;
+  let Inst{19-16} = Rp;
+  let Inst{15-13} = CP;
+  let Inst{12} = Update;
+  let Inst{11-8} = Sub;
+}
+
+class CopStoreMultipleLow<bits<4> Sub, bit Update, Operand RegListOp,
+                          string Asm>
+    : CopStoreMultiple<Sub, Update, RegListOp, Asm> {
+  let Inst{7-0} = Mask{7-0};
+}
+
+class CopStoreMultipleHigh<bits<4> Sub, bit Update, string Asm>
+    : CopStoreMultiple<Sub, Update, coprocessorreglisthigh, Asm> {
+  let Inst{7-0} = Mask{15-8};
+}
+
 def LD_W_PostInc : CompactLoadPostInc<0b10000, "ld.w">;
 def LD_W_PreDec : CompactLoadPreDec<0b10100, "ld.w">;
 def LD_W_Disp5 : CompactLoadDisp5Shift2<"ld.w">;
@@ -2289,6 +2379,18 @@ def LDM : FullRegList<0b000, 0, "ldm\t$Rp, $Mask">;
 def LDM_UPD : FullRegList<0b000, 1, "ldm\t${Rp}++, $Mask">;
 def LDMTS : FullRegList<0b001, 0, "ldmts\t$Rp, $Mask">;
 def LDMTS_UPD : FullRegList<0b001, 1, "ldmts\t${Rp}++, $Mask">;
+def LDCM_D : CopLoadMultipleLow<0b0100, 0, coprocessorreglistd,
+                                "ldcm.d\t$CP, $Rp, $Mask">;
+def LDCM_D_UPD : CopLoadMultipleLow<0b0100, 1, coprocessorreglistd,
+                                    "ldcm.d\t$CP, ${Rp}++, $Mask">;
+def LDCM_W_High : CopLoadMultipleHigh<0b0001, 0,
+                                      "ldcm.w\t$CP, $Rp, $Mask">;
+def LDCM_W_High_UPD : CopLoadMultipleHigh<0b0001, 1,
+                                          "ldcm.w\t$CP, ${Rp}++, $Mask">;
+def LDCM_W_Low : CopLoadMultipleLow<0b0000, 0, coprocessorreglistlow,
+                                    "ldcm.w\t$CP, $Rp, $Mask">;
+def LDCM_W_Low_UPD : CopLoadMultipleLow<0b0000, 1, coprocessorreglistlow,
+                                        "ldcm.w\t$CP, ${Rp}++, $Mask">;
 def LSLrrr : FullRegRegReg<0b000010010100, "lsl">;
 def LSRrrr : FullRegRegReg<0b000010100100, "lsr">;
 def MAXrrr : FullRegRegReg<0b000011000100, "max">;
@@ -2608,6 +2710,18 @@ def STM : FullRegList<0b010, 0, "stm\t$Rp, $Mask">;
 def STM_PRE : FullRegList<0b010, 1, "stm\t--$Rp, $Mask">;
 def STMTS : FullRegList<0b011, 0, "stmts\t$Rp, $Mask">;
 def STMTS_PRE : FullRegList<0b011, 1, "stmts\t--$Rp, $Mask">;
+def STCM_D : CopStoreMultipleLow<0b0101, 0, coprocessorreglistd,
+                                 "stcm.d\t$CP, $Rp, $Mask">;
+def STCM_D_PRE : CopStoreMultipleLow<0b0101, 1, coprocessorreglistd,
+                                     "stcm.d\t$CP, --$Rp, $Mask">;
+def STCM_W_High : CopStoreMultipleHigh<0b0011, 0,
+                                       "stcm.w\t$CP, $Rp, $Mask">;
+def STCM_W_High_PRE : CopStoreMultipleHigh<0b0011, 1,
+                                           "stcm.w\t$CP, --$Rp, $Mask">;
+def STCM_W_Low : CopStoreMultipleLow<0b0010, 0, coprocessorreglistlow,
+                                     "stcm.w\t$CP, $Rp, $Mask">;
+def STCM_W_Low_PRE : CopStoreMultipleLow<0b0010, 1, coprocessorreglistlow,
+                                         "stcm.w\t$CP, --$Rp, $Mask">;
 def SUBALrrr : CondRRR<0b1111, 0b0001, "subal">;
 def SUBEQrrr : CondRRR<0b0000, 0b0001, "subeq">;
 def SUBNErrr : CondRRR<0b0001, 0b0001, "subne">;
