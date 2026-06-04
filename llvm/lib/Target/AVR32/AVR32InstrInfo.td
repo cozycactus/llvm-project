@@ -2670,6 +2670,7 @@ def RSUBVSri : CondRegImm8<0b111110111011, 0b1100, "rsubvs">;
 def RSUBVCri : CondRegImm8<0b111110111011, 0b1101, "rsubvc">;
 def RSUBQSri : CondRegImm8<0b111110111011, 0b1110, "rsubqs">;
 def RSUBrr : CompactRegReg<0b00010, "rsub">;
+def SATADD_Hrrr : FullRegRegReg<0b000000101100, "satadd.h">;
 def SATADD_Wrrr : FullRegRegReg<0b000000001100, "satadd.w">;
 def SATRNDSri : FullRegShiftBits<0b111100111011, 0b000000, "satrnds">;
 def SATRNDUri : FullRegShiftBits<0b111100111011, 0b000001, "satrndu">;

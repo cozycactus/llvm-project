@@ -651,7 +651,7 @@ bool AVR32AsmParser::parseInstruction(ParseInstructionInfo &Info,
       Name == "psubs.ub" || Name == "psubs.uh" ||
       Name == "psubx.h" || Name == "psubxh.sh" ||
       Name == "psubxs.sh" || Name == "psubxs.uh" ||
-      Name == "satadd.w" ||
+      Name == "satadd.h" || Name == "satadd.w" ||
       Name == "satsub.h" || Name == "sbc" || Name == "xchg") {
     if (parseRegisterCommaRegisterCommaRegister(Operands))
       return true;

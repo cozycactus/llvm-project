@@ -414,6 +414,7 @@ TEST(AVR32TargetInfo, LookupTarget) {
   EXPECT_EQ(MII->get(AVR32::RSUBVCri).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::RSUBVSri).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::RSUBrr).getSize(), 2u);
+  EXPECT_EQ(MII->get(AVR32::SATADD_Hrrr).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::SATADD_Wrrr).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::SATRNDSri).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::SATRNDUri).getSize(), 4u);
@@ -4751,6 +4752,23 @@ TEST(AVR32TargetInfo, LookupTarget) {
   EXPECT_EQ(static_cast<uint8_t>(Code[2]), 0x0f);
   EXPECT_EQ(static_cast<uint8_t>(Code[3]), 0xff);
 
+  MCInst SataddH;
+  SataddH.setOpcode(AVR32::SATADD_Hrrr);
+  SataddH.addOperand(MCOperand::createReg(AVR32::R1));
+  SataddH.addOperand(MCOperand::createReg(AVR32::R2));
+  SataddH.addOperand(MCOperand::createReg(AVR32::R3));
+
+  Code.clear();
+  Fixups.clear();
+  MCE->encodeInstruction(SataddH, Code, Fixups, *STI);
+
+  EXPECT_TRUE(Fixups.empty());
+  ASSERT_EQ(Code.size(), 4u);
+  EXPECT_EQ(static_cast<uint8_t>(Code[0]), 0xe4);
+  EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0x03);
+  EXPECT_EQ(static_cast<uint8_t>(Code[2]), 0x02);
+  EXPECT_EQ(static_cast<uint8_t>(Code[3]), 0xc1);
+
   MCInst SataddW;
   SataddW.setOpcode(AVR32::SATADD_Wrrr);
   SataddW.addOperand(MCOperand::createReg(AVR32::R1));
@@ -7971,6 +7989,13 @@ TEST(AVR32TargetInfo, LookupTarget) {
   EXPECT_EQ(Printed, "\trsubal\tr1, -1");
 
   Printed.clear();
+  raw_string_ostream SataddHOS(Printed);
+  InstPrinter->printInst(&SataddH, /*Address=*/0, /*Annot=*/"", *STI,
+                         SataddHOS);
+  SataddHOS.flush();
+  EXPECT_EQ(Printed, "\tsatadd.h\tr1, r2, r3");
+
+  Printed.clear();
   raw_string_ostream SataddWOS(Printed);
   InstPrinter->printInst(&SataddW, /*Address=*/0, /*Annot=*/"", *STI,
                          SataddWOS);
@@ -8668,7 +8693,8 @@ TEST(AVR32TargetInfo, LookupTarget) {
   SourceMgr SubRegImmSrcMgr;
   SubRegImmSrcMgr.AddNewSourceBuffer(
       MemoryBuffer::getMemBuffer(
-          "sub r1, r2, -1\nsub r1, r2, r3 << 2\nsatadd.w r1, r2, r3\n"
+          "sub r1, r2, -1\nsub r1, r2, r3 << 2\n"
+          "satadd.h r1, r2, r3\nsatadd.w r1, r2, r3\n"
           "satsub.h r1, r2, r3\nsatsub.w r1, r2, r3\n"
           "satsub.w r1, r2, -1\nsatrnds r1 >> 2, 3\n"
           "satrndu r1 >> 2, 3\nsats r1 >> 2, 3\nsatu r1 >> 2, 3\n"),
