@@ -1563,6 +1563,39 @@ class CopLoadDispW<bits<7> Op, string Mnemonic>
   let Inst{7-0} = Disp;
 }
 
+class PicoLoadDispD<bits<7> Op, string Mnemonic>
+    : AVR32Inst32<(outs), (ins picoevenreg:$CRd, GPR:$Rp, uimm8shift2:$Disp),
+                  Mnemonic#"\t$CRd, ${Rp}[$Disp]"> {
+  bits<4> CRd;
+  bits<4> Rp;
+  bits<8> Disp;
+
+  let Inst{31-27} = 0b11101;
+  let Inst{26-20} = Op;
+  let Inst{19-16} = Rp;
+  let Inst{15-13} = 0b001;
+  let Inst{12} = 1;
+  let Inst{11-9} = CRd{3-1};
+  let Inst{8} = 0;
+  let Inst{7-0} = Disp;
+}
+
+class PicoLoadDispW<bits<7> Op, string Mnemonic>
+    : AVR32Inst32<(outs), (ins picoreg:$CRd, GPR:$Rp, uimm8shift2:$Disp),
+                  Mnemonic#"\t$CRd, ${Rp}[$Disp]"> {
+  bits<4> CRd;
+  bits<4> Rp;
+  bits<8> Disp;
+
+  let Inst{31-27} = 0b11101;
+  let Inst{26-20} = Op;
+  let Inst{19-16} = Rp;
+  let Inst{15-13} = 0b001;
+  let Inst{12} = 0;
+  let Inst{11-8} = CRd;
+  let Inst{7-0} = Disp;
+}
+
 class CopLoadPreDecD<bits<9> Low, string Mnemonic>
     : AVR32Inst32<(outs),
                   (ins coprocessor:$CP, coprocessorevenreg:$CRd, GPR:$Rp),
@@ -1592,6 +1625,36 @@ class CopLoadPreDecW<bits<8> Low, string Mnemonic>
   let Inst{26-20} = 0b1111010;
   let Inst{19-16} = Rp;
   let Inst{15-13} = CP;
+  let Inst{12} = 0;
+  let Inst{11-8} = CRd;
+  let Inst{7-0} = Low;
+}
+
+class PicoLoadPreDecD<bits<9> Low, string Mnemonic>
+    : AVR32Inst32<(outs), (ins picoevenreg:$CRd, GPR:$Rp),
+                  Mnemonic#"\t$CRd, --$Rp"> {
+  bits<4> CRd;
+  bits<4> Rp;
+
+  let Inst{31-27} = 0b11101;
+  let Inst{26-20} = 0b1111010;
+  let Inst{19-16} = Rp;
+  let Inst{15-13} = 0b001;
+  let Inst{12} = 0;
+  let Inst{11-9} = CRd{3-1};
+  let Inst{8-0} = Low;
+}
+
+class PicoLoadPreDecW<bits<8> Low, string Mnemonic>
+    : AVR32Inst32<(outs), (ins picoreg:$CRd, GPR:$Rp),
+                  Mnemonic#"\t$CRd, --$Rp"> {
+  bits<4> CRd;
+  bits<4> Rp;
+
+  let Inst{31-27} = 0b11101;
+  let Inst{26-20} = 0b1111010;
+  let Inst{19-16} = Rp;
+  let Inst{15-13} = 0b001;
   let Inst{12} = 0;
   let Inst{11-8} = CRd;
   let Inst{7-0} = Low;
@@ -1635,6 +1698,47 @@ class CopLoadIndexShiftW<string Mnemonic>
   let Inst{26-20} = 0b1111010;
   let Inst{19-16} = Rb;
   let Inst{15-13} = CP;
+  let Inst{12} = 1;
+  let Inst{11-8} = CRd;
+  let Inst{7-6} = 0b00;
+  let Inst{5-4} = Shift;
+  let Inst{3-0} = Ri;
+}
+
+class PicoLoadIndexShiftD<string Mnemonic>
+    : AVR32Inst32<(outs),
+                  (ins picoevenreg:$CRd, GPR:$Rb, GPR:$Ri, uimm2:$Shift),
+                  Mnemonic#"\t$CRd, ${Rb}[$Ri << $Shift]"> {
+  bits<4> CRd;
+  bits<4> Rb;
+  bits<4> Ri;
+  bits<2> Shift;
+
+  let Inst{31-27} = 0b11101;
+  let Inst{26-20} = 0b1111010;
+  let Inst{19-16} = Rb;
+  let Inst{15-13} = 0b001;
+  let Inst{12} = 1;
+  let Inst{11-9} = CRd{3-1};
+  let Inst{8} = 0;
+  let Inst{7-6} = 0b01;
+  let Inst{5-4} = Shift;
+  let Inst{3-0} = Ri;
+}
+
+class PicoLoadIndexShiftW<string Mnemonic>
+    : AVR32Inst32<(outs),
+                  (ins picoreg:$CRd, GPR:$Rb, GPR:$Ri, uimm2:$Shift),
+                  Mnemonic#"\t$CRd, ${Rb}[$Ri << $Shift]"> {
+  bits<4> CRd;
+  bits<4> Rb;
+  bits<4> Ri;
+  bits<2> Shift;
+
+  let Inst{31-27} = 0b11101;
+  let Inst{26-20} = 0b1111010;
+  let Inst{19-16} = Rb;
+  let Inst{15-13} = 0b001;
   let Inst{12} = 1;
   let Inst{11-8} = CRd;
   let Inst{7-6} = 0b00;
@@ -1715,6 +1819,39 @@ class CopStoreDispW<bits<7> Op, string Mnemonic>
   let Inst{7-0} = Disp;
 }
 
+class PicoStoreDispD<bits<7> Op, string Mnemonic>
+    : AVR32Inst32<(outs), (ins GPR:$Rp, uimm8shift2:$Disp, picoevenreg:$CRs),
+                  Mnemonic#"\t${Rp}[$Disp], $CRs"> {
+  bits<4> CRs;
+  bits<4> Rp;
+  bits<8> Disp;
+
+  let Inst{31-27} = 0b11101;
+  let Inst{26-20} = Op;
+  let Inst{19-16} = Rp;
+  let Inst{15-13} = 0b001;
+  let Inst{12} = 1;
+  let Inst{11-9} = CRs{3-1};
+  let Inst{8} = 0;
+  let Inst{7-0} = Disp;
+}
+
+class PicoStoreDispW<bits<7> Op, string Mnemonic>
+    : AVR32Inst32<(outs), (ins GPR:$Rp, uimm8shift2:$Disp, picoreg:$CRs),
+                  Mnemonic#"\t${Rp}[$Disp], $CRs"> {
+  bits<4> CRs;
+  bits<4> Rp;
+  bits<8> Disp;
+
+  let Inst{31-27} = 0b11101;
+  let Inst{26-20} = Op;
+  let Inst{19-16} = Rp;
+  let Inst{15-13} = 0b001;
+  let Inst{12} = 0;
+  let Inst{11-8} = CRs;
+  let Inst{7-0} = Disp;
+}
+
 class CopStorePostIncD<bits<9> Low, string Mnemonic>
     : AVR32Inst32<(outs),
                   (ins coprocessor:$CP, GPR:$Rp, coprocessorevenreg:$CRs),
@@ -1744,6 +1881,36 @@ class CopStorePostIncW<bits<8> Low, string Mnemonic>
   let Inst{26-20} = 0b1111010;
   let Inst{19-16} = Rp;
   let Inst{15-13} = CP;
+  let Inst{12} = 0;
+  let Inst{11-8} = CRs;
+  let Inst{7-0} = Low;
+}
+
+class PicoStorePostIncD<bits<9> Low, string Mnemonic>
+    : AVR32Inst32<(outs), (ins GPR:$Rp, picoevenreg:$CRs),
+                  Mnemonic#"\t${Rp}++, $CRs"> {
+  bits<4> CRs;
+  bits<4> Rp;
+
+  let Inst{31-27} = 0b11101;
+  let Inst{26-20} = 0b1111010;
+  let Inst{19-16} = Rp;
+  let Inst{15-13} = 0b001;
+  let Inst{12} = 0;
+  let Inst{11-9} = CRs{3-1};
+  let Inst{8-0} = Low;
+}
+
+class PicoStorePostIncW<bits<8> Low, string Mnemonic>
+    : AVR32Inst32<(outs), (ins GPR:$Rp, picoreg:$CRs),
+                  Mnemonic#"\t${Rp}++, $CRs"> {
+  bits<4> CRs;
+  bits<4> Rp;
+
+  let Inst{31-27} = 0b11101;
+  let Inst{26-20} = 0b1111010;
+  let Inst{19-16} = Rp;
+  let Inst{15-13} = 0b001;
   let Inst{12} = 0;
   let Inst{11-8} = CRs;
   let Inst{7-0} = Low;
@@ -1787,6 +1954,47 @@ class CopStoreIndexShiftW<string Mnemonic>
   let Inst{26-20} = 0b1111010;
   let Inst{19-16} = Rb;
   let Inst{15-13} = CP;
+  let Inst{12} = 1;
+  let Inst{11-8} = CRs;
+  let Inst{7-6} = 0b10;
+  let Inst{5-4} = Shift;
+  let Inst{3-0} = Ri;
+}
+
+class PicoStoreIndexShiftD<string Mnemonic>
+    : AVR32Inst32<(outs),
+                  (ins GPR:$Rb, GPR:$Ri, uimm2:$Shift, picoevenreg:$CRs),
+                  Mnemonic#"\t${Rb}[$Ri << $Shift], $CRs"> {
+  bits<4> CRs;
+  bits<4> Rb;
+  bits<4> Ri;
+  bits<2> Shift;
+
+  let Inst{31-27} = 0b11101;
+  let Inst{26-20} = 0b1111010;
+  let Inst{19-16} = Rb;
+  let Inst{15-13} = 0b001;
+  let Inst{12} = 1;
+  let Inst{11-9} = CRs{3-1};
+  let Inst{8} = 0;
+  let Inst{7-6} = 0b11;
+  let Inst{5-4} = Shift;
+  let Inst{3-0} = Ri;
+}
+
+class PicoStoreIndexShiftW<string Mnemonic>
+    : AVR32Inst32<(outs),
+                  (ins GPR:$Rb, GPR:$Ri, uimm2:$Shift, picoreg:$CRs),
+                  Mnemonic#"\t${Rb}[$Ri << $Shift], $CRs"> {
+  bits<4> CRs;
+  bits<4> Rb;
+  bits<4> Ri;
+  bits<2> Shift;
+
+  let Inst{31-27} = 0b11101;
+  let Inst{26-20} = 0b1111010;
+  let Inst{19-16} = Rb;
+  let Inst{15-13} = 0b001;
   let Inst{12} = 1;
   let Inst{11-8} = CRs;
   let Inst{7-6} = 0b10;
@@ -1912,6 +2120,12 @@ def LDC_D_IndexShift : CopLoadIndexShiftD<"ldc.d">;
 def LDC_W_Disp : CopLoadDispW<0b0011010, "ldc.w">;
 def LDC_W_PreDec : CopLoadPreDecW<0b01000000, "ldc.w">;
 def LDC_W_IndexShift : CopLoadIndexShiftW<"ldc.w">;
+def PICOLD_D_Disp : PicoLoadDispD<0b0011010, "picold.d">;
+def PICOLD_D_PreDec : PicoLoadPreDecD<0b001010000, "picold.d">;
+def PICOLD_D_IndexShift : PicoLoadIndexShiftD<"picold.d">;
+def PICOLD_W_Disp : PicoLoadDispW<0b0011010, "picold.w">;
+def PICOLD_W_PreDec : PicoLoadPreDecW<0b01000000, "picold.w">;
+def PICOLD_W_IndexShift : PicoLoadIndexShiftW<"picold.w">;
 def LDC0_D_Disp : Cop0LoadDispD<0b0111010, "ldc0.d">;
 def LDC0_W_Disp : Cop0LoadDispW<0b0011010, "ldc0.w">;
 def LD_D_PostInc : CompactLoadPair<0b10000, 1, "ld.d\t$Rd, ${Rp}++">;
@@ -3011,6 +3225,12 @@ def STC_D_IndexShift : CopStoreIndexShiftD<"stc.d">;
 def STC_W_Disp : CopStoreDispW<0b0111010, "stc.w">;
 def STC_W_PostInc : CopStorePostIncW<0b01100000, "stc.w">;
 def STC_W_IndexShift : CopStoreIndexShiftW<"stc.w">;
+def PICOST_D_Disp : PicoStoreDispD<0b0111010, "picost.d">;
+def PICOST_D_PostInc : PicoStorePostIncD<0b001110000, "picost.d">;
+def PICOST_D_IndexShift : PicoStoreIndexShiftD<"picost.d">;
+def PICOST_W_Disp : PicoStoreDispW<0b0111010, "picost.w">;
+def PICOST_W_PostInc : PicoStorePostIncW<0b01100000, "picost.w">;
+def PICOST_W_IndexShift : PicoStoreIndexShiftW<"picost.w">;
 def STC0_D_Disp : Cop0StoreDispD<0b1111010, "stc0.d">;
 def STC0_W_Disp : Cop0StoreDispW<0b1011010, "stc0.w">;
 def STCOND : FullStoreDisp16<0b10111, "stcond">;

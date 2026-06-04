@@ -298,6 +298,12 @@ TEST(AVR32TargetInfo, LookupTarget) {
   EXPECT_EQ(MII->get(AVR32::LDC_W_Disp).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::LDC_W_PreDec).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::LDC_W_IndexShift).getSize(), 4u);
+  EXPECT_EQ(MII->get(AVR32::PICOLD_D_Disp).getSize(), 4u);
+  EXPECT_EQ(MII->get(AVR32::PICOLD_D_PreDec).getSize(), 4u);
+  EXPECT_EQ(MII->get(AVR32::PICOLD_D_IndexShift).getSize(), 4u);
+  EXPECT_EQ(MII->get(AVR32::PICOLD_W_Disp).getSize(), 4u);
+  EXPECT_EQ(MII->get(AVR32::PICOLD_W_PreDec).getSize(), 4u);
+  EXPECT_EQ(MII->get(AVR32::PICOLD_W_IndexShift).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::LDC0_D_Disp).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::LDC0_W_Disp).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::MACrrr).getSize(), 4u);
@@ -699,6 +705,12 @@ TEST(AVR32TargetInfo, LookupTarget) {
   EXPECT_EQ(MII->get(AVR32::STC_W_Disp).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::STC_W_PostInc).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::STC_W_IndexShift).getSize(), 4u);
+  EXPECT_EQ(MII->get(AVR32::PICOST_D_Disp).getSize(), 4u);
+  EXPECT_EQ(MII->get(AVR32::PICOST_D_PostInc).getSize(), 4u);
+  EXPECT_EQ(MII->get(AVR32::PICOST_D_IndexShift).getSize(), 4u);
+  EXPECT_EQ(MII->get(AVR32::PICOST_W_Disp).getSize(), 4u);
+  EXPECT_EQ(MII->get(AVR32::PICOST_W_PostInc).getSize(), 4u);
+  EXPECT_EQ(MII->get(AVR32::PICOST_W_IndexShift).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::STC0_D_Disp).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::STC0_W_Disp).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::STCOND).getSize(), 4u);
@@ -6714,6 +6726,108 @@ TEST(AVR32TargetInfo, LookupTarget) {
   EXPECT_EQ(static_cast<uint8_t>(Code[2]), 0x53);
   EXPECT_EQ(static_cast<uint8_t>(Code[3]), 0x23);
 
+  MCInst PicoldDDisp;
+  PicoldDDisp.setOpcode(AVR32::PICOLD_D_Disp);
+  PicoldDDisp.addOperand(MCOperand::createImm(14));
+  PicoldDDisp.addOperand(MCOperand::createReg(AVR32::PC));
+  PicoldDDisp.addOperand(MCOperand::createImm(1020));
+
+  Code.clear();
+  Fixups.clear();
+  MCE->encodeInstruction(PicoldDDisp, Code, Fixups, *STI);
+
+  EXPECT_TRUE(Fixups.empty());
+  ASSERT_EQ(Code.size(), 4u);
+  EXPECT_EQ(static_cast<uint8_t>(Code[0]), 0xe9);
+  EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0xaf);
+  EXPECT_EQ(static_cast<uint8_t>(Code[2]), 0x3e);
+  EXPECT_EQ(static_cast<uint8_t>(Code[3]), 0xff);
+
+  MCInst PicoldDPreDec;
+  PicoldDPreDec.setOpcode(AVR32::PICOLD_D_PreDec);
+  PicoldDPreDec.addOperand(MCOperand::createImm(6));
+  PicoldDPreDec.addOperand(MCOperand::createReg(AVR32::R8));
+
+  Code.clear();
+  Fixups.clear();
+  MCE->encodeInstruction(PicoldDPreDec, Code, Fixups, *STI);
+
+  EXPECT_TRUE(Fixups.empty());
+  ASSERT_EQ(Code.size(), 4u);
+  EXPECT_EQ(static_cast<uint8_t>(Code[0]), 0xef);
+  EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0xa8);
+  EXPECT_EQ(static_cast<uint8_t>(Code[2]), 0x26);
+  EXPECT_EQ(static_cast<uint8_t>(Code[3]), 0x50);
+
+  MCInst PicoldDIndexShift;
+  PicoldDIndexShift.setOpcode(AVR32::PICOLD_D_IndexShift);
+  PicoldDIndexShift.addOperand(MCOperand::createImm(2));
+  PicoldDIndexShift.addOperand(MCOperand::createReg(AVR32::R10));
+  PicoldDIndexShift.addOperand(MCOperand::createReg(AVR32::R5));
+  PicoldDIndexShift.addOperand(MCOperand::createImm(2));
+
+  Code.clear();
+  Fixups.clear();
+  MCE->encodeInstruction(PicoldDIndexShift, Code, Fixups, *STI);
+
+  EXPECT_TRUE(Fixups.empty());
+  ASSERT_EQ(Code.size(), 4u);
+  EXPECT_EQ(static_cast<uint8_t>(Code[0]), 0xef);
+  EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0xaa);
+  EXPECT_EQ(static_cast<uint8_t>(Code[2]), 0x32);
+  EXPECT_EQ(static_cast<uint8_t>(Code[3]), 0x65);
+
+  MCInst PicoldWDisp;
+  PicoldWDisp.setOpcode(AVR32::PICOLD_W_Disp);
+  PicoldWDisp.addOperand(MCOperand::createImm(15));
+  PicoldWDisp.addOperand(MCOperand::createReg(AVR32::PC));
+  PicoldWDisp.addOperand(MCOperand::createImm(1020));
+
+  Code.clear();
+  Fixups.clear();
+  MCE->encodeInstruction(PicoldWDisp, Code, Fixups, *STI);
+
+  EXPECT_TRUE(Fixups.empty());
+  ASSERT_EQ(Code.size(), 4u);
+  EXPECT_EQ(static_cast<uint8_t>(Code[0]), 0xe9);
+  EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0xaf);
+  EXPECT_EQ(static_cast<uint8_t>(Code[2]), 0x2f);
+  EXPECT_EQ(static_cast<uint8_t>(Code[3]), 0xff);
+
+  MCInst PicoldWPreDec;
+  PicoldWPreDec.setOpcode(AVR32::PICOLD_W_PreDec);
+  PicoldWPreDec.addOperand(MCOperand::createImm(7));
+  PicoldWPreDec.addOperand(MCOperand::createReg(AVR32::R8));
+
+  Code.clear();
+  Fixups.clear();
+  MCE->encodeInstruction(PicoldWPreDec, Code, Fixups, *STI);
+
+  EXPECT_TRUE(Fixups.empty());
+  ASSERT_EQ(Code.size(), 4u);
+  EXPECT_EQ(static_cast<uint8_t>(Code[0]), 0xef);
+  EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0xa8);
+  EXPECT_EQ(static_cast<uint8_t>(Code[2]), 0x27);
+  EXPECT_EQ(static_cast<uint8_t>(Code[3]), 0x40);
+
+  MCInst PicoldWIndexShift;
+  PicoldWIndexShift.setOpcode(AVR32::PICOLD_W_IndexShift);
+  PicoldWIndexShift.addOperand(MCOperand::createImm(1));
+  PicoldWIndexShift.addOperand(MCOperand::createReg(AVR32::R10));
+  PicoldWIndexShift.addOperand(MCOperand::createReg(AVR32::R5));
+  PicoldWIndexShift.addOperand(MCOperand::createImm(2));
+
+  Code.clear();
+  Fixups.clear();
+  MCE->encodeInstruction(PicoldWIndexShift, Code, Fixups, *STI);
+
+  EXPECT_TRUE(Fixups.empty());
+  ASSERT_EQ(Code.size(), 4u);
+  EXPECT_EQ(static_cast<uint8_t>(Code[0]), 0xef);
+  EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0xaa);
+  EXPECT_EQ(static_cast<uint8_t>(Code[2]), 0x31);
+  EXPECT_EQ(static_cast<uint8_t>(Code[3]), 0x25);
+
   MCInst Ldc0DDisp;
   Ldc0DDisp.setOpcode(AVR32::LDC0_D_Disp);
   Ldc0DDisp.addOperand(MCOperand::createImm(0));
@@ -6855,6 +6969,108 @@ TEST(AVR32TargetInfo, LookupTarget) {
   EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0xa2);
   EXPECT_EQ(static_cast<uint8_t>(Code[2]), 0x53);
   EXPECT_EQ(static_cast<uint8_t>(Code[3]), 0xa3);
+
+  MCInst PicostDDisp;
+  PicostDDisp.setOpcode(AVR32::PICOST_D_Disp);
+  PicostDDisp.addOperand(MCOperand::createReg(AVR32::PC));
+  PicostDDisp.addOperand(MCOperand::createImm(1020));
+  PicostDDisp.addOperand(MCOperand::createImm(14));
+
+  Code.clear();
+  Fixups.clear();
+  MCE->encodeInstruction(PicostDDisp, Code, Fixups, *STI);
+
+  EXPECT_TRUE(Fixups.empty());
+  ASSERT_EQ(Code.size(), 4u);
+  EXPECT_EQ(static_cast<uint8_t>(Code[0]), 0xeb);
+  EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0xaf);
+  EXPECT_EQ(static_cast<uint8_t>(Code[2]), 0x3e);
+  EXPECT_EQ(static_cast<uint8_t>(Code[3]), 0xff);
+
+  MCInst PicostDPostInc;
+  PicostDPostInc.setOpcode(AVR32::PICOST_D_PostInc);
+  PicostDPostInc.addOperand(MCOperand::createReg(AVR32::R8));
+  PicostDPostInc.addOperand(MCOperand::createImm(6));
+
+  Code.clear();
+  Fixups.clear();
+  MCE->encodeInstruction(PicostDPostInc, Code, Fixups, *STI);
+
+  EXPECT_TRUE(Fixups.empty());
+  ASSERT_EQ(Code.size(), 4u);
+  EXPECT_EQ(static_cast<uint8_t>(Code[0]), 0xef);
+  EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0xa8);
+  EXPECT_EQ(static_cast<uint8_t>(Code[2]), 0x26);
+  EXPECT_EQ(static_cast<uint8_t>(Code[3]), 0x70);
+
+  MCInst PicostDIndexShift;
+  PicostDIndexShift.setOpcode(AVR32::PICOST_D_IndexShift);
+  PicostDIndexShift.addOperand(MCOperand::createReg(AVR32::R10));
+  PicostDIndexShift.addOperand(MCOperand::createReg(AVR32::R5));
+  PicostDIndexShift.addOperand(MCOperand::createImm(2));
+  PicostDIndexShift.addOperand(MCOperand::createImm(2));
+
+  Code.clear();
+  Fixups.clear();
+  MCE->encodeInstruction(PicostDIndexShift, Code, Fixups, *STI);
+
+  EXPECT_TRUE(Fixups.empty());
+  ASSERT_EQ(Code.size(), 4u);
+  EXPECT_EQ(static_cast<uint8_t>(Code[0]), 0xef);
+  EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0xaa);
+  EXPECT_EQ(static_cast<uint8_t>(Code[2]), 0x32);
+  EXPECT_EQ(static_cast<uint8_t>(Code[3]), 0xe5);
+
+  MCInst PicostWDisp;
+  PicostWDisp.setOpcode(AVR32::PICOST_W_Disp);
+  PicostWDisp.addOperand(MCOperand::createReg(AVR32::PC));
+  PicostWDisp.addOperand(MCOperand::createImm(1020));
+  PicostWDisp.addOperand(MCOperand::createImm(15));
+
+  Code.clear();
+  Fixups.clear();
+  MCE->encodeInstruction(PicostWDisp, Code, Fixups, *STI);
+
+  EXPECT_TRUE(Fixups.empty());
+  ASSERT_EQ(Code.size(), 4u);
+  EXPECT_EQ(static_cast<uint8_t>(Code[0]), 0xeb);
+  EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0xaf);
+  EXPECT_EQ(static_cast<uint8_t>(Code[2]), 0x2f);
+  EXPECT_EQ(static_cast<uint8_t>(Code[3]), 0xff);
+
+  MCInst PicostWPostInc;
+  PicostWPostInc.setOpcode(AVR32::PICOST_W_PostInc);
+  PicostWPostInc.addOperand(MCOperand::createReg(AVR32::R8));
+  PicostWPostInc.addOperand(MCOperand::createImm(7));
+
+  Code.clear();
+  Fixups.clear();
+  MCE->encodeInstruction(PicostWPostInc, Code, Fixups, *STI);
+
+  EXPECT_TRUE(Fixups.empty());
+  ASSERT_EQ(Code.size(), 4u);
+  EXPECT_EQ(static_cast<uint8_t>(Code[0]), 0xef);
+  EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0xa8);
+  EXPECT_EQ(static_cast<uint8_t>(Code[2]), 0x27);
+  EXPECT_EQ(static_cast<uint8_t>(Code[3]), 0x60);
+
+  MCInst PicostWIndexShift;
+  PicostWIndexShift.setOpcode(AVR32::PICOST_W_IndexShift);
+  PicostWIndexShift.addOperand(MCOperand::createReg(AVR32::R10));
+  PicostWIndexShift.addOperand(MCOperand::createReg(AVR32::R5));
+  PicostWIndexShift.addOperand(MCOperand::createImm(2));
+  PicostWIndexShift.addOperand(MCOperand::createImm(1));
+
+  Code.clear();
+  Fixups.clear();
+  MCE->encodeInstruction(PicostWIndexShift, Code, Fixups, *STI);
+
+  EXPECT_TRUE(Fixups.empty());
+  ASSERT_EQ(Code.size(), 4u);
+  EXPECT_EQ(static_cast<uint8_t>(Code[0]), 0xef);
+  EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0xaa);
+  EXPECT_EQ(static_cast<uint8_t>(Code[2]), 0x31);
+  EXPECT_EQ(static_cast<uint8_t>(Code[3]), 0xa5);
 
   MCInst Stc0DDisp;
   Stc0DDisp.setOpcode(AVR32::STC0_D_Disp);
@@ -9290,6 +9506,48 @@ TEST(AVR32TargetInfo, LookupTarget) {
   EXPECT_EQ(Printed, "\tldc.w\tcp2, cr3, r2[r3 << 2]");
 
   Printed.clear();
+  raw_string_ostream PicoldDDispOS(Printed);
+  InstPrinter->printInst(&PicoldDDisp, /*Address=*/0, /*Annot=*/"", *STI,
+                         PicoldDDispOS);
+  PicoldDDispOS.flush();
+  EXPECT_EQ(Printed, "\tpicold.d\tvmu2_out, pc[1020]");
+
+  Printed.clear();
+  raw_string_ostream PicoldDPreDecOS(Printed);
+  InstPrinter->printInst(&PicoldDPreDec, /*Address=*/0, /*Annot=*/"", *STI,
+                         PicoldDPreDecOS);
+  PicoldDPreDecOS.flush();
+  EXPECT_EQ(Printed, "\tpicold.d\tcoeff0_a, --r8");
+
+  Printed.clear();
+  raw_string_ostream PicoldDIndexShiftOS(Printed);
+  InstPrinter->printInst(&PicoldDIndexShift, /*Address=*/0, /*Annot=*/"",
+                         *STI, PicoldDIndexShiftOS);
+  PicoldDIndexShiftOS.flush();
+  EXPECT_EQ(Printed, "\tpicold.d\tinpix0, r10[r5 << 2]");
+
+  Printed.clear();
+  raw_string_ostream PicoldWDispOS(Printed);
+  InstPrinter->printInst(&PicoldWDisp, /*Address=*/0, /*Annot=*/"", *STI,
+                         PicoldWDispOS);
+  PicoldWDispOS.flush();
+  EXPECT_EQ(Printed, "\tpicold.w\tconfig, pc[1020]");
+
+  Printed.clear();
+  raw_string_ostream PicoldWPreDecOS(Printed);
+  InstPrinter->printInst(&PicoldWPreDec, /*Address=*/0, /*Annot=*/"", *STI,
+                         PicoldWPreDecOS);
+  PicoldWPreDecOS.flush();
+  EXPECT_EQ(Printed, "\tpicold.w\tcoeff0_b, --r8");
+
+  Printed.clear();
+  raw_string_ostream PicoldWIndexShiftOS(Printed);
+  InstPrinter->printInst(&PicoldWIndexShift, /*Address=*/0, /*Annot=*/"",
+                         *STI, PicoldWIndexShiftOS);
+  PicoldWIndexShiftOS.flush();
+  EXPECT_EQ(Printed, "\tpicold.w\tinpix1, r10[r5 << 2]");
+
+  Printed.clear();
   raw_string_ostream Ldc0DDispOS(Printed);
   InstPrinter->printInst(&Ldc0DDisp, /*Address=*/0, /*Annot=*/"", *STI,
                          Ldc0DDispOS);
@@ -9344,6 +9602,48 @@ TEST(AVR32TargetInfo, LookupTarget) {
                          StcWIndexShiftOS);
   StcWIndexShiftOS.flush();
   EXPECT_EQ(Printed, "\tstc.w\tcp2, r2[r3 << 2], cr3");
+
+  Printed.clear();
+  raw_string_ostream PicostDDispOS(Printed);
+  InstPrinter->printInst(&PicostDDisp, /*Address=*/0, /*Annot=*/"", *STI,
+                         PicostDDispOS);
+  PicostDDispOS.flush();
+  EXPECT_EQ(Printed, "\tpicost.d\tpc[1020], vmu2_out");
+
+  Printed.clear();
+  raw_string_ostream PicostDPostIncOS(Printed);
+  InstPrinter->printInst(&PicostDPostInc, /*Address=*/0, /*Annot=*/"",
+                         *STI, PicostDPostIncOS);
+  PicostDPostIncOS.flush();
+  EXPECT_EQ(Printed, "\tpicost.d\tr8++, coeff0_a");
+
+  Printed.clear();
+  raw_string_ostream PicostDIndexShiftOS(Printed);
+  InstPrinter->printInst(&PicostDIndexShift, /*Address=*/0, /*Annot=*/"",
+                         *STI, PicostDIndexShiftOS);
+  PicostDIndexShiftOS.flush();
+  EXPECT_EQ(Printed, "\tpicost.d\tr10[r5 << 2], inpix0");
+
+  Printed.clear();
+  raw_string_ostream PicostWDispOS(Printed);
+  InstPrinter->printInst(&PicostWDisp, /*Address=*/0, /*Annot=*/"", *STI,
+                         PicostWDispOS);
+  PicostWDispOS.flush();
+  EXPECT_EQ(Printed, "\tpicost.w\tpc[1020], config");
+
+  Printed.clear();
+  raw_string_ostream PicostWPostIncOS(Printed);
+  InstPrinter->printInst(&PicostWPostInc, /*Address=*/0, /*Annot=*/"",
+                         *STI, PicostWPostIncOS);
+  PicostWPostIncOS.flush();
+  EXPECT_EQ(Printed, "\tpicost.w\tr8++, coeff0_b");
+
+  Printed.clear();
+  raw_string_ostream PicostWIndexShiftOS(Printed);
+  InstPrinter->printInst(&PicostWIndexShift, /*Address=*/0, /*Annot=*/"",
+                         *STI, PicostWIndexShiftOS);
+  PicostWIndexShiftOS.flush();
+  EXPECT_EQ(Printed, "\tpicost.w\tr10[r5 << 2], inpix1");
 
   Printed.clear();
   raw_string_ostream Stc0DDispOS(Printed);
@@ -9454,6 +9754,18 @@ TEST(AVR32TargetInfo, LookupTarget) {
           "ldc.w cp2, cr3, r2[r3 << 2]\n"
           "stc.d cp2, r2[r3 << 1], cr0\n"
           "stc.w cp2, r2[r3 << 2], cr3\n"
+          "picold.d vmu2_out, pc[1020]\n"
+          "picold.d coeff0_a, --r8\n"
+          "picold.d inpix0, r10[r5 << 2]\n"
+          "picold.w config, pc[1020]\n"
+          "picold.w coeff0_b, --r8\n"
+          "picold.w inpix1, r10[r5 << 2]\n"
+          "picost.d pc[1020], vmu2_out\n"
+          "picost.d r8++, coeff0_a\n"
+          "picost.d r10[r5 << 2], inpix0\n"
+          "picost.w pc[1020], config\n"
+          "picost.w r8++, coeff0_b\n"
+          "picost.w r10[r5 << 2], inpix1\n"
           "picomv.d vmu2_out, lr\n"
           "picomv.d lr, vmu2_out\n"
           "picomv.w config, pc\n"

@@ -551,6 +551,8 @@ private:
   bool parsePicoInOperand(OperandVector &Operands);
   bool parsePicoArithmeticOperands(OperandVector &Operands);
   bool parsePicoMoveOperands(OperandVector &Operands);
+  bool parsePicoLoadOperands(OperandVector &Operands);
+  bool parsePicoStoreOperands(OperandVector &Operands);
   bool parseMemoryDispOrIndexSuffix(OperandVector &Operands);
   bool parseMemoryDispOrIndexOperand(OperandVector &Operands);
   bool parseMemoryDispOrPostIncOperand(OperandVector &Operands);
@@ -776,6 +778,12 @@ bool AVR32AsmParser::parseInstruction(ParseInstructionInfo &Info,
   } else if (Name == "picosvmac" || Name == "picosvmul" ||
              Name == "picovmac" || Name == "picovmul") {
     if (parsePicoArithmeticOperands(Operands))
+      return true;
+  } else if (Name == "picold.d" || Name == "picold.w") {
+    if (parsePicoLoadOperands(Operands))
+      return true;
+  } else if (Name == "picost.d" || Name == "picost.w") {
+    if (parsePicoStoreOperands(Operands))
       return true;
   } else if (Name == "ldc.d" || Name == "ldc.w") {
     if (parseCoprocessorLoadOperands(Operands))
@@ -1177,6 +1185,31 @@ bool AVR32AsmParser::parsePicoMoveOperands(OperandVector &Operands) {
   if (!parseOptionalToken(AsmToken::Comma))
     return Error(getLexer().getLoc(), "expected comma");
   return parseRegisterOperand(Operands);
+}
+
+bool AVR32AsmParser::parsePicoLoadOperands(OperandVector &Operands) {
+  if (parsePicoRegisterOperand(Operands))
+    return true;
+  if (!parseOptionalToken(AsmToken::Comma))
+    return Error(getLexer().getLoc(), "expected comma");
+
+  if (parseOptionalToken(AsmToken::Minus)) {
+    SMLoc MinusLoc = getLexer().getLoc();
+    if (!parseOptionalToken(AsmToken::Minus))
+      return Error(getLexer().getLoc(), "expected --");
+    Operands.push_back(AVR32Operand::createToken("--", MinusLoc));
+    return parseRegisterOperand(Operands);
+  }
+
+  return parseMemoryDispOrIndexOperand(Operands);
+}
+
+bool AVR32AsmParser::parsePicoStoreOperands(OperandVector &Operands) {
+  if (parseMemoryDispOrPostIncOperand(Operands))
+    return true;
+  if (!parseOptionalToken(AsmToken::Comma))
+    return Error(getLexer().getLoc(), "expected comma");
+  return parsePicoRegisterOperand(Operands);
 }
 
 bool AVR32AsmParser::parsePicoInOperand(OperandVector &Operands) {
