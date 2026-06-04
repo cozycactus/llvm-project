@@ -167,6 +167,10 @@ TEST(AVR32TargetInfo, LookupTarget) {
   EXPECT_EQ(MII->get(AVR32::PICOVMUL1).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::PICOVMUL2).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::PICOVMUL3).getSize(), 4u);
+  EXPECT_EQ(MII->get(AVR32::PICOVMAC0).getSize(), 4u);
+  EXPECT_EQ(MII->get(AVR32::PICOVMAC1).getSize(), 4u);
+  EXPECT_EQ(MII->get(AVR32::PICOVMAC2).getSize(), 4u);
+  EXPECT_EQ(MII->get(AVR32::PICOVMAC3).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::PICOSVMUL0).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::PICOSVMUL1).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::PICOSVMUL2).getSize(), 4u);
@@ -6415,6 +6419,23 @@ TEST(AVR32TargetInfo, LookupTarget) {
   EXPECT_EQ(static_cast<uint8_t>(Code[2]), 0x29);
   EXPECT_EQ(static_cast<uint8_t>(Code[3]), 0xab);
 
+  MCInst Picovmac3;
+  Picovmac3.setOpcode(AVR32::PICOVMAC3);
+  Picovmac3.addOperand(MCOperand::createImm(9));
+  Picovmac3.addOperand(MCOperand::createImm(10));
+  Picovmac3.addOperand(MCOperand::createImm(11));
+
+  Code.clear();
+  Fixups.clear();
+  MCE->encodeInstruction(Picovmac3, Code, Fixups, *STI);
+
+  EXPECT_TRUE(Fixups.empty());
+  ASSERT_EQ(Code.size(), 4u);
+  EXPECT_EQ(static_cast<uint8_t>(Code[0]), 0xe1);
+  EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0xa7);
+  EXPECT_EQ(static_cast<uint8_t>(Code[2]), 0x29);
+  EXPECT_EQ(static_cast<uint8_t>(Code[3]), 0xab);
+
   MCInst Picosvmul3;
   Picosvmul3.setOpcode(AVR32::PICOSVMUL3);
   Picosvmul3.addOperand(MCOperand::createImm(9));
@@ -9086,6 +9107,13 @@ TEST(AVR32TargetInfo, LookupTarget) {
   EXPECT_EQ(Printed, "\tpicovmul\tout3, in9, in10, in11");
 
   Printed.clear();
+  raw_string_ostream Picovmac3OS(Printed);
+  InstPrinter->printInst(&Picovmac3, /*Address=*/0, /*Annot=*/"", *STI,
+                         Picovmac3OS);
+  Picovmac3OS.flush();
+  EXPECT_EQ(Printed, "\tpicovmac\tout3, in9, in10, in11");
+
+  Printed.clear();
   raw_string_ostream Picosvmul3OS(Printed);
   InstPrinter->printInst(&Picosvmul3, /*Address=*/0, /*Annot=*/"", *STI,
                          Picosvmul3OS);
@@ -9331,6 +9359,7 @@ TEST(AVR32TargetInfo, LookupTarget) {
           "stc.d cp2, r2[r3 << 1], cr0\n"
           "stc.w cp2, r2[r3 << 2], cr3\n"
           "picovmul out3, in9, in10, in11\n"
+          "picovmac out3, in9, in10, in11\n"
           "picosvmac out3, in9, in10, in11\n"
           "stcond r1[-1], r2\nstdsp sp[12], r2\n"
           "sthh.w r1[12], r2:t, r3:b\n"

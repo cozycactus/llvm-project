@@ -753,7 +753,7 @@ bool AVR32AsmParser::parseInstruction(ParseInstructionInfo &Info,
     if (parseCoprocessorOperationOperands(Operands))
       return true;
   } else if (Name == "picosvmac" || Name == "picosvmul" ||
-             Name == "picovmul") {
+             Name == "picovmac" || Name == "picovmul") {
     if (parsePicoArithmeticOperands(Operands))
       return true;
   } else if (Name == "ldc.d" || Name == "ldc.w") {
