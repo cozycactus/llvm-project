@@ -1,0 +1,22 @@
+# RUN: yaml2obj %s -o %t.o
+# RUN: obj2yaml %t.o | FileCheck %s
+
+--- !ELF
+FileHeader:
+  Class:   ELFCLASS32
+  Data:    ELFDATA2MSB
+  Type:    ET_REL
+  Machine: EM_AVR32
+  Flags:   [ EF_AVR32_LINKRELAX, EF_AVR32_PIC ]
+Sections:
+  - Name: .rela.text
+    Type: SHT_RELA
+    Relocations:
+      - Type: R_AVR32_22H_PCREL
+      - Type: R_AVR32_11H_PCREL
+
+# CHECK:      Machine:         EM_AVR32
+# CHECK-NEXT: Flags:           [ EF_AVR32_LINKRELAX, EF_AVR32_PIC ]
+# CHECK:      Relocations:
+# CHECK-NEXT:   - Type:            R_AVR32_22H_PCREL
+# CHECK-NEXT:   - Type:            R_AVR32_11H_PCREL
