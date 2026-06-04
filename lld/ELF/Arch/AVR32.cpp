@@ -79,9 +79,24 @@ RelExpr AVR32::getRelExpr(RelType type, const Symbol &s,
 }
 
 int64_t AVR32::getImplicitAddend(const uint8_t *buf, RelType type) const {
-  if (type == R_AVR32_NONE)
+  switch (type) {
+  case R_AVR32_NONE:
+  case R_AVR32_GLOB_DAT:
+  case R_AVR32_JMP_SLOT:
     return 0;
-  return TargetInfo::getImplicitAddend(buf, type);
+  case R_AVR32_8:
+  case R_AVR32_8_PCREL:
+    return SignExtend64<8>(*buf);
+  case R_AVR32_16:
+  case R_AVR32_16_PCREL:
+    return SignExtend64<16>(read16be(buf));
+  case R_AVR32_32:
+  case R_AVR32_32_PCREL:
+  case R_AVR32_RELATIVE:
+    return SignExtend64<32>(read32be(buf));
+  default:
+    return TargetInfo::getImplicitAddend(buf, type);
+  }
 }
 
 void AVR32::relocate(uint8_t *loc, const Relocation &rel, uint64_t val) const {

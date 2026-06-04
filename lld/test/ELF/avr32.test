@@ -91,6 +91,14 @@
 # DYNREL-NEXT:   0x{{[0-9A-F]+}} R_AVR32_32 ext
 # DYNREL-NEXT: }
 
+# RUN: yaml2obj --docnum=12 %s -o %t.rel.o
+# RUN: ld.lld %t.rel.o -o %t.rel
+# RUN: llvm-readobj --hex-dump=.text %t.rel \
+# RUN:   | FileCheck %s --check-prefix=REL
+
+# REL: Hex dump of section '.text':
+# REL-NEXT: 0x{{[0-9a-f]+}} 1234567c 123918
+
 --- !ELF
 FileHeader:
   Class:   ELFCLASS32
@@ -393,4 +401,46 @@ Symbols:
     Section: .data
     Value: 0
   - Name: ext
+    Binding: STB_GLOBAL
+
+--- !ELF
+FileHeader:
+  Class:   ELFCLASS32
+  Data:    ELFDATA2MSB
+  Type:    ET_REL
+  Machine: EM_AVR32
+Sections:
+  - Name: .text
+    Type: SHT_PROGBITS
+    Flags: [ SHF_ALLOC, SHF_EXECINSTR ]
+    Content: "00000004000506"
+  - Name: .rel.text
+    Type: SHT_REL
+    Info: .text
+    Relocations:
+      - Offset: 0
+        Symbol: abs32
+        Type: R_AVR32_32
+      - Offset: 4
+        Symbol: abs16
+        Type: R_AVR32_16
+      - Offset: 6
+        Symbol: abs8
+        Type: R_AVR32_8
+Symbols:
+  - Name: _start
+    Section: .text
+    Value: 0
+    Binding: STB_GLOBAL
+  - Name: abs32
+    Index: SHN_ABS
+    Value: 0x12345678
+    Binding: STB_GLOBAL
+  - Name: abs16
+    Index: SHN_ABS
+    Value: 0x1234
+    Binding: STB_GLOBAL
+  - Name: abs8
+    Index: SHN_ABS
+    Value: 0x12
     Binding: STB_GLOBAL
