@@ -12,6 +12,10 @@ def SDT_AVR32Call : SDTypeProfile<0, -1, [SDTCisVT<0, iPTR>]>;
 def SDT_AVR32Cmp : SDTypeProfile<0, 2, [SDTCisSameAs<0, 1>]>;
 def SDT_AVR32BrCC : SDTypeProfile<0, 2, [SDTCisVT<0, OtherVT>,
                                          SDTCisVT<1, i32>]>;
+def SDT_AVR32SetCC : SDTypeProfile<1, 3, [SDTCisVT<0, i32>,
+                                          SDTCisSameAs<0, 1>,
+                                          SDTCisSameAs<1, 2>,
+                                          SDTCisVT<3, i32>]>;
 
 def AVR32call : SDNode<"AVR32ISD::CALL", SDT_AVR32Call,
                        [SDNPHasChain, SDNPOutGlue, SDNPOptInGlue,
@@ -19,6 +23,7 @@ def AVR32call : SDNode<"AVR32ISD::CALL", SDT_AVR32Call,
 def AVR32cmp : SDNode<"AVR32ISD::CMP", SDT_AVR32Cmp, [SDNPOutGlue]>;
 def AVR32brcc : SDNode<"AVR32ISD::BR_CC", SDT_AVR32BrCC,
                        [SDNPHasChain, SDNPInGlue]>;
+def AVR32setcc : SDNode<"AVR32ISD::SET_CC", SDT_AVR32SetCC>;
 def AVR32retflag : SDNode<"AVR32ISD::RET_FLAG", SDTNone,
                           [SDNPHasChain, SDNPOptInGlue, SDNPVariadic]>;
 
@@ -2904,7 +2909,8 @@ def ANDHri : FullRegUImm16<0b111001000001, "andh">;
 def ANDHri_COH : FullRegUImm16Suffix<0b111001100001, "andh", ", coh">;
 def ANDLri : FullRegUImm16<0b111000000001, "andl">;
 def ANDLri_COH : FullRegUImm16Suffix<0b111000100001, "andl", ", coh">;
-def ANDALrrr : CondRRR<0b1111, 0b0010, "andal">;
+def ANDALrrr : CondRRR<0b1111, 0b0010, "andal",
+                       [(set GPR:$Rd, (and GPR:$Rx, GPR:$Ry))]>;
 def ANDEQrrr : CondRRR<0b0000, 0b0010, "andeq">;
 def ANDNErrr : CondRRR<0b0001, 0b0010, "andne">;
 def ANDCCrrr : CondRRR<0b0010, 0b0010, "andcc">;
@@ -3005,6 +3011,7 @@ def PICOMV_D_FromReg : PicoMoveRegToCopRegD<"picomv.d">;
 def PICOMV_D_ToReg : PicoMoveCopRegToRegD<"picomv.d">;
 def PICOMV_W_FromReg : PicoMoveRegToCopRegW<"picomv.w">;
 def PICOMV_W_ToReg : PicoMoveCopRegToRegW<"picomv.w">;
+let hasSideEffects = 1 in {
 def CPCr : CompactRegNoOut<0b010111000010, "cpc">;
 def CPCrr : FullRegRegNoOut<0b0001001100000000, "cpc">;
 def CP_Brr : FullRegRegNoOut<0b0001100000000000, "cp.b">;
@@ -3015,6 +3022,7 @@ def CPrr : CompactRegRegNoOut<0b00011, "cp">;
 def CP_Wri21 : FullRegImmNoOut<0b0010, "cp.w">;
 def CP_Wri6 : CompactRegImmNoOut<0b010110, "cp.w">;
 def CP_Wrr : CompactRegRegNoOut<0b00011, "cp.w">;
+}
 def CSRFCZi : CompactImm<0b1101000, "csrfcz">;
 def CSRFi : CompactImm<0b1101010, "csrf">;
 def DIVSrrr : FullRegRegReg<0b000011000000, "divs">;
@@ -3528,8 +3536,16 @@ def TLBR : AVR32Inst<0b1101011001000011, (outs), (ins), "tlbr">;
 def TLBS : AVR32Inst<0b1101011001010011, (outs), (ins), "tlbs">;
 def TLBW : AVR32Inst<0b1101011001100011, (outs), (ins), "tlbw">;
 def TNBZr : CompactRegNoOut<0b010111001110, "tnbz">;
+let hasSideEffects = 1 in
 def TSTrr : CompactRegRegNoOut<0b00111, "tst">;
 def XCHGrrr : FullRegRegReg<0b000010110100, "xchg">;
+
+let usesCustomInserter = 1, isCodeGenOnly = 1 in
+def SETCCrr : AVR32Inst<0, (outs GPR:$Rd),
+                        (ins GPR:$LHS, GPR:$RHS, i32imm:$Cond),
+                        "# SETCCrr",
+                        [(set GPR:$Rd,
+                          (AVR32setcc GPR:$LHS, GPR:$RHS, timm:$Cond))]>;
 
 def : Pat<(AVR32call (i32 tglobaladdr:$dst)), (RCALLe PC, tglobaladdr:$dst)>;
 def : Pat<(AVR32call (i32 texternalsym:$dst)),

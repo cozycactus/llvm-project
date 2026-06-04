@@ -8,12 +8,16 @@
 
 #include "AVR32ISelLowering.h"
 #include "AVR32Subtarget.h"
+#include "llvm/CodeGen/MachineBasicBlock.h"
 #include "llvm/CodeGen/MachineFunction.h"
+#include "llvm/CodeGen/MachineInstrBuilder.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
 #include "llvm/IR/DiagnosticInfo.h"
 
 using namespace llvm;
 
+#define GET_INSTRINFO_ENUM
+#include "AVR32GenInstrInfo.inc"
 #define GET_REGINFO_ENUM
 #include "AVR32GenRegisterInfo.inc"
 
@@ -23,6 +27,7 @@ AVR32TargetLowering::AVR32TargetLowering(const TargetMachine &TM,
   addRegisterClass(MVT::i32, &AVR32::GPRRegClass);
   setOperationAction(ISD::BR_CC, MVT::i32, Custom);
   setOperationAction(ISD::BRCOND, MVT::Other, Expand);
+  setOperationAction(ISD::SETCC, MVT::i32, Custom);
   computeRegisterProperties(STI.getRegisterInfo());
   setStackPointerRegisterToSaveRestore(AVR32::SP);
 }
@@ -63,8 +68,23 @@ static AVR32CC::CondCodes intCondCodeToAVR32CC(ISD::CondCode CC) {
 
 SDValue AVR32TargetLowering::LowerOperation(SDValue Op,
                                             SelectionDAG &DAG) const {
-  if (Op.getOpcode() != ISD::BR_CC)
+  if (Op.getOpcode() != ISD::BR_CC && Op.getOpcode() != ISD::SETCC)
     llvm_unreachable("Unsupported AVR32 custom lowering");
+
+  if (Op.getOpcode() == ISD::SETCC) {
+    ISD::CondCode CC = cast<CondCodeSDNode>(Op.getOperand(2))->get();
+    AVR32CC::CondCodes TargetCC = intCondCodeToAVR32CC(CC);
+    SDLoc DL(Op);
+    if (TargetCC == AVR32CC::COND_INVALID) {
+      diagnoseUnsupported(DAG, DL,
+                          "AVR32 condition code is not implemented yet");
+      return DAG.getUNDEF(Op.getValueType());
+    }
+
+    return DAG.getNode(AVR32ISD::SET_CC, DL, MVT::i32, Op.getOperand(0),
+                       Op.getOperand(1),
+                       DAG.getTargetConstant(TargetCC, DL, MVT::i32));
+  }
 
   SDValue Chain = Op.getOperand(0);
   ISD::CondCode CC = cast<CondCodeSDNode>(Op.getOperand(1))->get();
@@ -83,6 +103,88 @@ SDValue AVR32TargetLowering::LowerOperation(SDValue Op,
   SDValue Flag = DAG.getNode(AVR32ISD::CMP, DL, MVT::Glue, LHS, RHS);
   return DAG.getNode(AVR32ISD::BR_CC, DL, MVT::Other, Chain, Dest,
                      DAG.getConstant(TargetCC, DL, MVT::i32), Flag);
+}
+
+static unsigned getBranchOpcodeForCC(AVR32CC::CondCodes CC) {
+  switch (CC) {
+  default:
+    return 0;
+  case AVR32CC::COND_EQ:
+    return AVR32::BREQbb;
+  case AVR32CC::COND_NE:
+    return AVR32::BRNEbb;
+  case AVR32CC::COND_CC:
+    return AVR32::BRCCbb;
+  case AVR32CC::COND_CS:
+    return AVR32::BRCSbb;
+  case AVR32CC::COND_GE:
+    return AVR32::BRGEbb;
+  case AVR32CC::COND_LT:
+    return AVR32::BRLTbb;
+  case AVR32CC::COND_LS:
+    return AVR32::BRLSbb;
+  case AVR32CC::COND_GT:
+    return AVR32::BRGTbb;
+  case AVR32CC::COND_LE:
+    return AVR32::BRLEbb;
+  case AVR32CC::COND_HI:
+    return AVR32::BRHIbb;
+  }
+}
+
+MachineBasicBlock *AVR32TargetLowering::EmitInstrWithCustomInserter(
+    MachineInstr &MI, MachineBasicBlock *BB) const {
+  assert(MI.getOpcode() == AVR32::SETCCrr && "Unexpected custom inserter");
+
+  MachineFunction *MF = BB->getParent();
+  MachineRegisterInfo &MRI = MF->getRegInfo();
+  const TargetInstrInfo &TII = *MF->getSubtarget().getInstrInfo();
+  const DebugLoc &DL = MI.getDebugLoc();
+
+  Register Dst = MI.getOperand(0).getReg();
+  Register LHS = MI.getOperand(1).getReg();
+  Register RHS = MI.getOperand(2).getReg();
+  auto CC = static_cast<AVR32CC::CondCodes>(MI.getOperand(3).getImm());
+  unsigned BranchOpc = getBranchOpcodeForCC(CC);
+  if (!BranchOpc)
+    report_fatal_error("AVR32 condition code is not implemented yet");
+
+  const BasicBlock *LLVMBB = BB->getBasicBlock();
+  MachineFunction::iterator InsertPt = std::next(BB->getIterator());
+  MachineBasicBlock *TrueBB = MF->CreateMachineBasicBlock(LLVMBB);
+  MachineBasicBlock *FalseBB = MF->CreateMachineBasicBlock(LLVMBB);
+  MachineBasicBlock *SinkBB = MF->CreateMachineBasicBlock(LLVMBB);
+  MF->insert(InsertPt, TrueBB);
+  MF->insert(InsertPt, FalseBB);
+  MF->insert(InsertPt, SinkBB);
+
+  SinkBB->splice(SinkBB->begin(), BB, std::next(MI.getIterator()), BB->end());
+  SinkBB->transferSuccessorsAndUpdatePHIs(BB);
+
+  BB->addSuccessor(TrueBB);
+  BB->addSuccessor(FalseBB);
+  BuildMI(BB, DL, TII.get(AVR32::CPrr)).addReg(LHS).addReg(RHS);
+  BuildMI(BB, DL, TII.get(BranchOpc)).addMBB(TrueBB);
+  BuildMI(BB, DL, TII.get(AVR32::BRALbb)).addMBB(FalseBB);
+
+  Register TrueReg = MRI.createVirtualRegister(&AVR32::GPRRegClass);
+  Register FalseReg = MRI.createVirtualRegister(&AVR32::GPRRegClass);
+  BuildMI(TrueBB, DL, TII.get(AVR32::MOVri21), TrueReg).addImm(1);
+  BuildMI(TrueBB, DL, TII.get(AVR32::BRALbb)).addMBB(SinkBB);
+  TrueBB->addSuccessor(SinkBB);
+
+  BuildMI(FalseBB, DL, TII.get(AVR32::MOVri21), FalseReg).addImm(0);
+  BuildMI(FalseBB, DL, TII.get(AVR32::BRALbb)).addMBB(SinkBB);
+  FalseBB->addSuccessor(SinkBB);
+
+  BuildMI(*SinkBB, SinkBB->begin(), DL, TII.get(TargetOpcode::PHI), Dst)
+      .addReg(TrueReg)
+      .addMBB(TrueBB)
+      .addReg(FalseReg)
+      .addMBB(FalseBB);
+
+  MI.eraseFromParent();
+  return SinkBB;
 }
 
 SDValue AVR32TargetLowering::LowerFormalArguments(

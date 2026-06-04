@@ -13,6 +13,10 @@ int main(void) {
   return add(40, 2);
 }
 
+int eq(int a, int b) {
+  return a == b;
+}
+
 __attribute__((optnone, noinline)) int pick(int a, int b) {
   if (a == b)
     return 1;
@@ -23,11 +27,21 @@ __attribute__((optnone, noinline)) int pick(int a, int b) {
 // CHECK: target triple = "avr32"
 // CHECK: define {{.*}}i32 @add(i32 {{.*}}, i32 {{.*}})
 // CHECK: add nsw i32
+// CHECK: define {{.*}}i32 @eq(i32 {{.*}}, i32 {{.*}})
+// CHECK: icmp eq i32
 // CHECK: define {{.*}}i32 @pick(i32 {{.*}}, i32 {{.*}})
 // CHECK: icmp eq i32
 
 // ASM-LABEL: add:
 // ASM: addal r12, r11, r12
+// ASM: ret r12
+
+// ASM-LABEL: eq:
+// ASM: cp r12, r11
+// ASM: mov {{r[0-9]+}}, 1
+// ASM: breq .LBB
+// ASM: mov {{r[0-9]+}}, 0
+// ASM: andal r12
 // ASM: ret r12
 
 // O0ASM-LABEL: add:
