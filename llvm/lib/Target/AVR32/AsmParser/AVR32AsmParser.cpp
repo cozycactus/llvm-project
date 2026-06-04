@@ -617,7 +617,7 @@ bool AVR32AsmParser::parseInstruction(ParseInstructionInfo &Info,
   } else if (Name == "incjosp" || Name == "sleep" || Name == "sync") {
     if (parseImmediateOperand(Operands))
       return true;
-  } else if (Name == "memc" || Name == "mems") {
+  } else if (Name == "memc" || Name == "mems" || Name == "memt") {
     if (parseImmediateCommaImmediate(Operands))
       return true;
   } else if (Name == "ldins.b" || Name == "ldins.h") {

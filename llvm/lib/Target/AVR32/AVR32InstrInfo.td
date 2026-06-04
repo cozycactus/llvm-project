@@ -1695,6 +1695,7 @@ def MOVri21 : FullRegImm<0b0011, "mov">;
 def MOVHri : FullRegUImm16<0b111111000001, "movh">;
 def MEMC : FullMemBit<0b111111000001, "memc">;
 def MEMS : FullMemBit<0b111100000001, "mems">;
+def MEMT : FullMemBit<0b111101000001, "memt">;
 def MULrr : CompactRegRegWithPrefix<0b101, 0b10011, "mul">;
 def MULri8 : FullRegRegImm<0b00010000, "mul">;
 def MULrrr : FullRegRegReg<0b000000100100, "mul">;
