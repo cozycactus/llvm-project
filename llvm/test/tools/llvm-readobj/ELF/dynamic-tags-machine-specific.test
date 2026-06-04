@@ -483,3 +483,41 @@ ProgramHeaders:
   - Type:     PT_DYNAMIC
     FirstSec: .dynamic
     LastSec:  .dynamic
+
+## Case 8: Test that AVR32 machine-specific tags can be dumped.
+# RUN: yaml2obj --docnum=8 %s -o %t.avr32
+# RUN: llvm-readobj --dynamic-table %t.avr32 | FileCheck %s --check-prefix=LLVM-AVR32
+# RUN: llvm-readelf --dynamic-table %t.avr32 | FileCheck %s --check-prefix=GNU-AVR32
+
+# LLVM-AVR32:      DynamicSection [ (2 entries)
+# LLVM-AVR32-NEXT:   Tag        Type        Name/Value
+# LLVM-AVR32-NEXT:   0x70000001 AVR32_GOTSZ 0x80
+# LLVM-AVR32-NEXT:   0x00000000 NULL        0x0
+# LLVM-AVR32-NEXT: ]
+
+# GNU-AVR32:       Dynamic section at offset {{.*}} contains 2 entries:
+# GNU-AVR32-NEXT:   Tag        Type          Name/Value
+# GNU-AVR32-NEXT:   0x70000001 (AVR32_GOTSZ) 0x80
+# GNU-AVR32-NEXT:   0x00000000 (NULL)        0x0
+
+--- !ELF
+FileHeader:
+  Class:   ELFCLASS32
+  Data:    ELFDATA2MSB
+  Type:    ET_EXEC
+  Machine: EM_AVR32
+Sections:
+  - Name: .dynamic
+    Type: SHT_DYNAMIC
+    Entries:
+      - Tag:   DT_AVR32_GOTSZ
+        Value: 0x80
+      - Tag:   DT_NULL
+        Value: 0
+ProgramHeaders:
+  - Type:     PT_LOAD
+    FirstSec: .dynamic
+    LastSec:  .dynamic
+  - Type:     PT_DYNAMIC
+    FirstSec: .dynamic
+    LastSec:  .dynamic

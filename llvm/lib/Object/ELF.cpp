@@ -556,6 +556,14 @@ std::string ELFFile<ELFT>::getDynamicTagAsString(unsigned Arch,
     }
     break;
 
+  case ELF::EM_AVR32:
+    switch (Type) {
+#define AVR32_DYNAMIC_TAG(name, value) DYNAMIC_STRINGIFY_ENUM(name, value)
+#include "llvm/BinaryFormat/DynamicTags.def"
+#undef AVR32_DYNAMIC_TAG
+    }
+    break;
+
   case ELF::EM_HEXAGON:
     switch (Type) {
 #define HEXAGON_DYNAMIC_TAG(name, value) DYNAMIC_STRINGIFY_ENUM(name, value)
@@ -600,6 +608,7 @@ std::string ELFFile<ELFT>::getDynamicTagAsString(unsigned Arch,
   switch (Type) {
 // Now handle all dynamic tags except the architecture specific ones
 #define AARCH64_DYNAMIC_TAG(name, value)
+#define AVR32_DYNAMIC_TAG(name, value)
 #define MIPS_DYNAMIC_TAG(name, value)
 #define HEXAGON_DYNAMIC_TAG(name, value)
 #define PPC_DYNAMIC_TAG(name, value)
@@ -611,6 +620,7 @@ std::string ELFFile<ELFT>::getDynamicTagAsString(unsigned Arch,
 #include "llvm/BinaryFormat/DynamicTags.def"
 #undef DYNAMIC_TAG
 #undef AARCH64_DYNAMIC_TAG
+#undef AVR32_DYNAMIC_TAG
 #undef MIPS_DYNAMIC_TAG
 #undef HEXAGON_DYNAMIC_TAG
 #undef PPC_DYNAMIC_TAG

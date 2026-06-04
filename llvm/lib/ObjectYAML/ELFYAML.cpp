@@ -1005,6 +1005,7 @@ void ScalarEnumerationTraits<ELFYAML::ELF_DYNTAG>::enumeration(
 
 // Disable architecture specific tags by default. We might enable them below.
 #define AARCH64_DYNAMIC_TAG(name, value)
+#define AVR32_DYNAMIC_TAG(name, value)
 #define MIPS_DYNAMIC_TAG(name, value)
 #define HEXAGON_DYNAMIC_TAG(name, value)
 #define PPC_DYNAMIC_TAG(name, value)
@@ -1021,6 +1022,13 @@ void ScalarEnumerationTraits<ELFYAML::ELF_DYNTAG>::enumeration(
 #include "llvm/BinaryFormat/DynamicTags.def"
 #undef AARCH64_DYNAMIC_TAG
 #define AARCH64_DYNAMIC_TAG(name, value)
+    break;
+  case ELF::EM_AVR32:
+#undef AVR32_DYNAMIC_TAG
+#define AVR32_DYNAMIC_TAG(name, value) DYNAMIC_TAG(name, value)
+#include "llvm/BinaryFormat/DynamicTags.def"
+#undef AVR32_DYNAMIC_TAG
+#define AVR32_DYNAMIC_TAG(name, value)
     break;
   case ELF::EM_MIPS:
 #undef MIPS_DYNAMIC_TAG
@@ -1069,6 +1077,7 @@ void ScalarEnumerationTraits<ELFYAML::ELF_DYNTAG>::enumeration(
     break;
   }
 #undef AARCH64_DYNAMIC_TAG
+#undef AVR32_DYNAMIC_TAG
 #undef MIPS_DYNAMIC_TAG
 #undef HEXAGON_DYNAMIC_TAG
 #undef PPC_DYNAMIC_TAG
