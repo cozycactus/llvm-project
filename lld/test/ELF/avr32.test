@@ -81,6 +81,16 @@
 # NONE: Hex dump of section '.text':
 # NONE-NEXT: 0x{{[0-9a-f]+}} deadbeef
 
+# RUN: yaml2obj --docnum=11 %s -o %t.dynrel.o
+# RUN: ld.lld -shared %t.dynrel.o -o %t.dynrel.so
+# RUN: llvm-readobj --relocations %t.dynrel.so \
+# RUN:   | FileCheck %s --check-prefix=DYNREL
+
+# DYNREL:      Section ({{.*}}) .rel.dyn {
+# DYNREL-NEXT:   0x{{[0-9A-F]+}} R_AVR32_RELATIVE -
+# DYNREL-NEXT:   0x{{[0-9A-F]+}} R_AVR32_32 ext
+# DYNREL-NEXT: }
+
 --- !ELF
 FileHeader:
   Class:   ELFCLASS32
@@ -355,4 +365,32 @@ Symbols:
   - Name: target
     Section: .data
     Value: 0
+    Binding: STB_GLOBAL
+
+--- !ELF
+FileHeader:
+  Class:   ELFCLASS32
+  Data:    ELFDATA2MSB
+  Type:    ET_REL
+  Machine: EM_AVR32
+Sections:
+  - Name: .data
+    Type: SHT_PROGBITS
+    Flags: [ SHF_ALLOC, SHF_WRITE ]
+    Content: "0000000000000000"
+  - Name: .rela.data
+    Type: SHT_RELA
+    Info: .data
+    Relocations:
+      - Offset: 0
+        Symbol: ext
+        Type: R_AVR32_32
+      - Offset: 4
+        Symbol: local
+        Type: R_AVR32_32
+Symbols:
+  - Name: local
+    Section: .data
+    Value: 0
+  - Name: ext
     Binding: STB_GLOBAL

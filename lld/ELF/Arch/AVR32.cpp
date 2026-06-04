@@ -23,10 +23,13 @@ namespace {
 class AVR32 final : public TargetInfo {
 public:
   AVR32(Ctx &ctx) : TargetInfo(ctx) {
+    relativeRel = R_AVR32_RELATIVE;
+    symbolicRel = R_AVR32_32;
     trapInstr = {0xd6, 0x73, 0xd6, 0x73}; // breakpoint; breakpoint
   }
 
   uint32_t calcEFlags() const override;
+  RelType getDynRel(RelType type) const override;
   RelExpr getRelExpr(RelType type, const Symbol &s,
                      const uint8_t *loc) const override;
   int64_t getImplicitAddend(const uint8_t *buf, RelType type) const override;
@@ -47,6 +50,10 @@ uint32_t AVR32::calcEFlags() const {
   for (InputFile *f : ArrayRef(ctx.objectFiles).slice(1))
     flags &= getEFlags(f) & (EF_AVR32_LINKRELAX | EF_AVR32_PIC);
   return flags;
+}
+
+RelType AVR32::getDynRel(RelType type) const {
+  return type == symbolicRel ? type : R_AVR32_NONE;
 }
 
 RelExpr AVR32::getRelExpr(RelType type, const Symbol &s,
