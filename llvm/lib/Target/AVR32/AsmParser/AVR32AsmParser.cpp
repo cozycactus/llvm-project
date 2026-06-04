@@ -68,6 +68,14 @@ public:
     return Const && isInt<8>(Const->getValue());
   }
 
+  bool isSImm10Shift1() const {
+    if (Kind != Immediate)
+      return false;
+    auto *Const = dyn_cast<MCConstantExpr>(Imm);
+    return Const && Const->getValue() >= -1024 &&
+           Const->getValue() <= 1022 && Const->getValue() % 2 == 0;
+  }
+
   bool isSImm16() const {
     if (Kind != Immediate)
       return false;
@@ -80,6 +88,14 @@ public:
       return false;
     auto *Const = dyn_cast<MCConstantExpr>(Imm);
     return Const && isInt<21>(Const->getValue());
+  }
+
+  bool isSImm21Shift1() const {
+    if (Kind != Immediate)
+      return false;
+    auto *Const = dyn_cast<MCConstantExpr>(Imm);
+    return Const && Const->getValue() >= -2097152 &&
+           Const->getValue() <= 2097150 && Const->getValue() % 2 == 0;
   }
 
   bool isSImm12Shift1() const {
@@ -715,6 +731,9 @@ bool AVR32AsmParser::parseInstruction(ParseInstructionInfo &Info,
     if (parseMemoryDispCommaImmediate(Operands))
       return true;
   } else if (Name == "mcall") {
+    if (parseMemoryDispOperand(Operands))
+      return true;
+  } else if (Name == "rcall" || Name == "rjmp") {
     if (parseMemoryDispOperand(Operands))
       return true;
   } else if (Name == "pref") {

@@ -18,6 +18,11 @@ def SImm8AsmOperand : AsmOperandClass {
   let RenderMethod = "addImmOperands";
 }
 
+def SImm10Shift1AsmOperand : AsmOperandClass {
+  let Name = "SImm10Shift1";
+  let RenderMethod = "addImmOperands";
+}
+
 def SImm11AsmOperand : AsmOperandClass {
   let Name = "SImm11";
   let RenderMethod = "addImmOperands";
@@ -35,6 +40,11 @@ def SImm16AsmOperand : AsmOperandClass {
 
 def SImm21AsmOperand : AsmOperandClass {
   let Name = "SImm21";
+  let RenderMethod = "addImmOperands";
+}
+
+def SImm21Shift1AsmOperand : AsmOperandClass {
+  let Name = "SImm21Shift1";
   let RenderMethod = "addImmOperands";
 }
 
@@ -176,6 +186,13 @@ def simm8 : Operand<i32>, ImmLeaf<i32, [{ return Imm >= -128 && Imm < 128; }]> {
   let ParserMatchClass = SImm8AsmOperand;
 }
 
+def simm10shift1 : Operand<i32>,
+                   ImmLeaf<i32, [{ return Imm >= -1024 && Imm <= 1022 &&
+                                          Imm % 2 == 0; }]> {
+  let ParserMatchClass = SImm10Shift1AsmOperand;
+  let EncoderMethod = "getShifted1OpValue";
+}
+
 def simm11 : Operand<i32>,
              ImmLeaf<i32, [{ return Imm >= -1024 && Imm < 1024; }]> {
   let ParserMatchClass = SImm11AsmOperand;
@@ -194,6 +211,14 @@ def simm16 : Operand<i32>,
 def simm21 : Operand<i32>,
              ImmLeaf<i32, [{ return Imm >= -1048576 && Imm < 1048576; }]> {
   let ParserMatchClass = SImm21AsmOperand;
+}
+
+def simm21shift1 : Operand<i32>,
+                   ImmLeaf<i32, [{ return Imm >= -2097152 &&
+                                          Imm <= 2097150 &&
+                                          Imm % 2 == 0; }]> {
+  let ParserMatchClass = SImm21Shift1AsmOperand;
+  let EncoderMethod = "getShifted1OpValue";
 }
 
 def simm12shift1 : Operand<i32>,
@@ -1052,6 +1077,17 @@ class CompactImm<bits<7> Op, string Mnemonic>
   let Inst{3-0} = 0b0011;
 }
 
+class CompactPCRel10<bits<2> Op, string Mnemonic>
+    : AVR32Inst<0, (outs), (ins PCOnly:$Rp, simm10shift1:$Disp),
+                Mnemonic#"\t${Rp}[$Disp]"> {
+  bits<10> Disp;
+
+  let Inst{15-12} = 0b1100;
+  let Inst{11-4} = Disp{7-0};
+  let Inst{3-2} = Op;
+  let Inst{1-0} = Disp{9-8};
+}
+
 def ACALLi : AVR32Inst<0, (outs), (ins acalldisp:$Disp), "acall\t$Disp"> {
   bits<8> Disp;
 
@@ -1067,6 +1103,19 @@ def INCJOSPi : AVR32Inst<0, (outs), (ins incjospimm:$Imm),
   let Inst{15-7} = 0b110101101;
   let Inst{6-4} = Imm;
   let Inst{3-0} = 0b0011;
+}
+
+class FullPCRel21<string Mnemonic>
+    : AVR32Inst32<(outs), (ins PCOnly:$Rp, simm21shift1:$Disp),
+                  Mnemonic#"\t${Rp}[$Disp]"> {
+  bits<21> Disp;
+
+  let Inst{31-29} = 0b111;
+  let Inst{28-25} = Disp{20-17};
+  let Inst{24-21} = 0b0101;
+  let Inst{20} = Disp{16};
+  let Inst{19-16} = 0;
+  let Inst{15-0} = Disp{15-0};
 }
 
 def LD_W_PostInc : CompactLoadPostInc<0b10000, "ld.w">;
@@ -1801,6 +1850,8 @@ def PLSR_Hrri : FullRegRegUImm4Shift<0b001001000110, "plsr.h">;
 def PAVG_UBrrr : FullRegRegReg<0b001000111100, "pavg.ub">;
 def PAVG_SHrrr : FullRegRegReg<0b001000111101, "pavg.sh">;
 def PREF : FullMemDisp16<0b111100100001, "pref">;
+def RCALLc : CompactPCRel10<0b11, "rcall">;
+def RCALLe : FullPCRel21<"rcall">;
 def PMAX_UBrrr : FullRegRegReg<0b001000111000, "pmax.ub">;
 def PMAX_SHrrr : FullRegRegReg<0b001000111001, "pmax.sh">;
 def PMIN_UBrrr : FullRegRegReg<0b001000111010, "pmin.ub">;
@@ -1826,6 +1877,7 @@ def PUNPCKUB_H : FullRegRegHalf<0b00100100100, "punpckub.h">;
 def PUNPCKSB_H : FullRegRegHalf<0b00100100101, "punpcksb.h">;
 def POPJC : AVR32Inst<0b1101011100010011, (outs), (ins), "popjc">;
 def PUSHJC : AVR32Inst<0b1101011100100011, (outs), (ins), "pushjc">;
+def RJMP : CompactPCRel10<0b10, "rjmp">;
 let isBarrier = 1, isReturn = 1, isTerminator = 1 in {
 def RETD : AVR32Inst<0b1101011000100011, (outs), (ins), "retd">;
 def RETE : AVR32Inst<0b1101011000000011, (outs), (ins), "rete">;
