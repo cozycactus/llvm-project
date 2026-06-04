@@ -9,10 +9,12 @@
 #include "AVR32ISelLowering.h"
 #include "AVR32Subtarget.h"
 #include "llvm/CodeGen/MachineBasicBlock.h"
+#include "llvm/CodeGen/MachineFrameInfo.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
 #include "llvm/IR/DiagnosticInfo.h"
+#include "llvm/Support/MathExtras.h"
 
 using namespace llvm;
 
@@ -28,6 +30,9 @@ AVR32TargetLowering::AVR32TargetLowering(const TargetMachine &TM,
   setOperationAction(ISD::BR_CC, MVT::i32, Custom);
   setOperationAction(ISD::BR_JT, MVT::Other, Expand);
   setOperationAction(ISD::BRCOND, MVT::Other, Expand);
+  setOperationAction(ISD::BSWAP, MVT::i32, Expand);
+  setOperationAction(ISD::ROTL, MVT::i32, Expand);
+  setOperationAction(ISD::ROTR, MVT::i32, Expand);
   setOperationAction(ISD::SELECT_CC, MVT::i32, Custom);
   setOperationAction(ISD::SETCC, MVT::i32, Custom);
   setMinimumJumpTableEntries(UINT_MAX);
@@ -238,16 +243,16 @@ SDValue AVR32TargetLowering::LowerFormalArguments(
     SelectionDAG &DAG, SmallVectorImpl<SDValue> &InVals) const {
   static const MCPhysReg ArgRegs[] = {AVR32::R12, AVR32::R11, AVR32::R10,
                                       AVR32::R9, AVR32::R8};
-  if (IsVarArg || Ins.size() > std::size(ArgRegs)) {
+  if (IsVarArg) {
     diagnoseUnsupported(DAG, DL,
-                        "AVR32 stack and variadic arguments are not "
-                        "implemented yet");
+                        "AVR32 variadic arguments are not implemented yet");
     for (const ISD::InputArg &In : Ins)
       InVals.push_back(DAG.getUNDEF(In.VT));
     return Chain;
   }
 
   MachineFunction &MF = DAG.getMachineFunction();
+  MachineFrameInfo &MFI = MF.getFrameInfo();
   MachineRegisterInfo &MRI = MF.getRegInfo();
   for (unsigned I = 0, E = Ins.size(); I != E; ++I) {
     if (!isSupportedRegValueType(Ins[I].VT)) {
@@ -258,9 +263,19 @@ SDValue AVR32TargetLowering::LowerFormalArguments(
       continue;
     }
 
-    Register VReg = MRI.createVirtualRegister(&AVR32::GPRRegClass);
-    MRI.addLiveIn(ArgRegs[I], VReg);
-    SDValue Arg = DAG.getCopyFromReg(Chain, DL, VReg, MVT::i32);
+    SDValue Arg;
+    if (I < std::size(ArgRegs)) {
+      Register VReg = MRI.createVirtualRegister(&AVR32::GPRRegClass);
+      MRI.addLiveIn(ArgRegs[I], VReg);
+      Arg = DAG.getCopyFromReg(Chain, DL, VReg, MVT::i32);
+    } else {
+      unsigned Offset = (I - std::size(ArgRegs)) * 4;
+      int FI = MFI.CreateFixedObject(4, Offset, /*IsImmutable=*/true);
+      SDValue Ptr = DAG.getFrameIndex(FI, MVT::i32);
+      Arg = DAG.getLoad(MVT::i32, DL, Chain, Ptr,
+                        MachinePointerInfo::getFixedStack(MF, FI));
+    }
+
     if (Ins[I].VT != MVT::i32)
       Arg = DAG.getNode(ISD::TRUNCATE, DL, Ins[I].VT, Arg);
     InVals.push_back(Arg);
@@ -279,15 +294,22 @@ AVR32TargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
   SDValue Callee = CLI.Callee;
   CLI.IsTailCall = false;
 
-  if (CLI.IsVarArg || CLI.Outs.size() > std::size(ArgRegs)) {
+  if (CLI.IsVarArg) {
     diagnoseUnsupported(DAG, DL,
-                        "AVR32 stack and variadic call arguments are not "
-                        "implemented yet");
+                        "AVR32 variadic call arguments are not implemented yet");
     return Chain;
   }
 
+  unsigned StackBytes =
+      CLI.Outs.size() > std::size(ArgRegs)
+          ? alignTo((CLI.Outs.size() - std::size(ArgRegs)) * 4, 4)
+          : 0;
+  Chain = DAG.getCALLSEQ_START(Chain, StackBytes, 0, DL);
+
   SDValue Glue;
   SmallVector<std::pair<MCPhysReg, SDValue>, 5> RegsToPass;
+  SmallVector<SDValue, 8> MemOpChains;
+  SDValue StackPtr;
   for (unsigned I = 0, E = CLI.Outs.size(); I != E; ++I) {
     if (!isSupportedRegValueType(CLI.Outs[I].VT)) {
       diagnoseUnsupported(DAG, DL,
@@ -295,9 +317,26 @@ AVR32TargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
                           "implemented yet");
       continue;
     }
-    RegsToPass.push_back(
-        {ArgRegs[I], extendToI32(CLI.OutVals[I], CLI.Outs[I].Flags, DL, DAG)});
+
+    SDValue Arg = extendToI32(CLI.OutVals[I], CLI.Outs[I].Flags, DL, DAG);
+    if (I < std::size(ArgRegs)) {
+      RegsToPass.push_back({ArgRegs[I], Arg});
+      continue;
+    }
+
+    if (!StackPtr)
+      StackPtr = DAG.getCopyFromReg(Chain, DL, AVR32::SP, MVT::i32);
+
+    unsigned Offset = (I - std::size(ArgRegs)) * 4;
+    SDValue Ptr =
+        DAG.getNode(ISD::ADD, DL, MVT::i32, StackPtr,
+                    DAG.getIntPtrConstant(Offset, DL, MVT::i32));
+    MemOpChains.push_back(
+        DAG.getStore(Chain, DL, Arg, Ptr, MachinePointerInfo()));
   }
+
+  if (!MemOpChains.empty())
+    Chain = DAG.getNode(ISD::TokenFactor, DL, MVT::Other, MemOpChains);
 
   for (const auto &[Reg, Value] : RegsToPass) {
     Chain = DAG.getCopyToReg(Chain, DL, Reg, Value, Glue);
@@ -319,6 +358,9 @@ AVR32TargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
 
   Chain = DAG.getNode(AVR32ISD::CALL, DL,
                       DAG.getVTList(MVT::Other, MVT::Glue), Ops);
+  Glue = Chain.getValue(1);
+
+  Chain = DAG.getCALLSEQ_END(Chain, StackBytes, 0, Glue, DL);
   Glue = Chain.getValue(1);
 
   if (CLI.Ins.size() > 1) {

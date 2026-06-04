@@ -69,5 +69,22 @@ void AVR32FrameLowering::emitEpilogue(MachineFunction &MF,
 MachineBasicBlock::iterator AVR32FrameLowering::eliminateCallFramePseudoInstr(
     MachineFunction &MF, MachineBasicBlock &MBB,
     MachineBasicBlock::iterator I) const {
+  MachineInstr &MI = *I;
+  uint64_t Amount = alignTo(
+      static_cast<uint64_t>(MF.getSubtarget().getInstrInfo()->getFrameSize(MI)),
+      getStackAlign());
+  if (Amount != 0) {
+    if (Amount > 508)
+      report_fatal_error("AVR32 call frame size is not supported yet");
+
+    const AVR32InstrInfo &TII =
+        *MF.getSubtarget<AVR32Subtarget>().getInstrInfo();
+    int64_t Adjust = MI.getOpcode() == TII.getCallFrameSetupOpcode()
+                         ? static_cast<int64_t>(Amount)
+                         : -static_cast<int64_t>(Amount);
+    BuildMI(MBB, I, MI.getDebugLoc(), TII.get(AVR32::SUBSPri8), AVR32::SP)
+        .addImm(Adjust);
+  }
+
   return MBB.erase(I);
 }

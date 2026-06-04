@@ -25,6 +25,14 @@ def SDT_AVR32SelectCC : SDTypeProfile<1, 5, [SDTCisVT<0, i32>,
 def AVR32call : SDNode<"AVR32ISD::CALL", SDT_AVR32Call,
                        [SDNPHasChain, SDNPOutGlue, SDNPOptInGlue,
                         SDNPVariadic]>;
+def AVR32callseq_start :
+    SDNode<"ISD::CALLSEQ_START",
+           SDCallSeqStart<[SDTCisVT<0, i32>, SDTCisVT<1, i32>]>,
+           [SDNPHasChain, SDNPOutGlue]>;
+def AVR32callseq_end :
+    SDNode<"ISD::CALLSEQ_END",
+           SDCallSeqEnd<[SDTCisVT<0, i32>, SDTCisVT<1, i32>]>,
+           [SDNPHasChain, SDNPOptInGlue, SDNPOutGlue]>;
 def AVR32cmp : SDNode<"AVR32ISD::CMP", SDT_AVR32Cmp, [SDNPOutGlue]>;
 def AVR32brcc : SDNode<"AVR32ISD::BR_CC", SDT_AVR32BrCC,
                        [SDNPHasChain, SDNPInGlue]>;
@@ -3300,6 +3308,17 @@ def RETJ : AVR32Inst<0b1101011000110011, (outs), (ins), "retj">;
 def RETS : AVR32Inst<0b1101011000010011, (outs), (ins), "rets">;
 def RETSS : AVR32Inst<0b1101011101100011, (outs), (ins), "retss">;
 }
+
+let isCodeGenOnly = 1, Defs = [SP], Uses = [SP] in {
+def ADJCALLSTACKDOWN : AVR32Inst<0, (outs), (ins i32imm:$amt1, i32imm:$amt2),
+                                "#ADJCALLSTACKDOWN $amt1 $amt2",
+                                [(AVR32callseq_start timm:$amt1,
+                                                       timm:$amt2)]>;
+def ADJCALLSTACKUP : AVR32Inst<0, (outs), (ins i32imm:$amt1, i32imm:$amt2),
+                              "#ADJCALLSTACKUP $amt1 $amt2",
+                              [(AVR32callseq_end timm:$amt1, timm:$amt2)]>;
+}
+
 def ROLr : CompactReg<0b010111001111, "rol">;
 def RORr : CompactReg<0b010111010000, "ror">;
 def RSUBALri : CondRegImm8<0b111110111011, 0b1111, "rsubal">;

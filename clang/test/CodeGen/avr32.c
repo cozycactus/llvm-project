@@ -30,6 +30,10 @@ void set_sr(unsigned value) {
   __builtin_mtsr(0, value);
 }
 
+unsigned short swap_16(unsigned short value) {
+  return __builtin_bswap_16(value);
+}
+
 int eq(int a, int b) {
   return a == b;
 }
@@ -94,6 +98,24 @@ void clear_n(char *p, unsigned n) {
   __builtin_memset(p, 0, n);
 }
 
+int six_arg_callee(int a, int b, int c, int d, int e, int f) {
+  return a + f;
+}
+
+extern int six_arg_extern(int, int, int, int, int, int);
+int call_six_args(int x) {
+  return six_arg_extern(1, 2, 3, 4, 5, x);
+}
+
+_Bool ready;
+int load_ready(void) {
+  return ready;
+}
+
+void store_ready(_Bool value) {
+  ready = value;
+}
+
 int dense_switch(int x) {
   switch (x) {
   case 0:
@@ -149,6 +171,8 @@ __attribute__((optnone, noinline)) int pick(int a, int b) {
 // CHECK: call i32 asm sideeffect "mfsr $0, $1"
 // CHECK: define {{.*}}void @set_sr(i32 {{.*}})
 // CHECK: call void asm sideeffect "mtsr $0, $1"
+// CHECK: define {{.*}}zeroext i16 @swap_16(i16 {{.*}})
+// CHECK: call i16 @llvm.bswap.i16
 // CHECK: define {{.*}}i32 @eq(i32 {{.*}}, i32 {{.*}})
 // CHECK: icmp eq i32
 // CHECK: define {{.*}}ptr @addr()
@@ -181,6 +205,13 @@ __attribute__((optnone, noinline)) int pick(int a, int b) {
 // CHECK: icmp ult i32
 // CHECK: define {{.*}}void @clear_n(ptr {{.*}}, i32 {{.*}})
 // CHECK: call void @llvm.memset
+// CHECK: define {{.*}}i32 @six_arg_callee
+// CHECK: define {{.*}}i32 @call_six_args
+// CHECK: call i32 @six_arg_extern
+// CHECK: define {{.*}}i32 @load_ready()
+// CHECK: load i8, ptr @ready
+// CHECK: define {{.*}}void @store_ready(i1
+// CHECK: store i8
 // CHECK: define {{.*}}i32 @dense_switch(i32 {{.*}})
 // CHECK: switch i32
 // CHECK: define {{.*}}i32 @pass_local(i32 {{.*}})
@@ -214,6 +245,13 @@ __attribute__((optnone, noinline)) int pick(int a, int b) {
 
 // ASM-LABEL: set_sr:
 // ASM: mtsr 0, r12
+// ASM: ret r12
+
+// ASM-LABEL: swap_16:
+// ASM: lsr
+// ASM: lsl
+// ASM: oral
+// ASM: andal
 // ASM: ret r12
 
 // ASM-LABEL: eq:
@@ -290,6 +328,25 @@ __attribute__((optnone, noinline)) int pick(int a, int b) {
 
 // ASM-LABEL: clear_n:
 // ASM: rcall pc[memset]
+// ASM: ret r12
+
+// ASM-LABEL: six_arg_callee:
+// ASM: ld.w {{r[0-9]+}}, sp[0]
+// ASM: ret r12
+
+// ASM-LABEL: call_six_args:
+// ASM: sub sp, 4
+// ASM: st.w sp[0], r12
+// ASM: rcall pc[six_arg_extern]
+// ASM: sub sp, -4
+// ASM: ret r12
+
+// ASM-LABEL: load_ready:
+// ASM: ld.ub r12
+// ASM: ret r12
+
+// ASM-LABEL: store_ready:
+// ASM: st.b
 // ASM: ret r12
 
 // ASM-LABEL: mmio_address:

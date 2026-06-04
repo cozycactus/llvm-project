@@ -12,5 +12,6 @@
 
 TARGET_BUILTIN(__builtin_mfsr, "UiIUi", "n", "")
 TARGET_BUILTIN(__builtin_mtsr, "vIUiUi", "n", "")
+TARGET_BUILTIN(__builtin_bswap_16, "UsUs", "nc", "")
 
 #undef TARGET_BUILTIN

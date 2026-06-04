@@ -9,6 +9,7 @@
 #include "CodeGenFunction.h"
 #include "clang/Basic/TargetBuiltins.h"
 #include "llvm/IR/InlineAsm.h"
+#include "llvm/IR/Intrinsics.h"
 
 using namespace clang;
 using namespace CodeGen;
@@ -18,6 +19,11 @@ llvm::Value *CodeGenFunction::EmitAVR32BuiltinExpr(unsigned BuiltinID,
   switch (BuiltinID) {
   default:
     return nullptr;
+  case AVR32::BI__builtin_bswap_16: {
+    llvm::Value *Value = EmitScalarExpr(E->getArg(0));
+    llvm::Function *F = CGM.getIntrinsic(llvm::Intrinsic::bswap, Int16Ty);
+    return Builder.CreateCall(F, Value);
+  }
   case AVR32::BI__builtin_mfsr: {
     llvm::Value *SysReg = EmitScalarExpr(E->getArg(0));
     llvm::FunctionType *FTy =

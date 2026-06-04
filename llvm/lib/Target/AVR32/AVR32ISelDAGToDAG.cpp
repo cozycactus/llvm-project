@@ -90,7 +90,7 @@ public:
   unsigned getLoadOpcode(EVT MemVT, ISD::LoadExtType ExtType) const {
     if (MemVT == MVT::i32)
       return AVR32::LD_W_Disp16;
-    if (MemVT == MVT::i8)
+    if (MemVT == MVT::i8 || MemVT == MVT::i1)
       return ExtType == ISD::SEXTLOAD ? AVR32::LD_SB_Disp16
                                       : AVR32::LD_UB_Disp16;
     if (MemVT == MVT::i16)
@@ -102,7 +102,7 @@ public:
   unsigned getIndexedLoadOpcode(EVT MemVT, ISD::LoadExtType ExtType) const {
     if (MemVT == MVT::i32)
       return AVR32::LD_W_IndexShift;
-    if (MemVT == MVT::i8)
+    if (MemVT == MVT::i8 || MemVT == MVT::i1)
       return ExtType == ISD::SEXTLOAD ? AVR32::LD_SB_IndexShift
                                       : AVR32::LD_UB_IndexShift;
     if (MemVT == MVT::i16)
@@ -116,7 +116,7 @@ public:
       return AVR32::ST_W_Disp16;
     if (MemVT == MVT::i16)
       return AVR32::ST_H_Disp16;
-    if (MemVT == MVT::i8)
+    if (MemVT == MVT::i8 || MemVT == MVT::i1)
       return AVR32::ST_B_Disp16;
     return 0;
   }

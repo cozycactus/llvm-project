@@ -21,7 +21,9 @@ using namespace llvm;
 #include "AVR32GenInstrInfo.inc"
 
 AVR32InstrInfo::AVR32InstrInfo(const AVR32Subtarget &STI)
-    : AVR32GenInstrInfo(STI, RI), RI() {}
+    : AVR32GenInstrInfo(STI, RI, AVR32::ADJCALLSTACKDOWN,
+                        AVR32::ADJCALLSTACKUP),
+      RI() {}
 
 void AVR32InstrInfo::copyPhysReg(MachineBasicBlock &MBB,
                                  MachineBasicBlock::iterator I,
