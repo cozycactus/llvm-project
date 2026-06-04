@@ -13,10 +13,18 @@ int main(void) {
   return add(40, 2);
 }
 
+__attribute__((optnone, noinline)) int pick(int a, int b) {
+  if (a == b)
+    return 1;
+  return 0;
+}
+
 // CHECK: target datalayout = "E-m:e-p:32:32-i64:32-n32-S32"
 // CHECK: target triple = "avr32"
 // CHECK: define {{.*}}i32 @add(i32 {{.*}}, i32 {{.*}})
 // CHECK: add nsw i32
+// CHECK: define {{.*}}i32 @pick(i32 {{.*}}, i32 {{.*}})
+// CHECK: icmp eq i32
 
 // ASM-LABEL: add:
 // ASM: addal r12, r11, r12
@@ -36,6 +44,14 @@ int main(void) {
 // O0ASM: mov r11, 2
 // O0ASM: rcall pc[add]
 // O0ASM: sub sp, -4
+// O0ASM: ret r12
+
+// O0ASM-LABEL: pick:
+// O0ASM: cp {{r[0-9]+}}, {{r[0-9]+}}
+// O0ASM: brne .LBB
+// O0ASM: bral .LBB
+// O0ASM: mov {{r[0-9]+}}, 1
+// O0ASM: mov {{r[0-9]+}}, 0
 // O0ASM: ret r12
 
 // RELOC: R_AVR32_22H_PCREL add

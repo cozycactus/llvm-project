@@ -9,12 +9,29 @@
 include "AVR32InstrFormats.td"
 
 def SDT_AVR32Call : SDTypeProfile<0, -1, [SDTCisVT<0, iPTR>]>;
+def SDT_AVR32Cmp : SDTypeProfile<0, 2, [SDTCisSameAs<0, 1>]>;
+def SDT_AVR32BrCC : SDTypeProfile<0, 2, [SDTCisVT<0, OtherVT>,
+                                         SDTCisVT<1, i32>]>;
 
 def AVR32call : SDNode<"AVR32ISD::CALL", SDT_AVR32Call,
                        [SDNPHasChain, SDNPOutGlue, SDNPOptInGlue,
                         SDNPVariadic]>;
+def AVR32cmp : SDNode<"AVR32ISD::CMP", SDT_AVR32Cmp, [SDNPOutGlue]>;
+def AVR32brcc : SDNode<"AVR32ISD::BR_CC", SDT_AVR32BrCC,
+                       [SDNPHasChain, SDNPInGlue]>;
 def AVR32retflag : SDNode<"AVR32ISD::RET_FLAG", SDTNone,
                           [SDNPHasChain, SDNPOptInGlue, SDNPVariadic]>;
+
+def AVR32_COND_EQ : PatLeaf<(i32 0)>;
+def AVR32_COND_NE : PatLeaf<(i32 1)>;
+def AVR32_COND_CC : PatLeaf<(i32 2)>;
+def AVR32_COND_CS : PatLeaf<(i32 3)>;
+def AVR32_COND_GE : PatLeaf<(i32 4)>;
+def AVR32_COND_LT : PatLeaf<(i32 5)>;
+def AVR32_COND_LS : PatLeaf<(i32 8)>;
+def AVR32_COND_GT : PatLeaf<(i32 9)>;
+def AVR32_COND_LE : PatLeaf<(i32 10)>;
+def AVR32_COND_HI : PatLeaf<(i32 11)>;
 
 def SImm6AsmOperand : AsmOperandClass {
   let Name = "SImm6";
@@ -339,6 +356,10 @@ def simm21pcrelshift1 : Operand<i32>,
                                                Imm <= 2097150 &&
                                                Imm % 2 == 0; }]> {
   let ParserMatchClass = SImm21Shift1AsmOperand;
+  let EncoderMethod = "getPCRel22HOpValue";
+}
+
+def brtarget22 : Operand<OtherVT> {
   let EncoderMethod = "getPCRel22HOpValue";
 }
 
@@ -1383,6 +1404,19 @@ class FullBranch<bits<4> Cond, string Mnemonic>
   let Inst{20} = Disp{16};
   let Inst{19-16} = Cond;
   let Inst{15-0} = Disp{15-0};
+}
+
+class FullBranchCG<bits<4> Cond, string Mnemonic>
+    : AVR32Inst32<(outs), (ins brtarget22:$Disp), Mnemonic#"\t$Disp"> {
+  bits<21> Disp;
+
+  let Inst{31-29} = 0b111;
+  let Inst{28-25} = Disp{20-17};
+  let Inst{24-21} = 0b0100;
+  let Inst{20} = Disp{16};
+  let Inst{19-16} = Cond;
+  let Inst{15-0} = Disp{15-0};
+  let isCodeGenOnly = 1;
 }
 
 class FullRegList<bits<3> Op, bit Update, string Asm>
@@ -2924,6 +2958,22 @@ def BRHIe : FullBranch<0b1011, "brhi">;
 def BRVSe : FullBranch<0b1100, "brvs">;
 def BRVCe : FullBranch<0b1101, "brvc">;
 def BRQSe : FullBranch<0b1110, "brqs">;
+
+let isBranch = 1, isTerminator = 1, isBarrier = 1 in
+def BRALbb : FullBranchCG<0b1111, "bral">;
+let isBranch = 1, isTerminator = 1 in {
+def BREQbb : FullBranchCG<0b0000, "breq">;
+def BRNEbb : FullBranchCG<0b0001, "brne">;
+def BRCCbb : FullBranchCG<0b0010, "brcc">;
+def BRCSbb : FullBranchCG<0b0011, "brcs">;
+def BRGEbb : FullBranchCG<0b0100, "brge">;
+def BRLTbb : FullBranchCG<0b0101, "brlt">;
+def BRLSbb : FullBranchCG<0b1000, "brls">;
+def BRGTbb : FullBranchCG<0b1001, "brgt">;
+def BRLEbb : FullBranchCG<0b1010, "brle">;
+def BRHIbb : FullBranchCG<0b1011, "brhi">;
+}
+
 def BSTri : FullRegUImm5NoOut<0b111011111011, "bst">;
 def BREAKPOINT : AVR32Inst<0b1101011001110011, (outs), (ins), "breakpoint">;
 def CBRri : CompactRegUImm5NoOut<0b1110, "cbr">;
@@ -3484,3 +3534,19 @@ def XCHGrrr : FullRegRegReg<0b000010110100, "xchg">;
 def : Pat<(AVR32call (i32 tglobaladdr:$dst)), (RCALLe PC, tglobaladdr:$dst)>;
 def : Pat<(AVR32call (i32 texternalsym:$dst)),
           (RCALLe PC, texternalsym:$dst)>;
+
+def : Pat<(br bb:$dst), (BRALbb bb:$dst)>;
+
+def : Pat<(AVR32cmp GPR:$LHS, GPR:$RHS), (CPrr GPR:$LHS, GPR:$RHS)>;
+def : Pat<(AVR32cmp GPR:$LHS, simm21:$RHS), (CPri21 GPR:$LHS, simm21:$RHS)>;
+
+def : Pat<(AVR32brcc bb:$dst, AVR32_COND_EQ), (BREQbb bb:$dst)>;
+def : Pat<(AVR32brcc bb:$dst, AVR32_COND_NE), (BRNEbb bb:$dst)>;
+def : Pat<(AVR32brcc bb:$dst, AVR32_COND_CC), (BRCCbb bb:$dst)>;
+def : Pat<(AVR32brcc bb:$dst, AVR32_COND_CS), (BRCSbb bb:$dst)>;
+def : Pat<(AVR32brcc bb:$dst, AVR32_COND_GE), (BRGEbb bb:$dst)>;
+def : Pat<(AVR32brcc bb:$dst, AVR32_COND_LT), (BRLTbb bb:$dst)>;
+def : Pat<(AVR32brcc bb:$dst, AVR32_COND_LS), (BRLSbb bb:$dst)>;
+def : Pat<(AVR32brcc bb:$dst, AVR32_COND_GT), (BRGTbb bb:$dst)>;
+def : Pat<(AVR32brcc bb:$dst, AVR32_COND_LE), (BRLEbb bb:$dst)>;
+def : Pat<(AVR32brcc bb:$dst, AVR32_COND_HI), (BRHIbb bb:$dst)>;

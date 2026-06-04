@@ -11,6 +11,28 @@
 
 #include "llvm/Support/CodeGen.h"
 
+namespace AVR32CC {
+enum CondCodes {
+  COND_EQ = 0,
+  COND_NE = 1,
+  COND_CC = 2,
+  COND_CS = 3,
+  COND_GE = 4,
+  COND_LT = 5,
+  COND_MI = 6,
+  COND_PL = 7,
+  COND_LS = 8,
+  COND_GT = 9,
+  COND_LE = 10,
+  COND_HI = 11,
+  COND_VS = 12,
+  COND_VC = 13,
+  COND_QS = 14,
+  COND_AL = 15,
+  COND_INVALID = -1
+};
+} // namespace AVR32CC
+
 namespace llvm {
 class AVR32TargetMachine;
 class FunctionPass;

@@ -21,6 +21,8 @@ AVR32TargetLowering::AVR32TargetLowering(const TargetMachine &TM,
                                          const AVR32Subtarget &STI)
     : TargetLowering(TM, STI) {
   addRegisterClass(MVT::i32, &AVR32::GPRRegClass);
+  setOperationAction(ISD::BR_CC, MVT::i32, Custom);
+  setOperationAction(ISD::BRCOND, MVT::Other, Expand);
   computeRegisterProperties(STI.getRegisterInfo());
   setStackPointerRegisterToSaveRestore(AVR32::SP);
 }
@@ -30,6 +32,57 @@ static void diagnoseUnsupported(SelectionDAG &DAG, const SDLoc &DL,
   MachineFunction &MF = DAG.getMachineFunction();
   DAG.getContext()->diagnose(
       DiagnosticInfoUnsupported(MF.getFunction(), Message, DL.getDebugLoc()));
+}
+
+static AVR32CC::CondCodes intCondCodeToAVR32CC(ISD::CondCode CC) {
+  switch (CC) {
+  default:
+    return AVR32CC::COND_INVALID;
+  case ISD::SETEQ:
+    return AVR32CC::COND_EQ;
+  case ISD::SETNE:
+    return AVR32CC::COND_NE;
+  case ISD::SETUGE:
+    return AVR32CC::COND_CC;
+  case ISD::SETULT:
+    return AVR32CC::COND_CS;
+  case ISD::SETGE:
+    return AVR32CC::COND_GE;
+  case ISD::SETLT:
+    return AVR32CC::COND_LT;
+  case ISD::SETULE:
+    return AVR32CC::COND_LS;
+  case ISD::SETGT:
+    return AVR32CC::COND_GT;
+  case ISD::SETLE:
+    return AVR32CC::COND_LE;
+  case ISD::SETUGT:
+    return AVR32CC::COND_HI;
+  }
+}
+
+SDValue AVR32TargetLowering::LowerOperation(SDValue Op,
+                                            SelectionDAG &DAG) const {
+  if (Op.getOpcode() != ISD::BR_CC)
+    llvm_unreachable("Unsupported AVR32 custom lowering");
+
+  SDValue Chain = Op.getOperand(0);
+  ISD::CondCode CC = cast<CondCodeSDNode>(Op.getOperand(1))->get();
+  SDValue LHS = Op.getOperand(2);
+  SDValue RHS = Op.getOperand(3);
+  SDValue Dest = Op.getOperand(4);
+  SDLoc DL(Op);
+
+  AVR32CC::CondCodes TargetCC = intCondCodeToAVR32CC(CC);
+  if (TargetCC == AVR32CC::COND_INVALID) {
+    diagnoseUnsupported(DAG, DL,
+                        "AVR32 condition code is not implemented yet");
+    return Chain;
+  }
+
+  SDValue Flag = DAG.getNode(AVR32ISD::CMP, DL, MVT::Glue, LHS, RHS);
+  return DAG.getNode(AVR32ISD::BR_CC, DL, MVT::Other, Chain, Dest,
+                     DAG.getConstant(TargetCC, DL, MVT::i32), Flag);
 }
 
 SDValue AVR32TargetLowering::LowerFormalArguments(

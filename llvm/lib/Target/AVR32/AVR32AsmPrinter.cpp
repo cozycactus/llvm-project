@@ -39,12 +39,15 @@ public:
 
 const MCExpr *AVR32AsmPrinter::lowerSymbolOperand(const MachineOperand &MO) {
   const MCSymbol *Symbol;
+  int64_t Offset = 0;
   switch (MO.getType()) {
   case MachineOperand::MO_GlobalAddress:
     Symbol = getSymbol(MO.getGlobal());
+    Offset = MO.getOffset();
     break;
   case MachineOperand::MO_ExternalSymbol:
     Symbol = GetExternalSymbolSymbol(MO.getSymbolName());
+    Offset = MO.getOffset();
     break;
   case MachineOperand::MO_MachineBasicBlock:
     Symbol = MO.getMBB()->getSymbol();
@@ -54,9 +57,9 @@ const MCExpr *AVR32AsmPrinter::lowerSymbolOperand(const MachineOperand &MO) {
   }
 
   const MCExpr *Expr = MCSymbolRefExpr::create(Symbol, OutContext);
-  if (MO.getOffset() != 0)
+  if (Offset != 0)
     Expr = MCBinaryExpr::createAdd(
-        Expr, MCConstantExpr::create(MO.getOffset(), OutContext), OutContext);
+        Expr, MCConstantExpr::create(Offset, OutContext), OutContext);
   return Expr;
 }
 
