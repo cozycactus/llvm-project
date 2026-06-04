@@ -1,0 +1,17 @@
+# RUN: yaml2obj %s -o %t
+# RUN: llvm-readobj -h %t | FileCheck %s
+
+--- !ELF
+FileHeader:
+  Class:           ELFCLASS32
+  Data:            ELFDATA2MSB
+  OSABI:           ELFOSABI_NONE
+  ABIVersion:      0
+  Type:            ET_REL
+  Machine:         EM_AVR32
+  Flags:           [ EF_AVR32_LINKRELAX, EF_AVR32_PIC ]
+
+# CHECK:      Flags [ (0x3)
+# CHECK-NEXT:   EF_AVR32_LINKRELAX (0x1)
+# CHECK-NEXT:   EF_AVR32_PIC (0x2)
+# CHECK-NEXT: ]

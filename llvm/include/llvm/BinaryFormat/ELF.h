@@ -518,6 +518,12 @@ enum {
 #include "ELFRelocs/AVR.def"
 };
 
+// AVR32 specific e_flags
+enum : unsigned {
+  EF_AVR32_LINKRELAX = 0x01,
+  EF_AVR32_PIC = 0x02,
+};
+
 // ELF Relocation types for AVR32
 enum {
 #include "ELFRelocs/AVR32.def"

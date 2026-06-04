@@ -1790,6 +1790,11 @@ const EnumEntry<unsigned> ElfHeaderAVRFlags[] = {
   ENUM_ENT(EF_AVR_LINKRELAX_PREPARED, "relaxable"),
 };
 
+const EnumEntry<unsigned> ElfHeaderAVR32Flags[] = {
+  LLVM_READOBJ_ENUM_ENT(ELF, EF_AVR32_LINKRELAX),
+  LLVM_READOBJ_ENUM_ENT(ELF, EF_AVR32_PIC),
+};
+
 const EnumEntry<unsigned> ElfHeaderLoongArchFlags[] = {
   ENUM_ENT(EF_LOONGARCH_ABI_SOFT_FLOAT, "SOFT-FLOAT"),
   ENUM_ENT(EF_LOONGARCH_ABI_SINGLE_FLOAT, "SINGLE-FLOAT"),
@@ -3760,6 +3765,8 @@ template <class ELFT> void GNUELFDumper<ELFT>::printFileHeaders() {
   else if (e.e_machine == EM_AVR)
     ElfFlags = printFlags(e.e_flags, ArrayRef(ElfHeaderAVRFlags),
                           unsigned(ELF::EF_AVR_ARCH_MASK));
+  else if (e.e_machine == EM_AVR32)
+    ElfFlags = printFlags(e.e_flags, ArrayRef(ElfHeaderAVR32Flags));
   else if (e.e_machine == EM_LOONGARCH)
     ElfFlags = printFlags(e.e_flags, ArrayRef(ElfHeaderLoongArchFlags),
                           unsigned(ELF::EF_LOONGARCH_ABI_MODIFIER_MASK),
@@ -7510,6 +7517,8 @@ template <class ELFT> void LLVMELFDumper<ELFT>::printFileHeaders() {
     else if (E.e_machine == EM_AVR)
       W.printFlags("Flags", E.e_flags, ArrayRef(ElfHeaderAVRFlags),
                    unsigned(ELF::EF_AVR_ARCH_MASK));
+    else if (E.e_machine == EM_AVR32)
+      W.printFlags("Flags", E.e_flags, ArrayRef(ElfHeaderAVR32Flags));
     else if (E.e_machine == EM_LOONGARCH)
       W.printFlags("Flags", E.e_flags, ArrayRef(ElfHeaderLoongArchFlags),
                    unsigned(ELF::EF_LOONGARCH_ABI_MODIFIER_MASK),
