@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "InputFiles.h"
 #include "Symbols.h"
 #include "Target.h"
 #include "llvm/BinaryFormat/ELF.h"
@@ -13,6 +14,7 @@
 
 using namespace llvm;
 using namespace llvm::ELF;
+using namespace llvm::object;
 using namespace llvm::support::endian;
 using namespace lld;
 using namespace lld::elf;
@@ -24,12 +26,27 @@ public:
     trapInstr = {0xd6, 0x73, 0xd6, 0x73}; // breakpoint; breakpoint
   }
 
+  uint32_t calcEFlags() const override;
   RelExpr getRelExpr(RelType type, const Symbol &s,
                      const uint8_t *loc) const override;
   void relocate(uint8_t *loc, const Relocation &rel,
                 uint64_t val) const override;
 };
 } // namespace
+
+static uint32_t getEFlags(InputFile *file) {
+  return cast<ObjFile<ELF32BE>>(file)->getObj().getHeader().e_flags;
+}
+
+uint32_t AVR32::calcEFlags() const {
+  assert(!ctx.objectFiles.empty());
+
+  uint32_t flags =
+      getEFlags(ctx.objectFiles[0]) & (EF_AVR32_LINKRELAX | EF_AVR32_PIC);
+  for (InputFile *f : ArrayRef(ctx.objectFiles).slice(1))
+    flags &= getEFlags(f) & (EF_AVR32_LINKRELAX | EF_AVR32_PIC);
+  return flags;
+}
 
 RelExpr AVR32::getRelExpr(RelType type, const Symbol &s,
                           const uint8_t *loc) const {

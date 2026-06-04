@@ -27,6 +27,15 @@
 # PCREL: Hex dump of section '.text':
 # PCREL-NEXT: 0x000110b4 00000007 00500800 00060000 00040000
 
+# RUN: yaml2obj --docnum=4 %s -o %t.flags.o
+# RUN: ld.lld %t.flags.o -o %t.flags
+# RUN: llvm-readobj --file-headers %t.flags | FileCheck %s --check-prefix=FLAGS
+
+# FLAGS:      Flags [ (0x3)
+# FLAGS-NEXT:   EF_AVR32_LINKRELAX (0x1)
+# FLAGS-NEXT:   EF_AVR32_PIC (0x2)
+# FLAGS-NEXT: ]
+
 --- !ELF
 FileHeader:
   Class:   ELFCLASS32
@@ -124,4 +133,22 @@ Symbols:
   - Name: target
     Section: .text
     Value: 14
+    Binding: STB_GLOBAL
+
+--- !ELF
+FileHeader:
+  Class:   ELFCLASS32
+  Data:    ELFDATA2MSB
+  Type:    ET_REL
+  Machine: EM_AVR32
+  Flags:   [ EF_AVR32_LINKRELAX, EF_AVR32_PIC ]
+Sections:
+  - Name: .text
+    Type: SHT_PROGBITS
+    Flags: [ SHF_ALLOC, SHF_EXECINSTR ]
+    Content: "0000"
+Symbols:
+  - Name: _start
+    Section: .text
+    Value: 0
     Binding: STB_GLOBAL
