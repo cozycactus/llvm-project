@@ -5,23 +5,9 @@
 
 # CHECK: error: unsupported e_machine value: 9
 
-# RUN: yaml2obj --docnum=2 %s -o %t.avr32.o
-# RUN: echo 'OUTPUT_FORMAT(elf32-avr32)' > %t.avr32.script
-# RUN: not ld.lld %t.avr32.script %t.avr32.o -o /dev/null 2>&1 \
-# RUN:   | FileCheck %s --check-prefix=AVR32
-
-# AVR32: error: unsupported e_machine value: 185
-
 --- !ELF
 FileHeader:
   Class:   ELFCLASS64
   Data:    ELFDATA2LSB
   Type:    ET_REL
   Machine: EM_S370
-
---- !ELF
-FileHeader:
-  Class:   ELFCLASS32
-  Data:    ELFDATA2MSB
-  Type:    ET_REL
-  Machine: EM_AVR32

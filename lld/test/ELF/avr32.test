@@ -1,0 +1,127 @@
+# RUN: yaml2obj --docnum=1 %s -o %t.o
+# RUN: ld.lld %t.o -o %t
+# RUN: llvm-readobj --file-headers %t | FileCheck %s --check-prefix=HEADER
+# RUN: echo 'OUTPUT_FORMAT(elf32-avr32)' > %t.script
+# RUN: ld.lld %t.script %t.o -o %t.script.out
+# RUN: llvm-readobj --file-headers %t.script.out | FileCheck %s --check-prefix=HEADER
+
+# HEADER:      Format: elf32-avr32
+# HEADER-NEXT: Arch: avr32
+# HEADER:      ElfHeader {
+# HEADER:        Class: 32-bit (0x1)
+# HEADER-NEXT:   DataEncoding: BigEndian (0x2)
+# HEADER:        Type: Executable (0x2)
+# HEADER-NEXT:   Machine: EM_AVR32 (0xB9)
+
+# RUN: yaml2obj --docnum=2 %s -o %t.abs.o
+# RUN: ld.lld %t.abs.o -o %t.abs
+# RUN: llvm-readobj --hex-dump=.text %t.abs | FileCheck %s --check-prefix=ABS
+
+# ABS: Hex dump of section '.text':
+# ABS-NEXT: 0x000110b4 12345678 56787800 00000000 00000000
+
+# RUN: yaml2obj --docnum=3 %s -o %t.pcrel.o
+# RUN: ld.lld %t.pcrel.o -o %t.pcrel
+# RUN: llvm-readobj --hex-dump=.text %t.pcrel | FileCheck %s --check-prefix=PCREL
+
+# PCREL: Hex dump of section '.text':
+# PCREL-NEXT: 0x000110b4 00000007 00500800 00060000 00040000
+
+--- !ELF
+FileHeader:
+  Class:   ELFCLASS32
+  Data:    ELFDATA2MSB
+  Type:    ET_REL
+  Machine: EM_AVR32
+Sections:
+  - Name: .text
+    Type: SHT_PROGBITS
+    Flags: [ SHF_ALLOC, SHF_EXECINSTR ]
+    Content: "0000"
+Symbols:
+  - Name: _start
+    Section: .text
+    Value: 0
+    Binding: STB_GLOBAL
+
+--- !ELF
+FileHeader:
+  Class:   ELFCLASS32
+  Data:    ELFDATA2MSB
+  Type:    ET_REL
+  Machine: EM_AVR32
+Sections:
+  - Name: .text
+    Type: SHT_PROGBITS
+    Flags: [ SHF_ALLOC, SHF_EXECINSTR ]
+    Content: "00000000000000000000000000000000"
+  - Name: .rela.text
+    Type: SHT_RELA
+    Info: .text
+    Relocations:
+      - Offset: 0
+        Symbol: abs32
+        Type: R_AVR32_32
+      - Offset: 4
+        Symbol: abs16
+        Type: R_AVR32_16
+      - Offset: 6
+        Symbol: abs8
+        Type: R_AVR32_8
+Symbols:
+  - Name: _start
+    Section: .text
+    Value: 0
+    Binding: STB_GLOBAL
+  - Name: abs32
+    Index: SHN_ABS
+    Value: 0x12345678
+    Binding: STB_GLOBAL
+  - Name: abs16
+    Index: SHN_ABS
+    Value: 0x5678
+    Binding: STB_GLOBAL
+  - Name: abs8
+    Index: SHN_ABS
+    Value: 0x78
+    Binding: STB_GLOBAL
+
+--- !ELF
+FileHeader:
+  Class:   ELFCLASS32
+  Data:    ELFDATA2MSB
+  Type:    ET_REL
+  Machine: EM_AVR32
+Sections:
+  - Name: .text
+    Type: SHT_PROGBITS
+    Flags: [ SHF_ALLOC, SHF_EXECINSTR ]
+    Content: "00000000000000000000000000000000"
+  - Name: .rela.text
+    Type: SHT_RELA
+    Info: .text
+    Relocations:
+      - Offset: 0
+        Symbol: target
+        Type: R_AVR32_22H_PCREL
+      - Offset: 4
+        Symbol: target
+        Type: R_AVR32_11H_PCREL
+      - Offset: 6
+        Symbol: target
+        Type: R_AVR32_8_PCREL
+      - Offset: 8
+        Symbol: target
+        Type: R_AVR32_16_PCREL
+      - Offset: 10
+        Symbol: target
+        Type: R_AVR32_32_PCREL
+Symbols:
+  - Name: _start
+    Section: .text
+    Value: 0
+    Binding: STB_GLOBAL
+  - Name: target
+    Section: .text
+    Value: 14
+    Binding: STB_GLOBAL
