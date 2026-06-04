@@ -832,7 +832,7 @@ bool RelocScan::isStaticLinkTimeConstant(RelExpr e, RelType type,
                                          uint64_t relOff) const {
   // These expressions always compute a constant
   if (oneof<
-          R_GOTPLT, R_GOT_OFF, R_RELAX_HINT, RE_MIPS_GOT_LOCAL_PAGE,
+          R_NONE, R_GOTPLT, R_GOT_OFF, R_RELAX_HINT, RE_MIPS_GOT_LOCAL_PAGE,
           RE_MIPS_GOTREL, RE_MIPS_GOT_OFF, RE_MIPS_GOT_OFF32, RE_MIPS_GOT_GP_PC,
           RE_AARCH64_GOT_PAGE_PC, RE_AARCH64_AUTH_GOT_PAGE_PC, R_GOT_PC,
           R_GOTONLY_PC, R_GOTPLTONLY_PC, R_PLT_PC, R_PLT_GOTREL, R_PLT_GOTPLT,

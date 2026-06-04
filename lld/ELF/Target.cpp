@@ -165,6 +165,8 @@ static void relocateImpl(const TargetInfo &target, InputSectionBase &sec,
   auto &ctx = target.ctx;
   const unsigned bits = ctx.arg.is64 ? 64 : 32;
   for (const Relocation &rel : sec.relocs()) {
+    if (rel.expr == R_NONE)
+      continue;
     uint8_t *loc = buf + rel.offset;
     const uint64_t val = SignExtend64(
         sec.getRelocTargetVA(ctx, rel, secAddr + rel.offset), bits);
