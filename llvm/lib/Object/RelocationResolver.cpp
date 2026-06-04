@@ -380,6 +380,45 @@ static uint64_t resolveAVR(uint64_t Type, uint64_t Offset, uint64_t S,
   }
 }
 
+static bool supportsAVR32(uint64_t Type) {
+  switch (Type) {
+  case ELF::R_AVR32_NONE:
+  case ELF::R_AVR32_8:
+  case ELF::R_AVR32_16:
+  case ELF::R_AVR32_32:
+  case ELF::R_AVR32_8_PCREL:
+  case ELF::R_AVR32_16_PCREL:
+  case ELF::R_AVR32_32_PCREL:
+    return true;
+  default:
+    return false;
+  }
+}
+
+static uint64_t resolveAVR32(uint64_t Type, uint64_t Offset, uint64_t S,
+                             uint64_t LocData, int64_t Addend) {
+  assert((LocData == 0 || Addend == 0) &&
+         "one of LocData and Addend must be 0");
+  switch (Type) {
+  case ELF::R_AVR32_NONE:
+    return LocData;
+  case ELF::R_AVR32_8:
+    return (S + LocData + Addend) & 0xFF;
+  case ELF::R_AVR32_16:
+    return (S + LocData + Addend) & 0xFFFF;
+  case ELF::R_AVR32_32:
+    return (S + LocData + Addend) & 0xFFFFFFFF;
+  case ELF::R_AVR32_8_PCREL:
+    return (S + LocData + Addend - Offset) & 0xFF;
+  case ELF::R_AVR32_16_PCREL:
+    return (S + LocData + Addend - Offset) & 0xFFFF;
+  case ELF::R_AVR32_32_PCREL:
+    return (S + LocData + Addend - Offset) & 0xFFFFFFFF;
+  default:
+    llvm_unreachable("Invalid relocation type");
+  }
+}
+
 static bool supportsLanai(uint64_t Type) {
   return Type == ELF::R_LANAI_32;
 }
@@ -836,6 +875,8 @@ getRelocationResolver(const ObjectFile &Obj) {
       return {supportsARM, resolveARM};
     case Triple::avr:
       return {supportsAVR, resolveAVR};
+    case Triple::avr32:
+      return {supportsAVR32, resolveAVR32};
     case Triple::lanai:
       return {supportsLanai, resolveLanai};
     case Triple::loongarch32:

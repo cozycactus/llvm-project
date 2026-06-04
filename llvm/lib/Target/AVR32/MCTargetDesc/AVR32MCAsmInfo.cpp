@@ -14,6 +14,7 @@ void AVR32MCAsmInfo::anchor() {}
 
 AVR32MCAsmInfo::AVR32MCAsmInfo(const MCTargetOptions &Options)
     : MCAsmInfoELF(Options) {
+  IsLittleEndian = false;
   CodePointerSize = 4;
   CalleeSaveStackSlotSize = 4;
 
