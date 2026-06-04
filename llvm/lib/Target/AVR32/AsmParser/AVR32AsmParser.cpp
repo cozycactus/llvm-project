@@ -494,6 +494,8 @@ private:
   bool parseRegisterCommaRegisterHalfPart(OperandVector &Operands);
   bool parseRegisterCommaRegisterHalfPartCommaRegisterHalfPart(
       OperandVector &Operands);
+  bool parseRegisterCommaRegisterCommaRegisterHalfPart(
+      OperandVector &Operands);
   bool parseLoadInsertOperands(OperandVector &Operands, bool IsByte);
   bool parseLoadOperands(OperandVector &Operands,
                          bool AllowBareRegister = false);
@@ -700,6 +702,10 @@ bool AVR32AsmParser::parseInstruction(ParseInstructionInfo &Info,
              Name == "psubadds.sh" || Name == "psubadds.uh" ||
              Name == "subhh.w") {
     if (parseRegisterCommaRegisterHalfPartCommaRegisterHalfPart(Operands))
+      return true;
+  } else if (Name == "macwh.d" || Name == "mulnwh.d" ||
+             Name == "mulwh.d") {
+    if (parseRegisterCommaRegisterCommaRegisterHalfPart(Operands))
       return true;
   } else if (Name == "punpckub.h" || Name == "punpcksb.h") {
     if (parseRegisterCommaRegisterHalfPart(Operands))
@@ -1370,6 +1376,17 @@ bool AVR32AsmParser::parseRegisterCommaRegisterHalfPartCommaRegisterHalfPart(
   if (!parseOptionalToken(AsmToken::Comma))
     return Error(getLexer().getLoc(), "expected comma");
   if (parseRegisterHalfPart(Operands))
+    return true;
+  if (!parseOptionalToken(AsmToken::Comma))
+    return Error(getLexer().getLoc(), "expected comma");
+  if (parseRegisterHalfPart(Operands))
+    return true;
+  return false;
+}
+
+bool AVR32AsmParser::parseRegisterCommaRegisterCommaRegisterHalfPart(
+    OperandVector &Operands) {
+  if (parseRegisterCommaRegister(Operands))
     return true;
   if (!parseOptionalToken(AsmToken::Comma))
     return Error(getLexer().getLoc(), "expected comma");

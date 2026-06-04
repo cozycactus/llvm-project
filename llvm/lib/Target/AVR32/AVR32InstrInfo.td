@@ -2000,6 +2000,23 @@ class FullRegRegHalf<bits<11> Op, string Mnemonic>
   let Inst{3-0} = Rd;
 }
 
+class FullRegRegRegHalf<bits<11> Op, string Mnemonic>
+    : AVR32Inst32<(outs GPR:$Rd), (ins GPR:$Rx, GPR:$Ry, halfpart:$YPart),
+                  Mnemonic#"\t$Rd, $Rx, ${Ry}:$YPart"> {
+  bits<4> Rd;
+  bits<4> Rx;
+  bits<4> Ry;
+  bits<1> YPart;
+
+  let Inst{31-29} = 0b111;
+  let Inst{28-25} = Rx;
+  let Inst{24-20} = 0b00000;
+  let Inst{19-16} = Ry;
+  let Inst{15-5} = Op;
+  let Inst{4} = YPart;
+  let Inst{3-0} = Rd;
+}
+
 class FullRegRegRegShift<bits<10> Op, string Mnemonic>
     : AVR32Inst32<(outs GPR:$Rd), (ins GPR:$Rx, GPR:$Ry, uimm2:$Shift),
                   Mnemonic#"\t$Rd, $Rx, $Ry << $Shift"> {
@@ -2499,6 +2516,7 @@ def MACHH_D : FullRegRegHalfRegHalf<0b0000010110, "machh.d">;
 def MACHH_W : FullRegRegHalfRegHalf<0b0000010010, "machh.w">;
 def MACS_Drrr : FullRegRegReg<0b000001010100, "macs.d">;
 def MACU_Drrr : FullRegRegReg<0b000001110100, "macu.d">;
+def MACWH_D : FullRegRegRegHalf<0b00001100100, "macwh.d">;
 def MEMC : FullMemBit<0b111111000001, "memc">;
 def MEMS : FullMemBit<0b111100000001, "mems">;
 def MEMT : FullMemBit<0b111101000001, "memt">;
@@ -2507,8 +2525,10 @@ def MULri8 : FullRegRegImm<0b00010000, "mul">;
 def MULrrr : FullRegRegReg<0b000000100100, "mul">;
 def MULHH_W : FullRegRegHalfRegHalf<0b0000011110, "mulhh.w">;
 def MULNHH_W : FullRegRegHalfRegHalf<0b0000000110, "mulnhh.w">;
+def MULNWH_D : FullRegRegRegHalf<0b00000010100, "mulnwh.d">;
 def MULS_Drrr : FullRegRegReg<0b000001000100, "muls.d">;
 def MULU_Drrr : FullRegRegReg<0b000001100100, "mulu.d">;
+def MULWH_D : FullRegRegRegHalf<0b00001101100, "mulwh.d">;
 def MUSFRr : CompactRegNoOut<0b010111010011, "musfr">;
 def MUSTRr : CompactReg<0b010111010010, "mustr">;
 def MTDRi : FullDebugRegReg<0b111001111011, "mtdr">;
