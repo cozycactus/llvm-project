@@ -441,6 +441,16 @@ namespace clang {
     };
   }
 
+  /// AVR32 builtins
+  namespace AVR32 {
+    enum {
+        LastTIBuiltin = clang::Builtin::FirstTSBuiltin-1,
+#define BUILTIN(ID, TYPE, ATTRS) BI##ID,
+#include "clang/Basic/BuiltinsAVR32.def"
+        LastTSBuiltin
+    };
+  }
+
   /// XCore builtins
   namespace XCore {
     enum {
@@ -475,7 +485,8 @@ namespace clang {
       {ARM::LastTSBuiltin, AArch64::LastTSBuiltin, BPF::LastTSBuiltin,
        PPC::LastTSBuiltin, NVPTX::LastTSBuiltin, AMDGPU::LastTSBuiltin,
        X86::LastTSBuiltin, VE::LastTSBuiltin, RISCV::LastTSBuiltin,
-       Hexagon::LastTSBuiltin, Mips::LastTSBuiltin, XCore::LastTSBuiltin,
+       Hexagon::LastTSBuiltin, Mips::LastTSBuiltin, AVR32::LastTSBuiltin,
+       XCore::LastTSBuiltin,
        SystemZ::LastTSBuiltin, WebAssembly::LastTSBuiltin});
 
 } // end namespace clang.

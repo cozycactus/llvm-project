@@ -32,11 +32,35 @@ AVR32TargetLowering::AVR32TargetLowering(const TargetMachine &TM,
   setStackPointerRegisterToSaveRestore(AVR32::SP);
 }
 
+std::pair<unsigned, const TargetRegisterClass *>
+AVR32TargetLowering::getRegForInlineAsmConstraint(
+    const TargetRegisterInfo *TRI, StringRef Constraint, MVT VT) const {
+  if (Constraint == "r")
+    return std::make_pair(0U, &AVR32::GPRRegClass);
+
+  return TargetLowering::getRegForInlineAsmConstraint(TRI, Constraint, VT);
+}
+
 static void diagnoseUnsupported(SelectionDAG &DAG, const SDLoc &DL,
                                 StringRef Message) {
   MachineFunction &MF = DAG.getMachineFunction();
   DAG.getContext()->diagnose(
       DiagnosticInfoUnsupported(MF.getFunction(), Message, DL.getDebugLoc()));
+}
+
+static bool isSupportedRegValueType(EVT VT) {
+  return VT == MVT::i32 || VT == MVT::i16 || VT == MVT::i8;
+}
+
+static SDValue extendToI32(SDValue Value, const ISD::ArgFlagsTy &Flags,
+                           const SDLoc &DL, SelectionDAG &DAG) {
+  if (Value.getValueType() == MVT::i32)
+    return Value;
+  if (Flags.isSExt())
+    return DAG.getNode(ISD::SIGN_EXTEND, DL, MVT::i32, Value);
+  if (Flags.isZExt())
+    return DAG.getNode(ISD::ZERO_EXTEND, DL, MVT::i32, Value);
+  return DAG.getNode(ISD::ANY_EXTEND, DL, MVT::i32, Value);
 }
 
 static AVR32CC::CondCodes intCondCodeToAVR32CC(ISD::CondCode CC) {
@@ -205,16 +229,20 @@ SDValue AVR32TargetLowering::LowerFormalArguments(
   MachineFunction &MF = DAG.getMachineFunction();
   MachineRegisterInfo &MRI = MF.getRegInfo();
   for (unsigned I = 0, E = Ins.size(); I != E; ++I) {
-    if (Ins[I].VT != MVT::i32) {
+    if (!isSupportedRegValueType(Ins[I].VT)) {
       diagnoseUnsupported(DAG, DL,
-                          "AVR32 non-i32 arguments are not implemented yet");
+                          "AVR32 non-integer register arguments are not "
+                          "implemented yet");
       InVals.push_back(DAG.getUNDEF(Ins[I].VT));
       continue;
     }
 
     Register VReg = MRI.createVirtualRegister(&AVR32::GPRRegClass);
     MRI.addLiveIn(ArgRegs[I], VReg);
-    InVals.push_back(DAG.getCopyFromReg(Chain, DL, VReg, MVT::i32));
+    SDValue Arg = DAG.getCopyFromReg(Chain, DL, VReg, MVT::i32);
+    if (Ins[I].VT != MVT::i32)
+      Arg = DAG.getNode(ISD::TRUNCATE, DL, Ins[I].VT, Arg);
+    InVals.push_back(Arg);
   }
   return Chain;
 }
@@ -228,24 +256,26 @@ AVR32TargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
   SDLoc DL = CLI.DL;
   SDValue Chain = CLI.Chain;
   SDValue Callee = CLI.Callee;
+  CLI.IsTailCall = false;
 
-  if (CLI.IsVarArg || CLI.IsTailCall || CLI.Outs.size() > std::size(ArgRegs)) {
+  if (CLI.IsVarArg || CLI.Outs.size() > std::size(ArgRegs)) {
     diagnoseUnsupported(DAG, DL,
-                        "AVR32 stack, variadic, and tail call arguments are "
-                        "not implemented yet");
+                        "AVR32 stack and variadic call arguments are not "
+                        "implemented yet");
     return Chain;
   }
 
   SDValue Glue;
   SmallVector<std::pair<MCPhysReg, SDValue>, 5> RegsToPass;
   for (unsigned I = 0, E = CLI.Outs.size(); I != E; ++I) {
-    if (CLI.Outs[I].VT != MVT::i32) {
+    if (!isSupportedRegValueType(CLI.Outs[I].VT)) {
       diagnoseUnsupported(DAG, DL,
-                          "AVR32 non-i32 call arguments are not implemented "
-                          "yet");
+                          "AVR32 non-integer register call arguments are not "
+                          "implemented yet");
       continue;
     }
-    RegsToPass.push_back({ArgRegs[I], CLI.OutVals[I]});
+    RegsToPass.push_back(
+        {ArgRegs[I], extendToI32(CLI.OutVals[I], CLI.Outs[I].Flags, DL, DAG)});
   }
 
   for (const auto &[Reg, Value] : RegsToPass) {
@@ -257,11 +287,6 @@ AVR32TargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
     Callee = DAG.getTargetGlobalAddress(G->getGlobal(), DL, MVT::i32);
   else if (auto *E = dyn_cast<ExternalSymbolSDNode>(Callee))
     Callee = DAG.getTargetExternalSymbol(E->getSymbol(), MVT::i32);
-  else {
-    diagnoseUnsupported(DAG, DL,
-                        "AVR32 indirect calls are not implemented yet");
-    return Chain;
-  }
 
   SmallVector<SDValue, 8> Ops;
   Ops.push_back(Chain);
@@ -283,14 +308,16 @@ AVR32TargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
   }
 
   if (!CLI.Ins.empty()) {
-    if (CLI.Ins[0].VT != MVT::i32) {
+    if (!isSupportedRegValueType(CLI.Ins[0].VT)) {
       diagnoseUnsupported(DAG, DL,
-                          "AVR32 non-i32 call returns are not implemented "
-                          "yet");
+                          "AVR32 non-integer register call returns are not "
+                          "implemented yet");
       InVals.push_back(DAG.getUNDEF(CLI.Ins[0].VT));
     } else {
       SDValue Result =
           DAG.getCopyFromReg(Chain, DL, AVR32::R12, MVT::i32, Glue);
+      if (CLI.Ins[0].VT != MVT::i32)
+        Result = DAG.getNode(ISD::TRUNCATE, DL, CLI.Ins[0].VT, Result);
       InVals.push_back(Result);
       Chain = Result.getValue(1);
     }
@@ -313,11 +340,13 @@ SDValue AVR32TargetLowering::LowerReturn(
   }
 
   if (!Outs.empty()) {
-    if (Outs[0].VT != MVT::i32) {
+    if (!isSupportedRegValueType(Outs[0].VT)) {
       diagnoseUnsupported(DAG, DL,
-                          "AVR32 non-i32 returns are not implemented yet");
+                          "AVR32 non-integer register returns are not "
+                          "implemented yet");
     } else {
-      Chain = DAG.getCopyToReg(Chain, DL, AVR32::R12, OutVals[0], Glue);
+      SDValue RetVal = extendToI32(OutVals[0], Outs[0].Flags, DL, DAG);
+      Chain = DAG.getCopyToReg(Chain, DL, AVR32::R12, RetVal, Glue);
       Glue = Chain.getValue(1);
       RetOps.push_back(DAG.getRegister(AVR32::R12, MVT::i32));
       RetOps[0] = Chain;

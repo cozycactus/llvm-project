@@ -4887,6 +4887,7 @@ public:
 
   llvm::Value *EmitAArch64BuiltinExpr(unsigned BuiltinID, const CallExpr *E,
                                       llvm::Triple::ArchType Arch);
+  llvm::Value *EmitAVR32BuiltinExpr(unsigned BuiltinID, const CallExpr *E);
   llvm::Value *EmitBPFBuiltinExpr(unsigned BuiltinID, const CallExpr *E);
 
   llvm::Value *BuildVector(ArrayRef<llvm::Value *> Ops);

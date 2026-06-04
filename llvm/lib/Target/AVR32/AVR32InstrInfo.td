@@ -3030,7 +3030,8 @@ def DIVSrrr : FullRegRegReg<0b000011000000, "divs">;
 def DIVUrrr : FullRegRegReg<0b000011010000, "divu">;
 def EORHri : FullRegUImm16<0b111011100001, "eorh">;
 def EORLri : FullRegUImm16<0b111011000001, "eorl">;
-def EORALrrr : CondRRR<0b1111, 0b0100, "eoral">;
+def EORALrrr : CondRRR<0b1111, 0b0100, "eoral",
+                       [(set GPR:$Rd, (xor GPR:$Rx, GPR:$Ry))]>;
 def EOREQrrr : CondRRR<0b0000, 0b0100, "eoreq">;
 def EORNErrr : CondRRR<0b0001, 0b0100, "eorne">;
 def EORCCrrr : CondRRR<0b0010, 0b0100, "eorcc">;
@@ -3066,6 +3067,7 @@ def FMSC_Srrrr : FullFPURegRegRegReg<0b111000111010, 0, "fmsc.s">;
 def FSUB_Srrr : FullFPURegRegReg<0b0001, "fsub.s">;
 def FRCPA_Srr : FullFPURegReg<0b1110, "frcpa.s">;
 def FRSQRTA_Srr : FullFPURegReg<0b1111, "frsqrta.s">;
+let isCall = 1, Defs = [LR] in
 def ICALLr : CompactRegNoOut<0b010111010001, "icall">;
 def LDM : FullRegList<0b000, 0, "ldm\t$Rp, $Mask">;
 def LDM_UPD : FullRegList<0b000, 1, "ldm\t${Rp}++, $Mask">;
@@ -3179,7 +3181,8 @@ def MTSRi : FullSysRegReg<0b111000111011, "mtsr">;
 def NEGr : CompactReg<0b010111000011, "neg">;
 def ORHri : FullRegUImm16<0b111010100001, "orh">;
 def ORLri : FullRegUImm16<0b111010000001, "orl">;
-def ORALrrr : CondRRR<0b1111, 0b0011, "oral">;
+def ORALrrr : CondRRR<0b1111, 0b0011, "oral",
+                      [(set GPR:$Rd, (or GPR:$Rx, GPR:$Ry))]>;
 def OREQrrr : CondRRR<0b0000, 0b0011, "oreq">;
 def ORNErrr : CondRRR<0b0001, 0b0011, "orne">;
 def ORCCrrr : CondRRR<0b0010, 0b0011, "orcc">;
@@ -3548,11 +3551,20 @@ def SETCCrr : AVR32Inst<0, (outs GPR:$Rd),
                         [(set GPR:$Rd,
                           (AVR32setcc GPR:$LHS, GPR:$RHS, timm:$Cond))]>;
 
+let isCodeGenOnly = 1 in
+def FIADDR : AVR32Inst<0, (outs GPR:$Rd), (ins i32imm:$Frame, simm16:$Disp),
+                       "# FIADDR">;
+
 def : Pat<(AVR32call (i32 tglobaladdr:$dst)), (RCALLe PC, tglobaladdr:$dst)>;
 def : Pat<(AVR32call (i32 texternalsym:$dst)),
           (RCALLe PC, texternalsym:$dst)>;
+def : Pat<(AVR32call GPR:$dst), (ICALLr GPR:$dst)>;
 
 def : Pat<(br bb:$dst), (BRALbb bb:$dst)>;
+
+def : Pat<(shl GPR:$LHS, GPR:$RHS), (LSLrrr GPR:$LHS, GPR:$RHS)>;
+def : Pat<(srl GPR:$LHS, GPR:$RHS), (LSRrrr GPR:$LHS, GPR:$RHS)>;
+def : Pat<(sra GPR:$LHS, GPR:$RHS), (ASRrrr GPR:$LHS, GPR:$RHS)>;
 
 def : Pat<(AVR32cmp GPR:$LHS, GPR:$RHS), (CPrr GPR:$LHS, GPR:$RHS)>;
 def : Pat<(AVR32cmp GPR:$LHS, simm21:$RHS), (CPri21 GPR:$LHS, simm21:$RHS)>;

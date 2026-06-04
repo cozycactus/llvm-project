@@ -31,6 +31,8 @@ public:
   StringRef getPassName() const override { return "AVR32 Assembly Printer"; }
 
   void emitInstruction(const MachineInstr *MI) override;
+  bool PrintAsmOperand(const MachineInstr *MI, unsigned OpNo,
+                       const char *ExtraCode, raw_ostream &O) override;
   const MCExpr *lowerSymbolOperand(const MachineOperand &MO);
 
   static char ID;
@@ -61,6 +63,35 @@ const MCExpr *AVR32AsmPrinter::lowerSymbolOperand(const MachineOperand &MO) {
     Expr = MCBinaryExpr::createAdd(
         Expr, MCConstantExpr::create(Offset, OutContext), OutContext);
   return Expr;
+}
+
+bool AVR32AsmPrinter::PrintAsmOperand(const MachineInstr *MI, unsigned OpNo,
+                                      const char *ExtraCode, raw_ostream &O) {
+  if (ExtraCode && ExtraCode[0])
+    return true;
+
+  const MachineOperand &MO = MI->getOperand(OpNo);
+  switch (MO.getType()) {
+  case MachineOperand::MO_Register:
+    O << AVR32InstPrinter::getRegisterName(MO.getReg());
+    return false;
+  case MachineOperand::MO_Immediate:
+    O << MO.getImm();
+    return false;
+  case MachineOperand::MO_GlobalAddress:
+    O << *getSymbol(MO.getGlobal());
+    return false;
+  case MachineOperand::MO_ExternalSymbol:
+    O << *GetExternalSymbolSymbol(MO.getSymbolName());
+    return false;
+  case MachineOperand::MO_MachineBasicBlock:
+    O << *MO.getMBB()->getSymbol();
+    return false;
+  default:
+    break;
+  }
+
+  return true;
 }
 
 void AVR32AsmPrinter::emitInstruction(const MachineInstr *MI) {

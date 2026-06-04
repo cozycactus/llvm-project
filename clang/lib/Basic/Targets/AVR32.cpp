@@ -8,9 +8,28 @@
 
 #include "AVR32.h"
 #include "clang/Basic/MacroBuilder.h"
+#include "clang/Basic/TargetBuiltins.h"
 
 using namespace clang;
 using namespace clang::targets;
+
+static constexpr int NumBuiltins =
+    clang::AVR32::LastTSBuiltin - Builtin::FirstTSBuiltin;
+
+static constexpr llvm::StringTable BuiltinStrings =
+    CLANG_BUILTIN_STR_TABLE_START
+#define BUILTIN CLANG_BUILTIN_STR_TABLE
+#include "clang/Basic/BuiltinsAVR32.def"
+#undef BUILTIN
+    ;
+
+static constexpr auto BuiltinInfos = Builtin::MakeInfos<NumBuiltins>({
+#define BUILTIN CLANG_BUILTIN_ENTRY
+#define LIBBUILTIN CLANG_LIBBUILTIN_ENTRY
+#include "clang/Basic/BuiltinsAVR32.def"
+#undef BUILTIN
+#undef LIBBUILTIN
+});
 
 const char *const AVR32TargetInfo::GCCRegNames[] = {
     "r0",  "r1", "r2", "r3", "r4", "r5", "r6", "r7",
@@ -35,4 +54,9 @@ void AVR32TargetInfo::getTargetDefines(const LangOptions &Opts,
                                        MacroBuilder &Builder) const {
   Builder.defineMacro("__AVR32__");
   Builder.defineMacro("__avr32__");
+}
+
+llvm::SmallVector<Builtin::InfosShard>
+AVR32TargetInfo::getTargetBuiltins() const {
+  return {{&BuiltinStrings, BuiltinInfos}};
 }

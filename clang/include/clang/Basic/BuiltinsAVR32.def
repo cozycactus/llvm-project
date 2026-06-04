@@ -1,0 +1,16 @@
+//===-- BuiltinsAVR32.def - AVR32 builtin function database -*- C++ -*-===//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+
+#if defined(BUILTIN) && !defined(TARGET_BUILTIN)
+#  define TARGET_BUILTIN(ID, TYPE, ATTRS, FEATURE) BUILTIN(ID, TYPE, ATTRS)
+#endif
+
+TARGET_BUILTIN(__builtin_mfsr, "UiIUi", "n", "")
+TARGET_BUILTIN(__builtin_mtsr, "vIUiUi", "n", "")
+
+#undef TARGET_BUILTIN

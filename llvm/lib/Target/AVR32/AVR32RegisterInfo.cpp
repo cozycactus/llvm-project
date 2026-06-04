@@ -12,11 +12,14 @@
 #include "llvm/CodeGen/MachineFrameInfo.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineInstr.h"
-#include "llvm/Support/MathExtras.h"
+#include "llvm/CodeGen/MachineInstrBuilder.h"
 #include "llvm/Support/ErrorHandling.h"
+#include "llvm/Support/MathExtras.h"
 
 using namespace llvm;
 
+#define GET_INSTRINFO_ENUM
+#include "AVR32GenInstrInfo.inc"
 #define GET_REGINFO_ENUM
 #include "AVR32GenRegisterInfo.inc"
 #define GET_REGINFO_TARGET_DESC
@@ -58,6 +61,22 @@ bool AVR32RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
   Offset += MI.getOperand(FIOperandNum + 1).getImm();
   if (!isInt<16>(Offset))
     report_fatal_error("AVR32 frame offset does not fit in a 16-bit immediate");
+
+  if (MI.getOpcode() == AVR32::FIADDR) {
+    if (!isInt<16>(-Offset))
+      report_fatal_error("AVR32 frame address offset does not fit in a 16-bit "
+                         "immediate");
+
+    MachineBasicBlock &MBB = *MI.getParent();
+    const TargetInstrInfo &TII = *MF.getSubtarget().getInstrInfo();
+    DebugLoc DL = MI.getDebugLoc();
+    Register DestReg = MI.getOperand(0).getReg();
+    BuildMI(MBB, II, DL, TII.get(AVR32::SUBrri16), DestReg)
+        .addReg(AVR32::SP)
+        .addImm(-Offset);
+    MI.eraseFromParent();
+    return false;
+  }
 
   MI.getOperand(FIOperandNum).ChangeToRegister(AVR32::SP, false);
   MI.getOperand(FIOperandNum + 1).ChangeToImmediate(Offset);
