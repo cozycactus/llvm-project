@@ -14,9 +14,15 @@ Sections:
     Relocations:
       - Type: R_AVR32_22H_PCREL
       - Type: R_AVR32_11H_PCREL
+      - Type: R_AVR32_RELATIVE
+      - Type: R_AVR32_GLOB_DAT
+      - Type: R_AVR32_JMP_SLOT
 
 # CHECK:      Machine:         EM_AVR32
 # CHECK-NEXT: Flags:           [ EF_AVR32_LINKRELAX, EF_AVR32_PIC ]
 # CHECK:      Relocations:
 # CHECK-NEXT:   - Type:            R_AVR32_22H_PCREL
 # CHECK-NEXT:   - Type:            R_AVR32_11H_PCREL
+# CHECK-NEXT:   - Type:            R_AVR32_RELATIVE
+# CHECK-NEXT:   - Type:            R_AVR32_GLOB_DAT
+# CHECK-NEXT:   - Type:            R_AVR32_JMP_SLOT
