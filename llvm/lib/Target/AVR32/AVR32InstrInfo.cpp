@@ -8,10 +8,13 @@
 
 #include "AVR32InstrInfo.h"
 #include "AVR32Subtarget.h"
+#include "llvm/CodeGen/MachineInstrBuilder.h"
 #include "llvm/Support/ErrorHandling.h"
 
 using namespace llvm;
 
+#define GET_INSTRINFO_ENUM
+#include "AVR32GenInstrInfo.inc"
 #define GET_INSTRINFO_CTOR_DTOR
 #include "AVR32GenInstrInfo.inc"
 
@@ -24,7 +27,11 @@ void AVR32InstrInfo::copyPhysReg(MachineBasicBlock &MBB,
                                  Register SrcReg, bool KillSrc,
                                  bool RenamableDest,
                                  bool RenamableSrc) const {
-  llvm_unreachable("AVR32 register copies are not implemented yet");
+  if (!AVR32::GPRRegClass.contains(DestReg, SrcReg))
+    llvm_unreachable("AVR32 can only copy GPR registers");
+
+  BuildMI(MBB, I, DL, get(AVR32::MOVrr), DestReg)
+      .addReg(SrcReg, getKillRegState(KillSrc));
 }
 
 void AVR32InstrInfo::storeRegToStackSlot(

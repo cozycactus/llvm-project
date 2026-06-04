@@ -16,13 +16,6 @@
 namespace llvm {
 class AVR32Subtarget;
 
-namespace AVR32ISD {
-enum NodeType : unsigned {
-  FIRST_NUMBER = ISD::BUILTIN_OP_END,
-  RET_FLAG,
-};
-} // namespace AVR32ISD
-
 class AVR32TargetLowering : public TargetLowering {
 public:
   explicit AVR32TargetLowering(const TargetMachine &TM,

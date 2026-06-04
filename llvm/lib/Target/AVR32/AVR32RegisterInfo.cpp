@@ -23,7 +23,8 @@ AVR32RegisterInfo::AVR32RegisterInfo() : AVR32GenRegisterInfo(AVR32::LR) {}
 
 const MCPhysReg *
 AVR32RegisterInfo::getCalleeSavedRegs(const MachineFunction *MF) const {
-  return nullptr;
+  static const MCPhysReg CalleeSavedRegs[] = {0};
+  return CalleeSavedRegs;
 }
 
 BitVector AVR32RegisterInfo::getReservedRegs(const MachineFunction &MF) const {

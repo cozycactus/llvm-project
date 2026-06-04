@@ -16,6 +16,9 @@ using namespace llvm;
 #define DEBUG_TYPE "avr32-isel"
 #define PASS_NAME "AVR32 DAG->DAG Pattern Instruction Selection"
 
+#define GET_INSTRINFO_ENUM
+#include "AVR32GenInstrInfo.inc"
+
 namespace {
 class AVR32DAGToDAGISel : public SelectionDAGISel {
 public:
@@ -23,8 +26,14 @@ public:
       : SelectionDAGISel(TM, OptLevel) {}
 
   void Select(SDNode *Node) override {
-    report_fatal_error("AVR32 instruction selection is not implemented yet");
+    if (Node->isMachineOpcode()) {
+      Node->setNodeId(-1);
+      return;
+    }
+    SelectCode(Node);
   }
+
+#include "AVR32GenDAGISel.inc"
 };
 
 class AVR32DAGToDAGISelLegacy : public SelectionDAGISelLegacy {

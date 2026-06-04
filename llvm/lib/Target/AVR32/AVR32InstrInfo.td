@@ -8,6 +8,9 @@
 
 include "AVR32InstrFormats.td"
 
+def AVR32retflag : SDNode<"AVR32ISD::RET_FLAG", SDTNone,
+                          [SDNPHasChain, SDNPOptInGlue, SDNPVariadic]>;
+
 def SImm6AsmOperand : AsmOperandClass {
   let Name = "SImm6";
   let RenderMethod = "addImmOperands";
@@ -2793,9 +2796,10 @@ class SubCondRI<bits<4> Cond, string Mnemonic>
 class SubfCondRI<bits<4> Cond, string Mnemonic>
     : CondRegImm8<0b111101011011, Cond, Mnemonic>;
 
-class CondRRR<bits<4> Cond, bits<4> Op, string Mnemonic>
+class CondRRR<bits<4> Cond, bits<4> Op, string Mnemonic,
+              list<dag> Patterns = []>
     : AVR32Inst32<(outs GPR:$Rd), (ins GPR:$Rx, GPR:$Ry),
-                  Mnemonic#"\t$Rd, $Rx, $Ry"> {
+                  Mnemonic#"\t$Rd, $Rx, $Ry", Patterns> {
   bits<4> Rd;
   bits<4> Rx;
   bits<4> Ry;
@@ -2837,7 +2841,8 @@ def ABSr : CompactReg<0b010111000100, "abs">;
 def ACRr : CompactReg<0b010111000000, "acr">;
 def ADDABSrrr : FullRegRegReg<0b000011100100, "addabs">;
 def ADDHH_W : FullRegRegHalfRegHalf<0b0000111000, "addhh.w">;
-def ADDALrrr : CondRRR<0b1111, 0b0000, "addal">;
+def ADDALrrr : CondRRR<0b1111, 0b0000, "addal",
+                       [(set GPR:$Rd, (add GPR:$Rx, GPR:$Ry))]>;
 def ADDEQrrr : CondRRR<0b0000, 0b0000, "addeq">;
 def ADDNErrr : CondRRR<0b0001, 0b0000, "addne">;
 def ADDCCrrr : CondRRR<0b0010, 0b0000, "addcc">;
@@ -3210,6 +3215,10 @@ def RETVSr : RetCond<0b1100, "retvs">;
 def RETVCr : RetCond<0b1101, "retvc">;
 def RETQSr : RetCond<0b1110, "retqs">;
 def : InstAlias<"ret", (RETALr LR), 0>;
+let isBarrier = 1, isCodeGenOnly = 1, isReturn = 1, isTerminator = 1,
+    hasCtrlDep = 1, isBranch = 1 in
+def RETR12 : AVR32Inst<0b0101111011111100, (outs), (ins), "ret\tr12",
+                       [(AVR32retflag)]>;
 let isBarrier = 1, isReturn = 1, isTerminator = 1 in {
 def RETJ : AVR32Inst<0b1101011000110011, (outs), (ins), "retj">;
 def RETS : AVR32Inst<0b1101011000010011, (outs), (ins), "rets">;
