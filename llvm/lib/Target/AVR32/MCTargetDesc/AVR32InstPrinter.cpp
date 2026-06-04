@@ -63,3 +63,33 @@ void AVR32InstPrinter::printBytePart(const MCInst *MI, unsigned OpNo,
     llvm_unreachable("invalid byte part selector");
   OS << Parts[Part];
 }
+
+void AVR32InstPrinter::printRegList16(const MCInst *MI, unsigned OpNo,
+                                      raw_ostream &OS) {
+  const MCOperand &Op = MI->getOperand(OpNo);
+  assert(Op.isImm() && "register list must be immediate mask");
+  static const char *Names[] = {"r0",  "r1", "r2", "r3", "r4", "r5",
+                               "r6",  "r7", "r8", "r9", "r10", "r11",
+                               "r12", "sp", "lr", "pc"};
+  uint16_t Mask = static_cast<uint16_t>(Op.getImm());
+  bool NeedComma = false;
+
+  for (unsigned Start = 0; Start < 16;) {
+    if ((Mask & (1u << Start)) == 0) {
+      ++Start;
+      continue;
+    }
+
+    unsigned End = Start;
+    while (End + 1 < 16 && (Mask & (1u << (End + 1))))
+      ++End;
+
+    if (NeedComma)
+      OS << ", ";
+    OS << Names[Start];
+    if (End != Start)
+      OS << "-" << Names[End];
+    NeedComma = true;
+    Start = End + 1;
+  }
+}

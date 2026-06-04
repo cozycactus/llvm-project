@@ -272,6 +272,13 @@ public:
     return Const && isUInt<16>(Const->getValue());
   }
 
+  bool isRegList16() const {
+    if (Kind != Immediate)
+      return false;
+    auto *Const = dyn_cast<MCConstantExpr>(Imm);
+    return Const && Const->getValue() > 0 && Const->getValue() < 65536;
+  }
+
   bool isACallDisp() const {
     if (Kind != Immediate)
       return false;
@@ -427,6 +434,9 @@ private:
   bool parseStoreHalfwordPairOperands(OperandVector &Operands);
   bool parseStoreByteOperands(OperandVector &Operands);
   bool parseStoreDoubleOperands(OperandVector &Operands);
+  bool parseLoadMultipleOperands(OperandVector &Operands);
+  bool parseStoreMultipleOperands(OperandVector &Operands);
+  bool parseRegList16Operand(OperandVector &Operands);
   bool parseMemoryDispOperand(OperandVector &Operands);
   bool parseMemoryDispCommaImmediate(OperandVector &Operands);
   bool parseRegisterCommaImmediate(OperandVector &Operands);
@@ -706,6 +716,9 @@ bool AVR32AsmParser::parseInstruction(ParseInstructionInfo &Info,
              Name == "ld.wvs") {
     if (parseLoadOperands(Operands, Name == "ld.d"))
       return true;
+  } else if (Name == "ldm" || Name == "ldmts") {
+    if (parseLoadMultipleOperands(Operands))
+      return true;
   } else if (Name == "st.b" || Name == "st.bal" || Name == "st.bcc" ||
              Name == "st.bcs" || Name == "st.beq" || Name == "st.bge" ||
              Name == "st.bgt" || Name == "st.bhi" || Name == "st.bhs" ||
@@ -734,6 +747,9 @@ bool AVR32AsmParser::parseInstruction(ParseInstructionInfo &Info,
       return true;
   } else if (Name == "st.d") {
     if (parseStoreDoubleOperands(Operands))
+      return true;
+  } else if (Name == "stm" || Name == "stmts") {
+    if (parseStoreMultipleOperands(Operands))
       return true;
   } else if (Name == "eorh" || Name == "eorl" || Name == "mfdr" ||
              Name == "mfsr" || Name == "movh" || Name == "orh" ||
@@ -1303,6 +1319,128 @@ bool AVR32AsmParser::parseStoreDoubleOperands(OperandVector &Operands) {
   if (parseRegisterOperand(Operands))
     return true;
   return false;
+}
+
+static int getRegList16Bit(MCRegister Reg) {
+  switch (Reg) {
+  case AVR32::R0:
+    return 0;
+  case AVR32::R1:
+    return 1;
+  case AVR32::R2:
+    return 2;
+  case AVR32::R3:
+    return 3;
+  case AVR32::R4:
+    return 4;
+  case AVR32::R5:
+    return 5;
+  case AVR32::R6:
+    return 6;
+  case AVR32::R7:
+    return 7;
+  case AVR32::R8:
+    return 8;
+  case AVR32::R9:
+    return 9;
+  case AVR32::R10:
+    return 10;
+  case AVR32::R11:
+    return 11;
+  case AVR32::R12:
+    return 12;
+  case AVR32::SP:
+    return 13;
+  case AVR32::LR:
+    return 14;
+  case AVR32::PC:
+    return 15;
+  default:
+    return -1;
+  }
+}
+
+bool AVR32AsmParser::parseRegList16Operand(OperandVector &Operands) {
+  SMLoc StartLoc = getLexer().getLoc();
+  unsigned Mask = 0;
+
+  while (true) {
+    MCRegister StartReg;
+    SMLoc RegStartLoc;
+    SMLoc RegEndLoc;
+    ParseStatus Status = tryParseRegister(StartReg, RegStartLoc, RegEndLoc);
+    if (Status.isNoMatch())
+      return Error(getLexer().getLoc(), "expected register in register list");
+    if (Status.isFailure())
+      return true;
+
+    int StartBit = getRegList16Bit(StartReg);
+    if (StartBit < 0)
+      return Error(RegStartLoc, "invalid register in register list");
+
+    int EndBit = StartBit;
+    if (parseOptionalToken(AsmToken::Minus)) {
+      MCRegister EndReg;
+      SMLoc EndRegStartLoc;
+      SMLoc EndRegEndLoc;
+      Status = tryParseRegister(EndReg, EndRegStartLoc, EndRegEndLoc);
+      if (Status.isNoMatch())
+        return Error(getLexer().getLoc(), "expected register after -");
+      if (Status.isFailure())
+        return true;
+
+      EndBit = getRegList16Bit(EndReg);
+      if (EndBit < 0)
+        return Error(EndRegStartLoc, "invalid register in register list");
+      if (EndBit < StartBit)
+        return Error(EndRegStartLoc, "register range must be ascending");
+    }
+
+    for (int Bit = StartBit; Bit <= EndBit; ++Bit)
+      Mask |= 1u << Bit;
+
+    if (getLexer().is(AsmToken::EndOfStatement))
+      break;
+    if (!parseOptionalToken(AsmToken::Comma))
+      return Error(getLexer().getLoc(), "expected comma");
+  }
+
+  const MCExpr *MaskExpr = MCConstantExpr::create(Mask, getContext());
+  Operands.push_back(
+      AVR32Operand::createImm(MaskExpr, StartLoc, getLexer().getLoc()));
+  return false;
+}
+
+bool AVR32AsmParser::parseLoadMultipleOperands(OperandVector &Operands) {
+  if (parseRegisterOperand(Operands))
+    return true;
+
+  if (parseOptionalToken(AsmToken::Plus)) {
+    SMLoc PlusLoc = getLexer().getLoc();
+    if (!parseOptionalToken(AsmToken::Plus))
+      return Error(getLexer().getLoc(), "expected ++");
+    Operands.push_back(AVR32Operand::createToken("++", PlusLoc));
+  }
+
+  if (!parseOptionalToken(AsmToken::Comma))
+    return Error(getLexer().getLoc(), "expected comma");
+  return parseRegList16Operand(Operands);
+}
+
+bool AVR32AsmParser::parseStoreMultipleOperands(OperandVector &Operands) {
+  if (parseOptionalToken(AsmToken::Minus)) {
+    SMLoc MinusLoc = getLexer().getLoc();
+    if (!parseOptionalToken(AsmToken::Minus))
+      return Error(getLexer().getLoc(), "expected --");
+    Operands.push_back(AVR32Operand::createToken("--", MinusLoc));
+  }
+
+  if (parseRegisterOperand(Operands))
+    return true;
+
+  if (!parseOptionalToken(AsmToken::Comma))
+    return Error(getLexer().getLoc(), "expected comma");
+  return parseRegList16Operand(Operands);
 }
 
 bool AVR32AsmParser::parseMemoryDispOperand(OperandVector &Operands) {

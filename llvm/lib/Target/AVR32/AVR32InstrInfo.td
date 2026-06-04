@@ -163,6 +163,11 @@ def UImm16AsmOperand : AsmOperandClass {
   let RenderMethod = "addImmOperands";
 }
 
+def RegList16AsmOperand : AsmOperandClass {
+  let Name = "RegList16";
+  let RenderMethod = "addImmOperands";
+}
+
 def ACallDispAsmOperand : AsmOperandClass {
   let Name = "ACallDisp";
   let RenderMethod = "addImmOperands";
@@ -344,6 +349,12 @@ def uimm9shift2 : Operand<i32>,
 def uimm16 : Operand<i32>,
              ImmLeaf<i32, [{ return Imm >= 0 && Imm < 65536; }]> {
   let ParserMatchClass = UImm16AsmOperand;
+}
+
+def reglist16 : Operand<i32>,
+                ImmLeaf<i32, [{ return Imm > 0 && Imm < 65536; }]> {
+  let ParserMatchClass = RegList16AsmOperand;
+  let PrintMethod = "printRegList16";
 }
 
 def acalldisp : Operand<i32>,
@@ -1152,6 +1163,19 @@ class FullBranch<bits<4> Cond, string Mnemonic>
   let Inst{15-0} = Disp{15-0};
 }
 
+class FullRegList<bits<3> Op, bit Update, string Asm>
+    : AVR32Inst32<(outs), (ins GPR:$Rp, reglist16:$Mask), Asm> {
+  bits<4> Rp;
+  bits<16> Mask;
+
+  let Inst{31-29} = 0b111;
+  let Inst{28-26} = Op;
+  let Inst{25} = Update;
+  let Inst{24-20} = 0b11100;
+  let Inst{19-16} = Rp;
+  let Inst{15-0} = Mask;
+}
+
 def LD_W_PostInc : CompactLoadPostInc<0b10000, "ld.w">;
 def LD_W_PreDec : CompactLoadPreDec<0b10100, "ld.w">;
 def LD_W_Disp5 : CompactLoadDisp5Shift2<"ld.w">;
@@ -1801,6 +1825,10 @@ def EORQSrrr : CondRRR<0b1110, 0b0100, "eorqs">;
 def EORrr : CompactRegReg<0b00101, "eor">;
 def FRS : AVR32Inst<0b1101011101000011, (outs), (ins), "frs">;
 def ICALLr : CompactRegNoOut<0b010111010001, "icall">;
+def LDM : FullRegList<0b000, 0, "ldm\t$Rp, $Mask">;
+def LDM_UPD : FullRegList<0b000, 1, "ldm\t${Rp}++, $Mask">;
+def LDMTS : FullRegList<0b001, 0, "ldmts\t$Rp, $Mask">;
+def LDMTS_UPD : FullRegList<0b001, 1, "ldmts\t${Rp}++, $Mask">;
 def LSLrrr : FullRegRegReg<0b000010010100, "lsl">;
 def LSRrrr : FullRegRegReg<0b000010100100, "lsr">;
 def MAXrrr : FullRegRegReg<0b000011000100, "max">;
@@ -2102,6 +2130,10 @@ def STHH_W_Disp8 : FullStoreHalfwordPairDisp8;
 def STHH_W_IndexShift : FullStoreHalfwordPairIndexShift;
 def STSWP_H_Disp12 : FullStoreSwapDisp12<0b1001, "stswp.h", simm12shift1>;
 def STSWP_W_Disp12 : FullStoreSwapDisp12<0b1010, "stswp.w", simm12shift2>;
+def STM : FullRegList<0b010, 0, "stm\t$Rp, $Mask">;
+def STM_PRE : FullRegList<0b010, 1, "stm\t--$Rp, $Mask">;
+def STMTS : FullRegList<0b011, 0, "stmts\t$Rp, $Mask">;
+def STMTS_PRE : FullRegList<0b011, 1, "stmts\t--$Rp, $Mask">;
 def SUBALrrr : CondRRR<0b1111, 0b0001, "subal">;
 def SUBEQrrr : CondRRR<0b0000, 0b0001, "subeq">;
 def SUBNErrr : CondRRR<0b0001, 0b0001, "subne">;
