@@ -1397,6 +1397,51 @@ class CopLoadPreDecW<bits<8> Low, string Mnemonic>
   let Inst{7-0} = Low;
 }
 
+class CopLoadIndexShiftD<string Mnemonic>
+    : AVR32Inst32<(outs),
+                  (ins coprocessor:$CP, coprocessorevenreg:$CRd, GPR:$Rb,
+                       GPR:$Ri, uimm2:$Shift),
+                  Mnemonic#"\t$CP, $CRd, ${Rb}[$Ri << $Shift]"> {
+  bits<3> CP;
+  bits<4> CRd;
+  bits<4> Rb;
+  bits<4> Ri;
+  bits<2> Shift;
+
+  let Inst{31-27} = 0b11101;
+  let Inst{26-20} = 0b1111010;
+  let Inst{19-16} = Rb;
+  let Inst{15-13} = CP;
+  let Inst{12} = 1;
+  let Inst{11-9} = CRd{3-1};
+  let Inst{8} = 0;
+  let Inst{7-6} = 0b01;
+  let Inst{5-4} = Shift;
+  let Inst{3-0} = Ri;
+}
+
+class CopLoadIndexShiftW<string Mnemonic>
+    : AVR32Inst32<(outs),
+                  (ins coprocessor:$CP, coprocessorreg:$CRd, GPR:$Rb,
+                       GPR:$Ri, uimm2:$Shift),
+                  Mnemonic#"\t$CP, $CRd, ${Rb}[$Ri << $Shift]"> {
+  bits<3> CP;
+  bits<4> CRd;
+  bits<4> Rb;
+  bits<4> Ri;
+  bits<2> Shift;
+
+  let Inst{31-27} = 0b11101;
+  let Inst{26-20} = 0b1111010;
+  let Inst{19-16} = Rb;
+  let Inst{15-13} = CP;
+  let Inst{12} = 1;
+  let Inst{11-8} = CRd;
+  let Inst{7-6} = 0b00;
+  let Inst{5-4} = Shift;
+  let Inst{3-0} = Ri;
+}
+
 class Cop0LoadDispD<bits<7> Op, string Mnemonic>
     : AVR32Inst32<(outs),
                   (ins coprocessorevenreg:$CRd, GPR:$Rp,
@@ -1504,6 +1549,51 @@ class CopStorePostIncW<bits<8> Low, string Mnemonic>
   let Inst{7-0} = Low;
 }
 
+class CopStoreIndexShiftD<string Mnemonic>
+    : AVR32Inst32<(outs),
+                  (ins coprocessor:$CP, GPR:$Rb, GPR:$Ri, uimm2:$Shift,
+                       coprocessorevenreg:$CRs),
+                  Mnemonic#"\t$CP, ${Rb}[$Ri << $Shift], $CRs"> {
+  bits<3> CP;
+  bits<4> CRs;
+  bits<4> Rb;
+  bits<4> Ri;
+  bits<2> Shift;
+
+  let Inst{31-27} = 0b11101;
+  let Inst{26-20} = 0b1111010;
+  let Inst{19-16} = Rb;
+  let Inst{15-13} = CP;
+  let Inst{12} = 1;
+  let Inst{11-9} = CRs{3-1};
+  let Inst{8} = 0;
+  let Inst{7-6} = 0b11;
+  let Inst{5-4} = Shift;
+  let Inst{3-0} = Ri;
+}
+
+class CopStoreIndexShiftW<string Mnemonic>
+    : AVR32Inst32<(outs),
+                  (ins coprocessor:$CP, GPR:$Rb, GPR:$Ri, uimm2:$Shift,
+                       coprocessorreg:$CRs),
+                  Mnemonic#"\t$CP, ${Rb}[$Ri << $Shift], $CRs"> {
+  bits<3> CP;
+  bits<4> CRs;
+  bits<4> Rb;
+  bits<4> Ri;
+  bits<2> Shift;
+
+  let Inst{31-27} = 0b11101;
+  let Inst{26-20} = 0b1111010;
+  let Inst{19-16} = Rb;
+  let Inst{15-13} = CP;
+  let Inst{12} = 1;
+  let Inst{11-8} = CRs;
+  let Inst{7-6} = 0b10;
+  let Inst{5-4} = Shift;
+  let Inst{3-0} = Ri;
+}
+
 class Cop0StoreDispD<bits<7> Op, string Mnemonic>
     : AVR32Inst32<(outs),
                   (ins GPR:$Rp, uimm12shift2:$Disp,
@@ -1564,8 +1654,10 @@ def LD_W_VC_Disp9 : FullLoadCondDisp9Shift2<0b1101, "ld.wvc">;
 def LD_W_QS_Disp9 : FullLoadCondDisp9Shift2<0b1110, "ld.wqs">;
 def LDC_D_Disp : CopLoadDispD<0b0011010, "ldc.d">;
 def LDC_D_PreDec : CopLoadPreDecD<0b001010000, "ldc.d">;
+def LDC_D_IndexShift : CopLoadIndexShiftD<"ldc.d">;
 def LDC_W_Disp : CopLoadDispW<0b0011010, "ldc.w">;
 def LDC_W_PreDec : CopLoadPreDecW<0b01000000, "ldc.w">;
+def LDC_W_IndexShift : CopLoadIndexShiftW<"ldc.w">;
 def LDC0_D_Disp : Cop0LoadDispD<0b0111010, "ldc0.d">;
 def LDC0_W_Disp : Cop0LoadDispW<0b0011010, "ldc0.w">;
 def LD_D_PostInc : CompactLoadPair<0b10000, 1, "ld.d\t$Rd, ${Rp}++">;
@@ -2500,8 +2592,10 @@ def ST_W_VC_Disp9 : FullStoreCondDisp9Shift2<0b1101, "st.wvc">;
 def ST_W_QS_Disp9 : FullStoreCondDisp9Shift2<0b1110, "st.wqs">;
 def STC_D_Disp : CopStoreDispD<0b0111010, "stc.d">;
 def STC_D_PostInc : CopStorePostIncD<0b001110000, "stc.d">;
+def STC_D_IndexShift : CopStoreIndexShiftD<"stc.d">;
 def STC_W_Disp : CopStoreDispW<0b0111010, "stc.w">;
 def STC_W_PostInc : CopStorePostIncW<0b01100000, "stc.w">;
+def STC_W_IndexShift : CopStoreIndexShiftW<"stc.w">;
 def STC0_D_Disp : Cop0StoreDispD<0b1111010, "stc0.d">;
 def STC0_W_Disp : Cop0StoreDispW<0b1011010, "stc0.w">;
 def STCOND : FullStoreDisp16<0b10111, "stcond">;

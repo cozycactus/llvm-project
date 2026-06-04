@@ -253,8 +253,10 @@ TEST(AVR32TargetInfo, LookupTarget) {
   EXPECT_EQ(MII->get(AVR32::MVRCw).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::LDC_D_Disp).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::LDC_D_PreDec).getSize(), 4u);
+  EXPECT_EQ(MII->get(AVR32::LDC_D_IndexShift).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::LDC_W_Disp).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::LDC_W_PreDec).getSize(), 4u);
+  EXPECT_EQ(MII->get(AVR32::LDC_W_IndexShift).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::LDC0_D_Disp).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::LDC0_W_Disp).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::MEMC).getSize(), 4u);
@@ -626,8 +628,10 @@ TEST(AVR32TargetInfo, LookupTarget) {
   EXPECT_EQ(MII->get(AVR32::ST_W_QS_Disp9).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::STC_D_Disp).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::STC_D_PostInc).getSize(), 4u);
+  EXPECT_EQ(MII->get(AVR32::STC_D_IndexShift).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::STC_W_Disp).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::STC_W_PostInc).getSize(), 4u);
+  EXPECT_EQ(MII->get(AVR32::STC_W_IndexShift).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::STC0_D_Disp).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::STC0_W_Disp).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::STCOND).getSize(), 4u);
@@ -5518,6 +5522,25 @@ TEST(AVR32TargetInfo, LookupTarget) {
   EXPECT_EQ(static_cast<uint8_t>(Code[2]), 0x40);
   EXPECT_EQ(static_cast<uint8_t>(Code[3]), 0x50);
 
+  MCInst LdcDIndexShift;
+  LdcDIndexShift.setOpcode(AVR32::LDC_D_IndexShift);
+  LdcDIndexShift.addOperand(MCOperand::createImm(2));
+  LdcDIndexShift.addOperand(MCOperand::createImm(0));
+  LdcDIndexShift.addOperand(MCOperand::createReg(AVR32::R2));
+  LdcDIndexShift.addOperand(MCOperand::createReg(AVR32::R3));
+  LdcDIndexShift.addOperand(MCOperand::createImm(1));
+
+  Code.clear();
+  Fixups.clear();
+  MCE->encodeInstruction(LdcDIndexShift, Code, Fixups, *STI);
+
+  EXPECT_TRUE(Fixups.empty());
+  ASSERT_EQ(Code.size(), 4u);
+  EXPECT_EQ(static_cast<uint8_t>(Code[0]), 0xef);
+  EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0xa2);
+  EXPECT_EQ(static_cast<uint8_t>(Code[2]), 0x50);
+  EXPECT_EQ(static_cast<uint8_t>(Code[3]), 0x53);
+
   MCInst LdcWDisp;
   LdcWDisp.setOpcode(AVR32::LDC_W_Disp);
   LdcWDisp.addOperand(MCOperand::createImm(2));
@@ -5552,6 +5575,25 @@ TEST(AVR32TargetInfo, LookupTarget) {
   EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0xa2);
   EXPECT_EQ(static_cast<uint8_t>(Code[2]), 0x43);
   EXPECT_EQ(static_cast<uint8_t>(Code[3]), 0x40);
+
+  MCInst LdcWIndexShift;
+  LdcWIndexShift.setOpcode(AVR32::LDC_W_IndexShift);
+  LdcWIndexShift.addOperand(MCOperand::createImm(2));
+  LdcWIndexShift.addOperand(MCOperand::createImm(3));
+  LdcWIndexShift.addOperand(MCOperand::createReg(AVR32::R2));
+  LdcWIndexShift.addOperand(MCOperand::createReg(AVR32::R3));
+  LdcWIndexShift.addOperand(MCOperand::createImm(2));
+
+  Code.clear();
+  Fixups.clear();
+  MCE->encodeInstruction(LdcWIndexShift, Code, Fixups, *STI);
+
+  EXPECT_TRUE(Fixups.empty());
+  ASSERT_EQ(Code.size(), 4u);
+  EXPECT_EQ(static_cast<uint8_t>(Code[0]), 0xef);
+  EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0xa2);
+  EXPECT_EQ(static_cast<uint8_t>(Code[2]), 0x53);
+  EXPECT_EQ(static_cast<uint8_t>(Code[3]), 0x23);
 
   MCInst Ldc0DDisp;
   Ldc0DDisp.setOpcode(AVR32::LDC0_D_Disp);
@@ -5622,6 +5664,25 @@ TEST(AVR32TargetInfo, LookupTarget) {
   EXPECT_EQ(static_cast<uint8_t>(Code[2]), 0x40);
   EXPECT_EQ(static_cast<uint8_t>(Code[3]), 0x70);
 
+  MCInst StcDIndexShift;
+  StcDIndexShift.setOpcode(AVR32::STC_D_IndexShift);
+  StcDIndexShift.addOperand(MCOperand::createImm(2));
+  StcDIndexShift.addOperand(MCOperand::createReg(AVR32::R2));
+  StcDIndexShift.addOperand(MCOperand::createReg(AVR32::R3));
+  StcDIndexShift.addOperand(MCOperand::createImm(1));
+  StcDIndexShift.addOperand(MCOperand::createImm(0));
+
+  Code.clear();
+  Fixups.clear();
+  MCE->encodeInstruction(StcDIndexShift, Code, Fixups, *STI);
+
+  EXPECT_TRUE(Fixups.empty());
+  ASSERT_EQ(Code.size(), 4u);
+  EXPECT_EQ(static_cast<uint8_t>(Code[0]), 0xef);
+  EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0xa2);
+  EXPECT_EQ(static_cast<uint8_t>(Code[2]), 0x50);
+  EXPECT_EQ(static_cast<uint8_t>(Code[3]), 0xd3);
+
   MCInst StcWDisp;
   StcWDisp.setOpcode(AVR32::STC_W_Disp);
   StcWDisp.addOperand(MCOperand::createImm(2));
@@ -5656,6 +5717,25 @@ TEST(AVR32TargetInfo, LookupTarget) {
   EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0xa2);
   EXPECT_EQ(static_cast<uint8_t>(Code[2]), 0x43);
   EXPECT_EQ(static_cast<uint8_t>(Code[3]), 0x60);
+
+  MCInst StcWIndexShift;
+  StcWIndexShift.setOpcode(AVR32::STC_W_IndexShift);
+  StcWIndexShift.addOperand(MCOperand::createImm(2));
+  StcWIndexShift.addOperand(MCOperand::createReg(AVR32::R2));
+  StcWIndexShift.addOperand(MCOperand::createReg(AVR32::R3));
+  StcWIndexShift.addOperand(MCOperand::createImm(2));
+  StcWIndexShift.addOperand(MCOperand::createImm(3));
+
+  Code.clear();
+  Fixups.clear();
+  MCE->encodeInstruction(StcWIndexShift, Code, Fixups, *STI);
+
+  EXPECT_TRUE(Fixups.empty());
+  ASSERT_EQ(Code.size(), 4u);
+  EXPECT_EQ(static_cast<uint8_t>(Code[0]), 0xef);
+  EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0xa2);
+  EXPECT_EQ(static_cast<uint8_t>(Code[2]), 0x53);
+  EXPECT_EQ(static_cast<uint8_t>(Code[3]), 0xa3);
 
   MCInst Stc0DDisp;
   Stc0DDisp.setOpcode(AVR32::STC0_D_Disp);
@@ -7676,6 +7756,13 @@ TEST(AVR32TargetInfo, LookupTarget) {
   EXPECT_EQ(Printed, "\tldc.d\tcp2, cr0, --r2");
 
   Printed.clear();
+  raw_string_ostream LdcDIndexShiftOS(Printed);
+  InstPrinter->printInst(&LdcDIndexShift, /*Address=*/0, /*Annot=*/"", *STI,
+                         LdcDIndexShiftOS);
+  LdcDIndexShiftOS.flush();
+  EXPECT_EQ(Printed, "\tldc.d\tcp2, cr0, r2[r3 << 1]");
+
+  Printed.clear();
   raw_string_ostream LdcWDispOS(Printed);
   InstPrinter->printInst(&LdcWDisp, /*Address=*/0, /*Annot=*/"", *STI,
                          LdcWDispOS);
@@ -7688,6 +7775,13 @@ TEST(AVR32TargetInfo, LookupTarget) {
                          LdcWPreDecOS);
   LdcWPreDecOS.flush();
   EXPECT_EQ(Printed, "\tldc.w\tcp2, cr3, --r2");
+
+  Printed.clear();
+  raw_string_ostream LdcWIndexShiftOS(Printed);
+  InstPrinter->printInst(&LdcWIndexShift, /*Address=*/0, /*Annot=*/"", *STI,
+                         LdcWIndexShiftOS);
+  LdcWIndexShiftOS.flush();
+  EXPECT_EQ(Printed, "\tldc.w\tcp2, cr3, r2[r3 << 2]");
 
   Printed.clear();
   raw_string_ostream Ldc0DDispOS(Printed);
@@ -7718,6 +7812,13 @@ TEST(AVR32TargetInfo, LookupTarget) {
   EXPECT_EQ(Printed, "\tstc.d\tcp2, r2++, cr0");
 
   Printed.clear();
+  raw_string_ostream StcDIndexShiftOS(Printed);
+  InstPrinter->printInst(&StcDIndexShift, /*Address=*/0, /*Annot=*/"", *STI,
+                         StcDIndexShiftOS);
+  StcDIndexShiftOS.flush();
+  EXPECT_EQ(Printed, "\tstc.d\tcp2, r2[r3 << 1], cr0");
+
+  Printed.clear();
   raw_string_ostream StcWDispOS(Printed);
   InstPrinter->printInst(&StcWDisp, /*Address=*/0, /*Annot=*/"", *STI,
                          StcWDispOS);
@@ -7730,6 +7831,13 @@ TEST(AVR32TargetInfo, LookupTarget) {
                          StcWPostIncOS);
   StcWPostIncOS.flush();
   EXPECT_EQ(Printed, "\tstc.w\tcp2, r2++, cr3");
+
+  Printed.clear();
+  raw_string_ostream StcWIndexShiftOS(Printed);
+  InstPrinter->printInst(&StcWIndexShift, /*Address=*/0, /*Annot=*/"", *STI,
+                         StcWIndexShiftOS);
+  StcWIndexShiftOS.flush();
+  EXPECT_EQ(Printed, "\tstc.w\tcp2, r2[r3 << 2], cr3");
 
   Printed.clear();
   raw_string_ostream Stc0DDispOS(Printed);
@@ -7825,6 +7933,10 @@ TEST(AVR32TargetInfo, LookupTarget) {
           "st.w r1++, r2\nst.w --r1, r2\nst.w r1[12], r2\n"
           "st.w r1[-1], r2\nst.w r1[r2 << 3], r4\n"
           "st.weq r1[12], r2\nst.wal r1[12], r2\n"
+          "ldc.d cp2, cr0, r2[r3 << 1]\n"
+          "ldc.w cp2, cr3, r2[r3 << 2]\n"
+          "stc.d cp2, r2[r3 << 1], cr0\n"
+          "stc.w cp2, r2[r3 << 2], cr3\n"
           "stcond r1[-1], r2\nstdsp sp[12], r2\n"
           "sthh.w r1[12], r2:t, r3:b\n"
           "sthh.w r1[r4 << 3], r2:t, r3:b\n"

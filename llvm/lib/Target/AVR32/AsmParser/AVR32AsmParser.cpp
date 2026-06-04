@@ -485,6 +485,8 @@ private:
   bool parseCoprocessor0LoadOperands(OperandVector &Operands);
   bool parseCoprocessorStoreOperands(OperandVector &Operands);
   bool parseCoprocessor0StoreOperands(OperandVector &Operands);
+  bool parseMemoryDispOrIndexSuffix(OperandVector &Operands);
+  bool parseMemoryDispOrIndexOperand(OperandVector &Operands);
   bool parseMemoryDispOrPostIncOperand(OperandVector &Operands);
   bool parseMemoryDispOperand(OperandVector &Operands);
   bool parseMemoryDispCommaImmediate(OperandVector &Operands);
@@ -1011,7 +1013,7 @@ bool AVR32AsmParser::parseCoprocessorLoadOperands(OperandVector &Operands) {
     return parseRegisterOperand(Operands);
   }
 
-  return parseMemoryDispOperand(Operands);
+  return parseMemoryDispOrIndexOperand(Operands);
 }
 
 bool AVR32AsmParser::parseCoprocessor0LoadOperands(OperandVector &Operands) {
@@ -1022,24 +1024,54 @@ bool AVR32AsmParser::parseCoprocessor0LoadOperands(OperandVector &Operands) {
   return parseMemoryDispOperand(Operands);
 }
 
+bool AVR32AsmParser::parseMemoryDispOrIndexSuffix(
+    OperandVector &Operands) {
+  if (getLexer().isNot(AsmToken::LBrac))
+    return Error(getLexer().getLoc(), "expected [");
+  Operands.push_back(AVR32Operand::createToken("[", getLexer().getLoc()));
+  getLexer().Lex();
+
+  MCRegister IndexReg;
+  SMLoc IndexStartLoc;
+  SMLoc IndexEndLoc;
+  ParseStatus IndexStatus =
+      tryParseRegister(IndexReg, IndexStartLoc, IndexEndLoc);
+  if (IndexStatus.isSuccess()) {
+    Operands.push_back(
+        AVR32Operand::createReg(IndexReg, IndexStartLoc, IndexEndLoc));
+    if (getLexer().isNot(AsmToken::LessLess))
+      return Error(getLexer().getLoc(), "expected <<");
+    Operands.push_back(AVR32Operand::createToken("<<", getLexer().getLoc()));
+    getLexer().Lex();
+    if (parseImmediateOperand(Operands))
+      return true;
+  } else {
+    if (IndexStatus.isFailure())
+      return Error(IndexStartLoc, "invalid register name");
+    if (parseImmediateOperand(Operands))
+      return true;
+  }
+
+  if (getLexer().isNot(AsmToken::RBrac))
+    return Error(getLexer().getLoc(), "expected ]");
+  Operands.push_back(AVR32Operand::createToken("]", getLexer().getLoc()));
+  getLexer().Lex();
+  return false;
+}
+
+bool AVR32AsmParser::parseMemoryDispOrIndexOperand(OperandVector &Operands) {
+  if (parseRegisterOperand(Operands))
+    return true;
+  return parseMemoryDispOrIndexSuffix(Operands);
+}
+
 bool AVR32AsmParser::parseMemoryDispOrPostIncOperand(
     OperandVector &Operands) {
   if (parseRegisterOperand(Operands))
     return true;
 
-  if (getLexer().is(AsmToken::LBrac)) {
-    Operands.push_back(AVR32Operand::createToken("[", getLexer().getLoc()));
-    getLexer().Lex();
-
-    if (parseImmediateOperand(Operands))
-      return true;
-
-    if (getLexer().isNot(AsmToken::RBrac))
-      return Error(getLexer().getLoc(), "expected ]");
-    Operands.push_back(AVR32Operand::createToken("]", getLexer().getLoc()));
-    getLexer().Lex();
-    return false;
-  }
+  if (getLexer().is(AsmToken::LBrac))
+    return parseMemoryDispOrIndexSuffix(Operands);
 
   SMLoc PlusLoc = getLexer().getLoc();
   if (!parseOptionalToken(AsmToken::Plus) ||
