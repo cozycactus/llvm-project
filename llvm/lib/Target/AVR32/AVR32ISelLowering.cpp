@@ -64,6 +64,86 @@ SDValue AVR32TargetLowering::LowerFormalArguments(
   return Chain;
 }
 
+SDValue
+AVR32TargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
+                               SmallVectorImpl<SDValue> &InVals) const {
+  static const MCPhysReg ArgRegs[] = {AVR32::R12, AVR32::R11, AVR32::R10,
+                                      AVR32::R9, AVR32::R8};
+  SelectionDAG &DAG = CLI.DAG;
+  SDLoc DL = CLI.DL;
+  SDValue Chain = CLI.Chain;
+  SDValue Callee = CLI.Callee;
+
+  if (CLI.IsVarArg || CLI.IsTailCall || CLI.Outs.size() > std::size(ArgRegs)) {
+    diagnoseUnsupported(DAG, DL,
+                        "AVR32 stack, variadic, and tail call arguments are "
+                        "not implemented yet");
+    return Chain;
+  }
+
+  SDValue Glue;
+  SmallVector<std::pair<MCPhysReg, SDValue>, 5> RegsToPass;
+  for (unsigned I = 0, E = CLI.Outs.size(); I != E; ++I) {
+    if (CLI.Outs[I].VT != MVT::i32) {
+      diagnoseUnsupported(DAG, DL,
+                          "AVR32 non-i32 call arguments are not implemented "
+                          "yet");
+      continue;
+    }
+    RegsToPass.push_back({ArgRegs[I], CLI.OutVals[I]});
+  }
+
+  for (const auto &[Reg, Value] : RegsToPass) {
+    Chain = DAG.getCopyToReg(Chain, DL, Reg, Value, Glue);
+    Glue = Chain.getValue(1);
+  }
+
+  if (auto *G = dyn_cast<GlobalAddressSDNode>(Callee))
+    Callee = DAG.getTargetGlobalAddress(G->getGlobal(), DL, MVT::i32);
+  else if (auto *E = dyn_cast<ExternalSymbolSDNode>(Callee))
+    Callee = DAG.getTargetExternalSymbol(E->getSymbol(), MVT::i32);
+  else {
+    diagnoseUnsupported(DAG, DL,
+                        "AVR32 indirect calls are not implemented yet");
+    return Chain;
+  }
+
+  SmallVector<SDValue, 8> Ops;
+  Ops.push_back(Chain);
+  Ops.push_back(Callee);
+  for (const auto &[Reg, Value] : RegsToPass)
+    Ops.push_back(DAG.getRegister(Reg, Value.getValueType()));
+  if (Glue)
+    Ops.push_back(Glue);
+
+  Chain = DAG.getNode(AVR32ISD::CALL, DL,
+                      DAG.getVTList(MVT::Other, MVT::Glue), Ops);
+  Glue = Chain.getValue(1);
+
+  if (CLI.Ins.size() > 1) {
+    diagnoseUnsupported(DAG, DL,
+                        "AVR32 multi-value call returns are not implemented "
+                        "yet");
+    return Chain;
+  }
+
+  if (!CLI.Ins.empty()) {
+    if (CLI.Ins[0].VT != MVT::i32) {
+      diagnoseUnsupported(DAG, DL,
+                          "AVR32 non-i32 call returns are not implemented "
+                          "yet");
+      InVals.push_back(DAG.getUNDEF(CLI.Ins[0].VT));
+    } else {
+      SDValue Result =
+          DAG.getCopyFromReg(Chain, DL, AVR32::R12, MVT::i32, Glue);
+      InVals.push_back(Result);
+      Chain = Result.getValue(1);
+    }
+  }
+
+  return Chain;
+}
+
 SDValue AVR32TargetLowering::LowerReturn(
     SDValue Chain, CallingConv::ID CallConv, bool IsVarArg,
     const SmallVectorImpl<ISD::OutputArg> &Outs,

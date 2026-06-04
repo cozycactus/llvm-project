@@ -11,6 +11,7 @@
 #include "TargetInfo/AVR32TargetInfo.h"
 #include "llvm/CodeGen/AsmPrinter.h"
 #include "llvm/CodeGen/MachineInstr.h"
+#include "llvm/MC/MCExpr.h"
 #include "llvm/MC/MCInst.h"
 #include "llvm/MC/MCStreamer.h"
 #include "llvm/MC/TargetRegistry.h"
@@ -30,10 +31,34 @@ public:
   StringRef getPassName() const override { return "AVR32 Assembly Printer"; }
 
   void emitInstruction(const MachineInstr *MI) override;
+  const MCExpr *lowerSymbolOperand(const MachineOperand &MO);
 
   static char ID;
 };
 } // namespace
+
+const MCExpr *AVR32AsmPrinter::lowerSymbolOperand(const MachineOperand &MO) {
+  const MCSymbol *Symbol;
+  switch (MO.getType()) {
+  case MachineOperand::MO_GlobalAddress:
+    Symbol = getSymbol(MO.getGlobal());
+    break;
+  case MachineOperand::MO_ExternalSymbol:
+    Symbol = GetExternalSymbolSymbol(MO.getSymbolName());
+    break;
+  case MachineOperand::MO_MachineBasicBlock:
+    Symbol = MO.getMBB()->getSymbol();
+    break;
+  default:
+    llvm_unreachable("Unexpected symbol operand");
+  }
+
+  const MCExpr *Expr = MCSymbolRefExpr::create(Symbol, OutContext);
+  if (MO.getOffset() != 0)
+    Expr = MCBinaryExpr::createAdd(
+        Expr, MCConstantExpr::create(MO.getOffset(), OutContext), OutContext);
+  return Expr;
+}
 
 void AVR32AsmPrinter::emitInstruction(const MachineInstr *MI) {
   MCInst Inst;
@@ -43,6 +68,8 @@ void AVR32AsmPrinter::emitInstruction(const MachineInstr *MI) {
       Inst.addOperand(MCOperand::createReg(MO.getReg()));
     else if (MO.isImm())
       Inst.addOperand(MCOperand::createImm(MO.getImm()));
+    else if (MO.isGlobal() || MO.isSymbol() || MO.isMBB())
+      Inst.addOperand(MCOperand::createExpr(lowerSymbolOperand(MO)));
     else
       report_fatal_error("AVR32 asm printer cannot lower this operand yet");
   }

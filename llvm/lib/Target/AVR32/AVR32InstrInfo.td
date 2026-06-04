@@ -8,6 +8,11 @@
 
 include "AVR32InstrFormats.td"
 
+def SDT_AVR32Call : SDTypeProfile<0, -1, [SDTCisVT<0, iPTR>]>;
+
+def AVR32call : SDNode<"AVR32ISD::CALL", SDT_AVR32Call,
+                       [SDNPHasChain, SDNPOutGlue, SDNPOptInGlue,
+                        SDNPVariadic]>;
 def AVR32retflag : SDNode<"AVR32ISD::RET_FLAG", SDTNone,
                           [SDNPHasChain, SDNPOptInGlue, SDNPVariadic]>;
 
@@ -3076,7 +3081,9 @@ def MOVVCrr : MovRR<0b1101, "movvc">;
 def MOVQSrr : MovRR<0b1110, "movqs">;
 def MOVrr : MovRR<0b1111, "mov">;
 def MOVri8 : MovRI<0b0011, "mov">;
-def MOVri21 : FullRegImm<0b0011, "mov">;
+def MOVri21 : FullRegImm<0b0011, "mov"> {
+  let Pattern = [(set GPR:$Rd, simm21:$Imm)];
+}
 def MOVHri : FullRegUImm16<0b111111000001, "movh">;
 def MVCRd : MoveCopRegToRegD<"mvcr.d">;
 def MVCRw : MoveCopRegToRegW<"mvcr.w">;
@@ -3163,6 +3170,7 @@ def PAVG_UBrrr : FullRegRegReg<0b001000111100, "pavg.ub">;
 def PAVG_SHrrr : FullRegRegReg<0b001000111101, "pavg.sh">;
 def PREF : FullMemDisp16<0b111100100001, "pref">;
 def RCALLc : CompactPCRel10<0b11, "rcall">;
+let isCall = 1, Defs = [LR] in
 def RCALLe : FullPCRel21<"rcall">;
 def PMAX_UBrrr : FullRegRegReg<0b001000111000, "pmax.ub">;
 def PMAX_SHrrr : FullRegRegReg<0b001000111001, "pmax.sh">;
@@ -3472,3 +3480,7 @@ def TLBW : AVR32Inst<0b1101011001100011, (outs), (ins), "tlbw">;
 def TNBZr : CompactRegNoOut<0b010111001110, "tnbz">;
 def TSTrr : CompactRegRegNoOut<0b00111, "tst">;
 def XCHGrrr : FullRegRegReg<0b000010110100, "xchg">;
+
+def : Pat<(AVR32call (i32 tglobaladdr:$dst)), (RCALLe PC, tglobaladdr:$dst)>;
+def : Pat<(AVR32call (i32 texternalsym:$dst)),
+          (RCALLe PC, texternalsym:$dst)>;

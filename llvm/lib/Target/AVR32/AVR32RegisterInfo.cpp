@@ -9,7 +9,10 @@
 #include "AVR32RegisterInfo.h"
 #include "AVR32FrameLowering.h"
 #include "llvm/ADT/BitVector.h"
+#include "llvm/CodeGen/MachineFrameInfo.h"
 #include "llvm/CodeGen/MachineFunction.h"
+#include "llvm/CodeGen/MachineInstr.h"
+#include "llvm/Support/MathExtras.h"
 #include "llvm/Support/ErrorHandling.h"
 
 using namespace llvm;
@@ -43,7 +46,22 @@ AVR32RegisterInfo::getPointerRegClass(unsigned Kind) const {
 bool AVR32RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
                                             int SPAdj, unsigned FIOperandNum,
                                             RegScavenger *RS) const {
-  llvm_unreachable("AVR32 frame index elimination is not implemented yet");
+  assert(SPAdj == 0 && "Unexpected");
+
+  MachineInstr &MI = *II;
+  MachineFunction &MF = *MI.getParent()->getParent();
+  MachineFrameInfo &MFI = MF.getFrameInfo();
+
+  int FrameIndex = MI.getOperand(FIOperandNum).getIndex();
+  int64_t Offset = MFI.getObjectOffset(FrameIndex) + MFI.getStackSize();
+
+  Offset += MI.getOperand(FIOperandNum + 1).getImm();
+  if (!isInt<16>(Offset))
+    report_fatal_error("AVR32 frame offset does not fit in a 16-bit immediate");
+
+  MI.getOperand(FIOperandNum).ChangeToRegister(AVR32::SP, false);
+  MI.getOperand(FIOperandNum + 1).ChangeToImmediate(Offset);
+  return false;
 }
 
 Register AVR32RegisterInfo::getFrameRegister(const MachineFunction &MF) const {

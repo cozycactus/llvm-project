@@ -8,7 +8,9 @@
 
 #include "AVR32InstrInfo.h"
 #include "AVR32Subtarget.h"
+#include "llvm/CodeGen/MachineFrameInfo.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
+#include "llvm/CodeGen/MachineMemOperand.h"
 #include "llvm/Support/ErrorHandling.h"
 
 using namespace llvm;
@@ -38,7 +40,25 @@ void AVR32InstrInfo::storeRegToStackSlot(
     MachineBasicBlock &MBB, MachineBasicBlock::iterator MI, Register SrcReg,
     bool isKill, int FrameIndex, const TargetRegisterClass *RC, Register VReg,
     MachineInstr::MIFlag Flags) const {
-  llvm_unreachable("AVR32 stack stores are not implemented yet");
+  if (RC != &AVR32::GPRRegClass)
+    llvm_unreachable("AVR32 can only store GPR registers to stack slots");
+
+  DebugLoc DL;
+  if (MI != MBB.end())
+    DL = MI->getDebugLoc();
+
+  MachineFunction &MF = *MBB.getParent();
+  MachineFrameInfo &MFI = MF.getFrameInfo();
+  MachineMemOperand *MMO = MF.getMachineMemOperand(
+      MachinePointerInfo::getFixedStack(MF, FrameIndex),
+      MachineMemOperand::MOStore, MFI.getObjectSize(FrameIndex),
+      MFI.getObjectAlign(FrameIndex));
+
+  BuildMI(MBB, MI, DL, get(AVR32::ST_W_Disp16))
+      .addFrameIndex(FrameIndex)
+      .addImm(0)
+      .addReg(SrcReg, getKillRegState(isKill))
+      .addMemOperand(MMO);
 }
 
 void AVR32InstrInfo::loadRegFromStackSlot(MachineBasicBlock &MBB,
@@ -47,5 +67,22 @@ void AVR32InstrInfo::loadRegFromStackSlot(MachineBasicBlock &MBB,
                                           const TargetRegisterClass *RC,
                                           Register VReg, unsigned SubReg,
                                           MachineInstr::MIFlag Flags) const {
-  llvm_unreachable("AVR32 stack loads are not implemented yet");
+  if (RC != &AVR32::GPRRegClass)
+    llvm_unreachable("AVR32 can only load GPR registers from stack slots");
+
+  DebugLoc DL;
+  if (MI != MBB.end())
+    DL = MI->getDebugLoc();
+
+  MachineFunction &MF = *MBB.getParent();
+  MachineFrameInfo &MFI = MF.getFrameInfo();
+  MachineMemOperand *MMO = MF.getMachineMemOperand(
+      MachinePointerInfo::getFixedStack(MF, FrameIdx),
+      MachineMemOperand::MOLoad, MFI.getObjectSize(FrameIdx),
+      MFI.getObjectAlign(FrameIdx));
+
+  BuildMI(MBB, MI, DL, get(AVR32::LD_W_Disp16), DestReg)
+      .addFrameIndex(FrameIdx)
+      .addImm(0)
+      .addMemOperand(MMO);
 }
