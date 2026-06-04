@@ -1195,6 +1195,18 @@ class FullRegReg<bits<16> Op, string Mnemonic>
   let Inst{15-0} = Op;
 }
 
+class FullRegRegLow<bits<12> Op, string Mnemonic>
+    : AVR32Inst32<(outs GPR:$Rd), (ins GPR:$Rs),
+                  Mnemonic#"\t$Rd, $Rs"> {
+  bits<4> Rd;
+  bits<4> Rs;
+
+  let Inst{31-20} = 0b111000000000;
+  let Inst{19-16} = Rs;
+  let Inst{15-4} = Op;
+  let Inst{3-0} = Rd;
+}
+
 class FullRegUImm5NoOut<bits<12> Op, string Mnemonic>
     : AVR32Inst32<(outs), (ins GPR:$Rd, uimm5:$Imm),
                   Mnemonic#"\t$Rd, $Imm"> {
@@ -1714,6 +1726,8 @@ def ORVSrrr : CondRRR<0b1100, 0b0011, "orvs">;
 def ORVCrrr : CondRRR<0b1101, 0b0011, "orvc">;
 def ORQSrrr : CondRRR<0b1110, 0b0011, "orqs">;
 def ORrr : CompactRegReg<0b00100, "or">;
+def PABS_SBrr : FullRegRegLow<0b001000111110, "pabs.sb">;
+def PABS_SHrr : FullRegRegLow<0b001000111111, "pabs.sh">;
 def PACKSH_UBrrr : FullRegRegReg<0b001001001100, "packsh.ub">;
 def PACKSH_SBrrr : FullRegRegReg<0b001001001101, "packsh.sb">;
 def PACKW_SHrrr : FullRegRegReg<0b001001000111, "packw.sh">;

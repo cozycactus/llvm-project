@@ -550,7 +550,8 @@ bool AVR32AsmParser::parseInstruction(ParseInstructionInfo &Info,
       return true;
   } else if (Name == "add" || Name == "and" || Name == "andn" ||
              Name == "clz" || Name == "cp.b" || Name == "cp.h" ||
-             Name == "eor" || Name == "or" || Name == "rsub" ||
+             Name == "eor" || Name == "or" ||
+             Name == "pabs.sb" || Name == "pabs.sh" || Name == "rsub" ||
              Name == "tst") {
     if (parseRegisterCommaRegister(Operands))
       return true;
