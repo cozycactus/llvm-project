@@ -218,6 +218,11 @@ def PicoInAsmOperand : AsmOperandClass {
   let RenderMethod = "addImmOperands";
 }
 
+def PicoRegisterAsmOperand : AsmOperandClass {
+  let Name = "PicoRegister";
+  let RenderMethod = "addImmOperands";
+}
+
 def ACallDispAsmOperand : AsmOperandClass {
   let Name = "ACallDisp";
   let RenderMethod = "addImmOperands";
@@ -467,6 +472,11 @@ def coprocessorreglisthigh : Operand<i32>,
 def picoin : Operand<i32>, ImmLeaf<i32, [{ return Imm >= 0 && Imm < 12; }]> {
   let ParserMatchClass = PicoInAsmOperand;
   let PrintMethod = "printPicoIn";
+}
+
+def picoreg : Operand<i32>, ImmLeaf<i32, [{ return Imm >= 0 && Imm < 16; }]> {
+  let ParserMatchClass = PicoRegisterAsmOperand;
+  let PrintMethod = "printPicoRegister";
 }
 
 def acalldisp : Operand<i32>,
@@ -1389,6 +1399,38 @@ class MoveRegToCopRegW<string Mnemonic>
   let Inst{24-20} = 0b11010;
   let Inst{19-16} = Rs;
   let Inst{15-13} = CP;
+  let Inst{12} = 0;
+  let Inst{11-8} = CRd;
+  let Inst{7-0} = 0b00100000;
+}
+
+class PicoMoveCopRegToRegW<string Mnemonic>
+    : AVR32Inst32<(outs GPR:$Rd), (ins picoreg:$CRs),
+                  Mnemonic#"\t$Rd, $CRs"> {
+  bits<4> Rd;
+  bits<4> CRs;
+
+  let Inst{31-29} = 0b111;
+  let Inst{28-25} = 0b0111;
+  let Inst{24-20} = 0b11010;
+  let Inst{19-16} = Rd;
+  let Inst{15-13} = 0b001;
+  let Inst{12} = 0;
+  let Inst{11-8} = CRs;
+  let Inst{7-0} = 0;
+}
+
+class PicoMoveRegToCopRegW<string Mnemonic>
+    : AVR32Inst32<(outs), (ins picoreg:$CRd, GPR:$Rs),
+                  Mnemonic#"\t$CRd, $Rs"> {
+  bits<4> CRd;
+  bits<4> Rs;
+
+  let Inst{31-29} = 0b111;
+  let Inst{28-25} = 0b0111;
+  let Inst{24-20} = 0b11010;
+  let Inst{19-16} = Rs;
+  let Inst{15-13} = 0b001;
   let Inst{12} = 0;
   let Inst{11-8} = CRd;
   let Inst{7-0} = 0b00100000;
@@ -2524,6 +2566,8 @@ def PICOSVMAC0 : PicoCoprocessorOp<0x0c, "out0", "picosvmac">;
 def PICOSVMAC1 : PicoCoprocessorOp<0x0d, "out1", "picosvmac">;
 def PICOSVMAC2 : PicoCoprocessorOp<0x0e, "out2", "picosvmac">;
 def PICOSVMAC3 : PicoCoprocessorOp<0x0f, "out3", "picosvmac">;
+def PICOMV_W_FromReg : PicoMoveRegToCopRegW<"picomv.w">;
+def PICOMV_W_ToReg : PicoMoveCopRegToRegW<"picomv.w">;
 def CPCr : CompactRegNoOut<0b010111000010, "cpc">;
 def CPCrr : FullRegRegNoOut<0b0001001100000000, "cpc">;
 def CP_Brr : FullRegRegNoOut<0b0001100000000000, "cp.b">;

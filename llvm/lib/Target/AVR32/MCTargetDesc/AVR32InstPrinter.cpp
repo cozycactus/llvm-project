@@ -135,6 +135,21 @@ void AVR32InstPrinter::printPicoIn(const MCInst *MI, unsigned OpNo,
   OS << "in" << Op.getImm();
 }
 
+void AVR32InstPrinter::printPicoRegister(const MCInst *MI, unsigned OpNo,
+                                         raw_ostream &OS) {
+  const MCOperand &Op = MI->getOperand(OpNo);
+  assert(Op.isImm() && "PICO register must be immediate");
+  static const char *Names[] = {
+      "inpix2",  "inpix1",  "inpix0",   "outpix2",
+      "outpix1", "outpix0", "coeff0_a", "coeff0_b",
+      "coeff1_a", "coeff1_b", "coeff2_a", "coeff2_b",
+      "vmu0_out", "vmu1_out", "vmu2_out", "config"};
+  int64_t Reg = Op.getImm();
+  if (Reg < 0 || Reg > 15)
+    llvm_unreachable("invalid PICO register");
+  OS << Names[Reg];
+}
+
 static void printCoprocessorRegListMask(uint16_t Mask, unsigned BaseReg,
                                         unsigned Scale, raw_ostream &OS) {
   bool NeedComma = false;

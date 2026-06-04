@@ -49,6 +49,7 @@ private:
   void printCoprocessorRegListHigh(const MCInst *MI, unsigned OpNo,
                                    raw_ostream &OS);
   void printPicoIn(const MCInst *MI, unsigned OpNo, raw_ostream &OS);
+  void printPicoRegister(const MCInst *MI, unsigned OpNo, raw_ostream &OS);
 };
 
 } // end namespace llvm

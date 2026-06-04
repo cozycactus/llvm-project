@@ -8,6 +8,7 @@
 
 #include "../MCTargetDesc/AVR32MCTargetDesc.h"
 #include "../TargetInfo/AVR32TargetInfo.h"
+#include "llvm/ADT/StringSwitch.h"
 #include "llvm/MC/MCContext.h"
 #include "llvm/MC/MCExpr.h"
 #include "llvm/MC/MCInst.h"
@@ -352,6 +353,13 @@ public:
     return Const && Const->getValue() >= 0 && Const->getValue() < 12;
   }
 
+  bool isPicoRegister() const {
+    if (Kind != Immediate)
+      return false;
+    auto *Const = dyn_cast<MCConstantExpr>(Imm);
+    return Const && Const->getValue() >= 0 && Const->getValue() < 16;
+  }
+
   bool isACallDisp() const {
     if (Kind != Immediate)
       return false;
@@ -531,8 +539,10 @@ private:
                                             bool IsDouble);
   bool parseCoprocessorStoreMultipleOperands(OperandVector &Operands,
                                              bool IsDouble);
+  bool parsePicoRegisterOperand(OperandVector &Operands);
   bool parsePicoInOperand(OperandVector &Operands);
   bool parsePicoArithmeticOperands(OperandVector &Operands);
+  bool parsePicoMoveWOperands(OperandVector &Operands);
   bool parseMemoryDispOrIndexSuffix(OperandVector &Operands);
   bool parseMemoryDispOrIndexOperand(OperandVector &Operands);
   bool parseMemoryDispOrPostIncOperand(OperandVector &Operands);
@@ -748,6 +758,9 @@ bool AVR32AsmParser::parseInstruction(ParseInstructionInfo &Info,
       return true;
   } else if (Name == "mvrc.d" || Name == "mvrc.w") {
     if (parseCoprocessorCommaCoprocessorRegisterCommaRegister(Operands))
+      return true;
+  } else if (Name == "picomv.w") {
+    if (parsePicoMoveWOperands(Operands))
       return true;
   } else if (Name == "cop") {
     if (parseCoprocessorOperationOperands(Operands))
@@ -1092,6 +1105,70 @@ bool AVR32AsmParser::parseCoprocessorOperationOperands(
   if (!parseOptionalToken(AsmToken::Comma))
     return Error(getLexer().getLoc(), "expected comma");
   return parseImmediateOperand(Operands);
+}
+
+static bool parsePicoRegisterName(StringRef Name, unsigned &Number) {
+  std::string LowerStorage = Name.lower();
+  StringRef Lower = LowerStorage;
+  int Value =
+      StringSwitch<int>(Lower)
+          .Case("inpix2", 0)
+          .Case("inpix1", 1)
+          .Case("inpix0", 2)
+          .Case("outpix2", 3)
+          .Case("outpix1", 4)
+          .Case("outpix0", 5)
+          .Case("coeff0_a", 6)
+          .Case("coeff0_b", 7)
+          .Case("coeff1_a", 8)
+          .Case("coeff1_b", 9)
+          .Case("coeff2_a", 10)
+          .Case("coeff2_b", 11)
+          .Case("vmu0_out", 12)
+          .Case("vmu1_out", 13)
+          .Case("vmu2_out", 14)
+          .Case("config", 15)
+          .Default(-1);
+  if (Value < 0)
+    return true;
+  Number = static_cast<unsigned>(Value);
+  return false;
+}
+
+bool AVR32AsmParser::parsePicoRegisterOperand(OperandVector &Operands) {
+  SMLoc StartLoc = getLexer().getLoc();
+  if (getLexer().isNot(AsmToken::Identifier))
+    return Error(StartLoc, "expected PICO register");
+
+  unsigned Number;
+  if (parsePicoRegisterName(getLexer().getTok().getString(), Number))
+    return Error(StartLoc, "expected PICO register");
+
+  getLexer().Lex();
+  const MCExpr *Expr = MCConstantExpr::create(Number, getContext());
+  Operands.push_back(
+      AVR32Operand::createImm(Expr, StartLoc, getLexer().getLoc()));
+  return false;
+}
+
+bool AVR32AsmParser::parsePicoMoveWOperands(OperandVector &Operands) {
+  SMLoc StartLoc = getLexer().getLoc();
+  if (getLexer().isNot(AsmToken::Identifier))
+    return Error(StartLoc, "expected register");
+
+  if (parseRegisterName(getLexer().getTok().getString()).isValid()) {
+    if (parseRegisterOperand(Operands))
+      return true;
+    if (!parseOptionalToken(AsmToken::Comma))
+      return Error(getLexer().getLoc(), "expected comma");
+    return parsePicoRegisterOperand(Operands);
+  }
+
+  if (parsePicoRegisterOperand(Operands))
+    return true;
+  if (!parseOptionalToken(AsmToken::Comma))
+    return Error(getLexer().getLoc(), "expected comma");
+  return parseRegisterOperand(Operands);
 }
 
 bool AVR32AsmParser::parsePicoInOperand(OperandVector &Operands) {
