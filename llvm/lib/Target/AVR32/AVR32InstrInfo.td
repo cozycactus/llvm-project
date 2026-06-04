@@ -173,6 +173,21 @@ def RegList8AsmOperand : AsmOperandClass {
   let RenderMethod = "addImmOperands";
 }
 
+def CoprocessorAsmOperand : AsmOperandClass {
+  let Name = "Coprocessor";
+  let RenderMethod = "addImmOperands";
+}
+
+def CoprocessorRegisterAsmOperand : AsmOperandClass {
+  let Name = "CoprocessorRegister";
+  let RenderMethod = "addImmOperands";
+}
+
+def CoprocessorEvenRegisterAsmOperand : AsmOperandClass {
+  let Name = "CoprocessorEvenRegister";
+  let RenderMethod = "addImmOperands";
+}
+
 def ACallDispAsmOperand : AsmOperandClass {
   let Name = "ACallDisp";
   let RenderMethod = "addImmOperands";
@@ -366,6 +381,25 @@ def reglist8 : Operand<i32>,
                ImmLeaf<i32, [{ return Imm > 0 && Imm < 256; }]> {
   let ParserMatchClass = RegList8AsmOperand;
   let PrintMethod = "printRegList8";
+}
+
+def coprocessor : Operand<i32>,
+                  ImmLeaf<i32, [{ return Imm >= 0 && Imm < 8; }]> {
+  let ParserMatchClass = CoprocessorAsmOperand;
+  let PrintMethod = "printCoprocessor";
+}
+
+def coprocessorreg : Operand<i32>,
+                     ImmLeaf<i32, [{ return Imm >= 0 && Imm < 16; }]> {
+  let ParserMatchClass = CoprocessorRegisterAsmOperand;
+  let PrintMethod = "printCoprocessorRegister";
+}
+
+def coprocessorevenreg : Operand<i32>,
+                         ImmLeaf<i32, [{ return Imm >= 0 && Imm < 16 &&
+                                                Imm % 2 == 0; }]> {
+  let ParserMatchClass = CoprocessorEvenRegisterAsmOperand;
+  let PrintMethod = "printCoprocessorRegister";
 }
 
 def acalldisp : Operand<i32>,
@@ -1203,6 +1237,81 @@ class CompactRegList8<bits<4> Low, string Mnemonic>
   let Inst{3-0} = Low;
 }
 
+class MoveCopRegToRegD<string Mnemonic>
+    : AVR32Inst32<(outs GPREven:$Rd),
+                  (ins coprocessor:$CP, coprocessorevenreg:$CRs),
+                  Mnemonic#"\t$CP, $Rd, $CRs"> {
+  bits<4> Rd;
+  bits<3> CP;
+  bits<4> CRs;
+
+  let Inst{31-29} = 0b111;
+  let Inst{28-25} = 0b0111;
+  let Inst{24-20} = 0b11010;
+  let Inst{19-17} = Rd{3-1};
+  let Inst{16} = 0;
+  let Inst{15-13} = CP;
+  let Inst{12} = 0;
+  let Inst{11-9} = CRs{3-1};
+  let Inst{8} = 0;
+  let Inst{7-0} = 0b00010000;
+}
+
+class MoveCopRegToRegW<string Mnemonic>
+    : AVR32Inst32<(outs GPR:$Rd),
+                  (ins coprocessor:$CP, coprocessorreg:$CRs),
+                  Mnemonic#"\t$CP, $Rd, $CRs"> {
+  bits<4> Rd;
+  bits<3> CP;
+  bits<4> CRs;
+
+  let Inst{31-29} = 0b111;
+  let Inst{28-25} = 0b0111;
+  let Inst{24-20} = 0b11010;
+  let Inst{19-16} = Rd;
+  let Inst{15-13} = CP;
+  let Inst{12} = 0;
+  let Inst{11-8} = CRs;
+  let Inst{7-0} = 0;
+}
+
+class MoveRegToCopRegD<string Mnemonic>
+    : AVR32Inst32<(outs),
+                  (ins coprocessor:$CP, coprocessorevenreg:$CRd, GPREven:$Rs),
+                  Mnemonic#"\t$CP, $CRd, $Rs"> {
+  bits<3> CP;
+  bits<4> CRd;
+  bits<4> Rs;
+
+  let Inst{31-29} = 0b111;
+  let Inst{28-25} = 0b0111;
+  let Inst{24-20} = 0b11010;
+  let Inst{19-17} = Rs{3-1};
+  let Inst{16} = 0;
+  let Inst{15-13} = CP;
+  let Inst{12} = 0;
+  let Inst{11-9} = CRd{3-1};
+  let Inst{8} = 0;
+  let Inst{7-0} = 0b00011000;
+}
+
+class MoveRegToCopRegW<string Mnemonic>
+    : AVR32Inst32<(outs), (ins coprocessor:$CP, coprocessorreg:$CRd, GPR:$Rs),
+                  Mnemonic#"\t$CP, $CRd, $Rs"> {
+  bits<3> CP;
+  bits<4> CRd;
+  bits<4> Rs;
+
+  let Inst{31-29} = 0b111;
+  let Inst{28-25} = 0b0111;
+  let Inst{24-20} = 0b11010;
+  let Inst{19-16} = Rs;
+  let Inst{15-13} = CP;
+  let Inst{12} = 0;
+  let Inst{11-8} = CRd;
+  let Inst{7-0} = 0b00100000;
+}
+
 def LD_W_PostInc : CompactLoadPostInc<0b10000, "ld.w">;
 def LD_W_PreDec : CompactLoadPreDec<0b10100, "ld.w">;
 def LD_W_Disp5 : CompactLoadDisp5Shift2<"ld.w">;
@@ -1903,6 +2012,10 @@ def MOVrr : MovRR<0b1111, "mov">;
 def MOVri8 : MovRI<0b0011, "mov">;
 def MOVri21 : FullRegImm<0b0011, "mov">;
 def MOVHri : FullRegUImm16<0b111111000001, "movh">;
+def MVCRd : MoveCopRegToRegD<"mvcr.d">;
+def MVCRw : MoveCopRegToRegW<"mvcr.w">;
+def MVRCd : MoveRegToCopRegD<"mvrc.d">;
+def MVRCw : MoveRegToCopRegW<"mvrc.w">;
 def MEMC : FullMemBit<0b111111000001, "memc">;
 def MEMS : FullMemBit<0b111100000001, "mems">;
 def MEMT : FullMemBit<0b111101000001, "memt">;

@@ -286,6 +286,28 @@ public:
     return Const && Const->getValue() > 0 && Const->getValue() < 256;
   }
 
+  bool isCoprocessor() const {
+    if (Kind != Immediate)
+      return false;
+    auto *Const = dyn_cast<MCConstantExpr>(Imm);
+    return Const && Const->getValue() >= 0 && Const->getValue() < 8;
+  }
+
+  bool isCoprocessorRegister() const {
+    if (Kind != Immediate)
+      return false;
+    auto *Const = dyn_cast<MCConstantExpr>(Imm);
+    return Const && Const->getValue() >= 0 && Const->getValue() < 16;
+  }
+
+  bool isCoprocessorEvenRegister() const {
+    if (Kind != Immediate)
+      return false;
+    auto *Const = dyn_cast<MCConstantExpr>(Imm);
+    return Const && Const->getValue() >= 0 && Const->getValue() < 16 &&
+           Const->getValue() % 2 == 0;
+  }
+
   bool isACallDisp() const {
     if (Kind != Immediate)
       return false;
@@ -445,6 +467,12 @@ private:
   bool parseStoreMultipleOperands(OperandVector &Operands);
   bool parseRegList16Operand(OperandVector &Operands);
   bool parseRegList8Operand(OperandVector &Operands);
+  bool parseCoprocessorOperand(OperandVector &Operands);
+  bool parseCoprocessorRegisterOperand(OperandVector &Operands);
+  bool parseCoprocessorCommaRegisterCommaCoprocessorRegister(
+      OperandVector &Operands);
+  bool parseCoprocessorCommaCoprocessorRegisterCommaRegister(
+      OperandVector &Operands);
   bool parseMemoryDispOperand(OperandVector &Operands);
   bool parseMemoryDispCommaImmediate(OperandVector &Operands);
   bool parseRegisterCommaImmediate(OperandVector &Operands);
@@ -630,6 +658,12 @@ bool AVR32AsmParser::parseInstruction(ParseInstructionInfo &Info,
              Name == "movmi" || Name == "movne" || Name == "movpl" ||
              Name == "movqs" || Name == "movvc" || Name == "movvs") {
     if (parseRegisterCommaRegisterOrImmediate(Operands))
+      return true;
+  } else if (Name == "mvcr.d" || Name == "mvcr.w") {
+    if (parseCoprocessorCommaRegisterCommaCoprocessorRegister(Operands))
+      return true;
+  } else if (Name == "mvrc.d" || Name == "mvrc.w") {
+    if (parseCoprocessorCommaCoprocessorRegisterCommaRegister(Operands))
       return true;
   } else if (Name == "andh" || Name == "andl") {
     if (parseRegisterCommaImmediateOptionalCOH(Operands))
@@ -862,6 +896,76 @@ bool AVR32AsmParser::parseImmediateOperand(OperandVector &Operands) {
   Operands.push_back(
       AVR32Operand::createImm(Expr, StartLoc, getLexer().getLoc()));
   return false;
+}
+
+static bool parsePrefixedNumber(StringRef Tok, StringRef Prefix, unsigned Max,
+                                unsigned &Number) {
+  std::string LowerStorage = Tok.lower();
+  StringRef Lower = LowerStorage;
+  if (!Lower.consume_front(Prefix))
+    return true;
+  if (Lower.empty() || Lower.getAsInteger(10, Number))
+    return true;
+  return Number > Max;
+}
+
+bool AVR32AsmParser::parseCoprocessorOperand(OperandVector &Operands) {
+  SMLoc StartLoc = getLexer().getLoc();
+  if (getLexer().isNot(AsmToken::Identifier))
+    return Error(StartLoc, "expected coprocessor");
+
+  unsigned Number;
+  if (parsePrefixedNumber(getLexer().getTok().getString(), "cp", 7, Number))
+    return Error(StartLoc, "expected coprocessor");
+
+  getLexer().Lex();
+  const MCExpr *Expr = MCConstantExpr::create(Number, getContext());
+  Operands.push_back(
+      AVR32Operand::createImm(Expr, StartLoc, getLexer().getLoc()));
+  return false;
+}
+
+bool AVR32AsmParser::parseCoprocessorRegisterOperand(
+    OperandVector &Operands) {
+  SMLoc StartLoc = getLexer().getLoc();
+  if (getLexer().isNot(AsmToken::Identifier))
+    return Error(StartLoc, "expected coprocessor register");
+
+  unsigned Number;
+  if (parsePrefixedNumber(getLexer().getTok().getString(), "cr", 15, Number))
+    return Error(StartLoc, "expected coprocessor register");
+
+  getLexer().Lex();
+  const MCExpr *Expr = MCConstantExpr::create(Number, getContext());
+  Operands.push_back(
+      AVR32Operand::createImm(Expr, StartLoc, getLexer().getLoc()));
+  return false;
+}
+
+bool AVR32AsmParser::parseCoprocessorCommaRegisterCommaCoprocessorRegister(
+    OperandVector &Operands) {
+  if (parseCoprocessorOperand(Operands))
+    return true;
+  if (!parseOptionalToken(AsmToken::Comma))
+    return Error(getLexer().getLoc(), "expected comma");
+  if (parseRegisterOperand(Operands))
+    return true;
+  if (!parseOptionalToken(AsmToken::Comma))
+    return Error(getLexer().getLoc(), "expected comma");
+  return parseCoprocessorRegisterOperand(Operands);
+}
+
+bool AVR32AsmParser::parseCoprocessorCommaCoprocessorRegisterCommaRegister(
+    OperandVector &Operands) {
+  if (parseCoprocessorOperand(Operands))
+    return true;
+  if (!parseOptionalToken(AsmToken::Comma))
+    return Error(getLexer().getLoc(), "expected comma");
+  if (parseCoprocessorRegisterOperand(Operands))
+    return true;
+  if (!parseOptionalToken(AsmToken::Comma))
+    return Error(getLexer().getLoc(), "expected comma");
+  return parseRegisterOperand(Operands);
 }
 
 bool AVR32AsmParser::parseRegisterCommaRegister(OperandVector &Operands) {

@@ -112,3 +112,18 @@ void AVR32InstPrinter::printRegList8(const MCInst *MI, unsigned OpNo,
     NeedComma = true;
   }
 }
+
+void AVR32InstPrinter::printCoprocessor(const MCInst *MI, unsigned OpNo,
+                                        raw_ostream &OS) {
+  const MCOperand &Op = MI->getOperand(OpNo);
+  assert(Op.isImm() && "coprocessor must be immediate");
+  OS << "cp" << Op.getImm();
+}
+
+void AVR32InstPrinter::printCoprocessorRegister(const MCInst *MI,
+                                                unsigned OpNo,
+                                                raw_ostream &OS) {
+  const MCOperand &Op = MI->getOperand(OpNo);
+  assert(Op.isImm() && "coprocessor register must be immediate");
+  OS << "cr" << Op.getImm();
+}
