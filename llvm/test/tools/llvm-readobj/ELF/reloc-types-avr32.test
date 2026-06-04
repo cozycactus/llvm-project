@@ -3,6 +3,7 @@
 
 # RUN: yaml2obj %s -o %t-avr32.o
 # RUN: llvm-readobj -r --expand-relocs %t-avr32.o | FileCheck %s
+# RUN: llvm-readelf -r %t-avr32.o | FileCheck %s --check-prefix=GNU
 
 # CHECK: Type: R_AVR32_NONE (0)
 # CHECK: Type: R_AVR32_32 (1)
@@ -49,6 +50,13 @@
 # CHECK: Type: R_AVR32_JMP_SLOT (42)
 # CHECK: Type: R_AVR32_ALIGN (43)
 # CHECK: Type: R_AVR32_15S (44)
+
+# GNU:      Relocation section '.rela.text' at offset 0x34 contains 45 entries:
+# GNU-NEXT:  Offset     Info    Type                Sym. Value  Symbol's Name + Addend
+# GNU-NEXT: 00000000  00000000 R_AVR32_NONE                      0
+# GNU:      00000000  00000012 R_AVR32_22H_PCREL                 0
+# GNU:      00000000  00000017 R_AVR32_11H_PCREL                 0
+# GNU:      00000000  0000002c R_AVR32_15S                       0
 
 --- !ELF
 FileHeader:
