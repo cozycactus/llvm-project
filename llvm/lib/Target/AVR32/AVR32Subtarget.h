@@ -21,6 +21,7 @@
 #include "AVR32GenSubtargetInfo.inc"
 
 namespace llvm {
+class LibcallLoweringInfo;
 class StringRef;
 
 class AVR32Subtarget : public AVR32GenSubtargetInfo {
@@ -49,6 +50,7 @@ public:
   const AVR32SelectionDAGInfo *getSelectionDAGInfo() const override {
     return &TSInfo;
   }
+  void initLibcallLoweringInfo(LibcallLoweringInfo &Info) const override;
   const AVR32RegisterInfo *getRegisterInfo() const override {
     return &InstrInfo.getRegisterInfo();
   }

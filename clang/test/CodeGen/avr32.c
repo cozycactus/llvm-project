@@ -70,6 +70,53 @@ int shift_arith(int x, unsigned y) {
   return x >> (y & 31);
 }
 
+int sign_byte(unsigned x) {
+  return (signed char)x;
+}
+
+int sign_half(unsigned x) {
+  return (short)x;
+}
+
+int arith_ops(int a, int b) {
+  return (a * b) - (a / b);
+}
+
+unsigned unsigned_div(unsigned a, unsigned b) {
+  return a / b;
+}
+
+int choose_lt(unsigned c, int a, int b) {
+  return c < 7 ? a : b;
+}
+
+void clear_n(char *p, unsigned n) {
+  __builtin_memset(p, 0, n);
+}
+
+int dense_switch(int x) {
+  switch (x) {
+  case 0:
+    return 11;
+  case 1:
+    return 13;
+  case 2:
+    return 17;
+  case 3:
+    return 19;
+  case 4:
+    return 23;
+  case 5:
+    return 29;
+  case 6:
+    return 31;
+  case 7:
+    return 37;
+  default:
+    return 0;
+  }
+}
+
 extern int use_ptr(int *);
 int pass_local(int value) {
   int local = value;
@@ -120,6 +167,22 @@ __attribute__((optnone, noinline)) int pick(int a, int b) {
 // CHECK: lshr i32
 // CHECK: define {{.*}}i32 @shift_arith(i32 {{.*}}, i32 {{.*}})
 // CHECK: ashr i32
+// CHECK: define {{.*}}i32 @sign_byte(i32 {{.*}})
+// CHECK: sext i8
+// CHECK: define {{.*}}i32 @sign_half(i32 {{.*}})
+// CHECK: sext i16
+// CHECK: define {{.*}}i32 @arith_ops(i32 {{.*}}, i32 {{.*}})
+// CHECK: mul nsw i32
+// CHECK: sdiv i32
+// CHECK: sub nsw i32
+// CHECK: define {{.*}}i32 @unsigned_div(i32 {{.*}}, i32 {{.*}})
+// CHECK: udiv i32
+// CHECK: define {{.*}}i32 @choose_lt(i32 {{.*}}, i32 {{.*}}, i32 {{.*}})
+// CHECK: icmp ult i32
+// CHECK: define {{.*}}void @clear_n(ptr {{.*}}, i32 {{.*}})
+// CHECK: call void @llvm.memset
+// CHECK: define {{.*}}i32 @dense_switch(i32 {{.*}})
+// CHECK: switch i32
 // CHECK: define {{.*}}i32 @pass_local(i32 {{.*}})
 // CHECK: call i32 @use_ptr
 // CHECK: define {{.*}}i32 @mmio_address()
@@ -197,6 +260,36 @@ __attribute__((optnone, noinline)) int pick(int a, int b) {
 
 // ASM-LABEL: shift_arith:
 // ASM: asr
+// ASM: ret r12
+
+// ASM-LABEL: sign_byte:
+// ASM: lsl
+// ASM: asr
+// ASM: ret r12
+
+// ASM-LABEL: sign_half:
+// ASM: lsl
+// ASM: asr
+// ASM: ret r12
+
+// ASM-LABEL: arith_ops:
+// ASM-DAG: mul
+// ASM-DAG: divs
+// ASM: subal
+// ASM: ret r12
+
+// ASM-LABEL: unsigned_div:
+// ASM: divu
+// ASM: ret r12
+
+// ASM-LABEL: choose_lt:
+// ASM: mov {{r[0-9]+}}, 7
+// ASM: cp r12, {{r[0-9]+}}
+// ASM: brcs
+// ASM: ret r12
+
+// ASM-LABEL: clear_n:
+// ASM: rcall pc[memset]
 // ASM: ret r12
 
 // ASM-LABEL: mmio_address:

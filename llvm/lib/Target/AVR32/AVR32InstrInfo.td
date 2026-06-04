@@ -16,6 +16,11 @@ def SDT_AVR32SetCC : SDTypeProfile<1, 3, [SDTCisVT<0, i32>,
                                           SDTCisSameAs<0, 1>,
                                           SDTCisSameAs<1, 2>,
                                           SDTCisVT<3, i32>]>;
+def SDT_AVR32SelectCC : SDTypeProfile<1, 5, [SDTCisVT<0, i32>,
+                                             SDTCisSameAs<1, 2>,
+                                             SDTCisSameAs<0, 3>,
+                                             SDTCisSameAs<0, 4>,
+                                             SDTCisVT<5, i32>]>;
 
 def AVR32call : SDNode<"AVR32ISD::CALL", SDT_AVR32Call,
                        [SDNPHasChain, SDNPOutGlue, SDNPOptInGlue,
@@ -24,6 +29,7 @@ def AVR32cmp : SDNode<"AVR32ISD::CMP", SDT_AVR32Cmp, [SDNPOutGlue]>;
 def AVR32brcc : SDNode<"AVR32ISD::BR_CC", SDT_AVR32BrCC,
                        [SDNPHasChain, SDNPInGlue]>;
 def AVR32setcc : SDNode<"AVR32ISD::SET_CC", SDT_AVR32SetCC>;
+def AVR32selectcc : SDNode<"AVR32ISD::SELECT_CC", SDT_AVR32SelectCC>;
 def AVR32retflag : SDNode<"AVR32ISD::RET_FLAG", SDTNone,
                           [SDNPHasChain, SDNPOptInGlue, SDNPVariadic]>;
 
@@ -3471,7 +3477,8 @@ def PICOSTM_W_Low : PicoStoreMultipleLow<0b0010, 0, picoreglistlow,
                                          "picostm.w\t$Rp, $Mask">;
 def PICOSTM_W_Low_PRE : PicoStoreMultipleLow<0b0010, 1, picoreglistlow,
                                              "picostm.w\t--$Rp, $Mask">;
-def SUBALrrr : CondRRR<0b1111, 0b0001, "subal">;
+def SUBALrrr : CondRRR<0b1111, 0b0001, "subal",
+                       [(set GPR:$Rd, (sub GPR:$Rx, GPR:$Ry))]>;
 def SUBEQrrr : CondRRR<0b0000, 0b0001, "subeq">;
 def SUBNErrr : CondRRR<0b0001, 0b0001, "subne">;
 def SUBCCrrr : CondRRR<0b0010, 0b0001, "subcc">;
@@ -3551,6 +3558,15 @@ def SETCCrr : AVR32Inst<0, (outs GPR:$Rd),
                         [(set GPR:$Rd,
                           (AVR32setcc GPR:$LHS, GPR:$RHS, timm:$Cond))]>;
 
+let usesCustomInserter = 1, isCodeGenOnly = 1 in
+def SELECTCCrr : AVR32Inst<0, (outs GPR:$Rd),
+                           (ins GPR:$LHS, GPR:$RHS, GPR:$True, GPR:$False,
+                                i32imm:$Cond),
+                           "# SELECTCCrr",
+                           [(set GPR:$Rd,
+                             (AVR32selectcc GPR:$LHS, GPR:$RHS, GPR:$True,
+                                            GPR:$False, timm:$Cond))]>;
+
 let isCodeGenOnly = 1 in
 def FIADDR : AVR32Inst<0, (outs GPR:$Rd), (ins i32imm:$Frame, simm16:$Disp),
                        "# FIADDR">;
@@ -3565,6 +3581,13 @@ def : Pat<(br bb:$dst), (BRALbb bb:$dst)>;
 def : Pat<(shl GPR:$LHS, GPR:$RHS), (LSLrrr GPR:$LHS, GPR:$RHS)>;
 def : Pat<(srl GPR:$LHS, GPR:$RHS), (LSRrrr GPR:$LHS, GPR:$RHS)>;
 def : Pat<(sra GPR:$LHS, GPR:$RHS), (ASRrrr GPR:$LHS, GPR:$RHS)>;
+def : Pat<(mul GPR:$LHS, GPR:$RHS), (MULrrr GPR:$LHS, GPR:$RHS)>;
+def : Pat<(sdiv GPR:$LHS, GPR:$RHS), (DIVSrrr GPR:$LHS, GPR:$RHS)>;
+def : Pat<(udiv GPR:$LHS, GPR:$RHS), (DIVUrrr GPR:$LHS, GPR:$RHS)>;
+def : Pat<(sext_inreg GPR:$Src, i8),
+          (ASRrrr (LSLrrr GPR:$Src, (MOVri21 24)), (MOVri21 24))>;
+def : Pat<(sext_inreg GPR:$Src, i16),
+          (ASRrrr (LSLrrr GPR:$Src, (MOVri21 16)), (MOVri21 16))>;
 
 def : Pat<(AVR32cmp GPR:$LHS, GPR:$RHS), (CPrr GPR:$LHS, GPR:$RHS)>;
 def : Pat<(AVR32cmp GPR:$LHS, simm21:$RHS), (CPri21 GPR:$LHS, simm21:$RHS)>;
