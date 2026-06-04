@@ -264,6 +264,7 @@ TEST(AVR32TargetInfo, LookupTarget) {
   EXPECT_EQ(MII->get(AVR32::MACHH_D).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::MACHH_W).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::MACS_Drrr).getSize(), 4u);
+  EXPECT_EQ(MII->get(AVR32::MACSATHH_W).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::MACU_Drrr).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::MACWH_D).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::MEMC).getSize(), 4u);
@@ -275,6 +276,11 @@ TEST(AVR32TargetInfo, LookupTarget) {
   EXPECT_EQ(MII->get(AVR32::MULHH_W).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::MULNHH_W).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::MULNWH_D).getSize(), 4u);
+  EXPECT_EQ(MII->get(AVR32::MULSATHH_H).getSize(), 4u);
+  EXPECT_EQ(MII->get(AVR32::MULSATHH_W).getSize(), 4u);
+  EXPECT_EQ(MII->get(AVR32::MULSATRNDHH_H).getSize(), 4u);
+  EXPECT_EQ(MII->get(AVR32::MULSATRNDWH_W).getSize(), 4u);
+  EXPECT_EQ(MII->get(AVR32::MULSATWH_W).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::MULS_Drrr).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::MULU_Drrr).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::MULWH_D).getSize(), 4u);
@@ -3037,6 +3043,118 @@ TEST(AVR32TargetInfo, LookupTarget) {
   EXPECT_EQ(static_cast<uint8_t>(Code[0]), 0xe6);
   EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0x04);
   EXPECT_EQ(static_cast<uint8_t>(Code[2]), 0x0d);
+  EXPECT_EQ(static_cast<uint8_t>(Code[3]), 0x92);
+
+  MCInst MacsathhW;
+  MacsathhW.setOpcode(AVR32::MACSATHH_W);
+  MacsathhW.addOperand(MCOperand::createReg(AVR32::R1));
+  MacsathhW.addOperand(MCOperand::createReg(AVR32::R2));
+  MacsathhW.addOperand(MCOperand::createImm(1));
+  MacsathhW.addOperand(MCOperand::createReg(AVR32::R3));
+  MacsathhW.addOperand(MCOperand::createImm(0));
+
+  Code.clear();
+  Fixups.clear();
+  MCE->encodeInstruction(MacsathhW, Code, Fixups, *STI);
+
+  EXPECT_TRUE(Fixups.empty());
+  ASSERT_EQ(Code.size(), 4u);
+  EXPECT_EQ(static_cast<uint8_t>(Code[0]), 0xe4);
+  EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0x03);
+  EXPECT_EQ(static_cast<uint8_t>(Code[2]), 0x06);
+  EXPECT_EQ(static_cast<uint8_t>(Code[3]), 0xa1);
+
+  MCInst MulsathhH;
+  MulsathhH.setOpcode(AVR32::MULSATHH_H);
+  MulsathhH.addOperand(MCOperand::createReg(AVR32::R1));
+  MulsathhH.addOperand(MCOperand::createReg(AVR32::R2));
+  MulsathhH.addOperand(MCOperand::createImm(1));
+  MulsathhH.addOperand(MCOperand::createReg(AVR32::R3));
+  MulsathhH.addOperand(MCOperand::createImm(0));
+
+  Code.clear();
+  Fixups.clear();
+  MCE->encodeInstruction(MulsathhH, Code, Fixups, *STI);
+
+  EXPECT_TRUE(Fixups.empty());
+  ASSERT_EQ(Code.size(), 4u);
+  EXPECT_EQ(static_cast<uint8_t>(Code[0]), 0xe4);
+  EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0x03);
+  EXPECT_EQ(static_cast<uint8_t>(Code[2]), 0x08);
+  EXPECT_EQ(static_cast<uint8_t>(Code[3]), 0xa1);
+
+  MCInst MulsathhW;
+  MulsathhW.setOpcode(AVR32::MULSATHH_W);
+  MulsathhW.addOperand(MCOperand::createReg(AVR32::R1));
+  MulsathhW.addOperand(MCOperand::createReg(AVR32::R2));
+  MulsathhW.addOperand(MCOperand::createImm(1));
+  MulsathhW.addOperand(MCOperand::createReg(AVR32::R3));
+  MulsathhW.addOperand(MCOperand::createImm(0));
+
+  Code.clear();
+  Fixups.clear();
+  MCE->encodeInstruction(MulsathhW, Code, Fixups, *STI);
+
+  EXPECT_TRUE(Fixups.empty());
+  ASSERT_EQ(Code.size(), 4u);
+  EXPECT_EQ(static_cast<uint8_t>(Code[0]), 0xe4);
+  EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0x03);
+  EXPECT_EQ(static_cast<uint8_t>(Code[2]), 0x09);
+  EXPECT_EQ(static_cast<uint8_t>(Code[3]), 0xa1);
+
+  MCInst MulsatrndhhH;
+  MulsatrndhhH.setOpcode(AVR32::MULSATRNDHH_H);
+  MulsatrndhhH.addOperand(MCOperand::createReg(AVR32::R1));
+  MulsatrndhhH.addOperand(MCOperand::createReg(AVR32::R2));
+  MulsatrndhhH.addOperand(MCOperand::createImm(1));
+  MulsatrndhhH.addOperand(MCOperand::createReg(AVR32::R3));
+  MulsatrndhhH.addOperand(MCOperand::createImm(0));
+
+  Code.clear();
+  Fixups.clear();
+  MCE->encodeInstruction(MulsatrndhhH, Code, Fixups, *STI);
+
+  EXPECT_TRUE(Fixups.empty());
+  ASSERT_EQ(Code.size(), 4u);
+  EXPECT_EQ(static_cast<uint8_t>(Code[0]), 0xe4);
+  EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0x03);
+  EXPECT_EQ(static_cast<uint8_t>(Code[2]), 0x0a);
+  EXPECT_EQ(static_cast<uint8_t>(Code[3]), 0xa1);
+
+  MCInst MulsatrndwhW;
+  MulsatrndwhW.setOpcode(AVR32::MULSATRNDWH_W);
+  MulsatrndwhW.addOperand(MCOperand::createReg(AVR32::R2));
+  MulsatrndwhW.addOperand(MCOperand::createReg(AVR32::R3));
+  MulsatrndwhW.addOperand(MCOperand::createReg(AVR32::R4));
+  MulsatrndwhW.addOperand(MCOperand::createImm(1));
+
+  Code.clear();
+  Fixups.clear();
+  MCE->encodeInstruction(MulsatrndwhW, Code, Fixups, *STI);
+
+  EXPECT_TRUE(Fixups.empty());
+  ASSERT_EQ(Code.size(), 4u);
+  EXPECT_EQ(static_cast<uint8_t>(Code[0]), 0xe6);
+  EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0x04);
+  EXPECT_EQ(static_cast<uint8_t>(Code[2]), 0x0b);
+  EXPECT_EQ(static_cast<uint8_t>(Code[3]), 0x92);
+
+  MCInst MulsatwhW;
+  MulsatwhW.setOpcode(AVR32::MULSATWH_W);
+  MulsatwhW.addOperand(MCOperand::createReg(AVR32::R2));
+  MulsatwhW.addOperand(MCOperand::createReg(AVR32::R3));
+  MulsatwhW.addOperand(MCOperand::createReg(AVR32::R4));
+  MulsatwhW.addOperand(MCOperand::createImm(1));
+
+  Code.clear();
+  Fixups.clear();
+  MCE->encodeInstruction(MulsatwhW, Code, Fixups, *STI);
+
+  EXPECT_TRUE(Fixups.empty());
+  ASSERT_EQ(Code.size(), 4u);
+  EXPECT_EQ(static_cast<uint8_t>(Code[0]), 0xe6);
+  EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0x04);
+  EXPECT_EQ(static_cast<uint8_t>(Code[2]), 0x0e);
   EXPECT_EQ(static_cast<uint8_t>(Code[3]), 0x92);
 
   MCInst Divs;
@@ -7155,6 +7273,48 @@ TEST(AVR32TargetInfo, LookupTarget) {
   EXPECT_EQ(Printed, "\tmulwh.d\tr2, r3, r4:t");
 
   Printed.clear();
+  raw_string_ostream MacsathhWOS(Printed);
+  InstPrinter->printInst(&MacsathhW, /*Address=*/0, /*Annot=*/"", *STI,
+                         MacsathhWOS);
+  MacsathhWOS.flush();
+  EXPECT_EQ(Printed, "\tmacsathh.w\tr1, r2:t, r3:b");
+
+  Printed.clear();
+  raw_string_ostream MulsathhHOS(Printed);
+  InstPrinter->printInst(&MulsathhH, /*Address=*/0, /*Annot=*/"", *STI,
+                         MulsathhHOS);
+  MulsathhHOS.flush();
+  EXPECT_EQ(Printed, "\tmulsathh.h\tr1, r2:t, r3:b");
+
+  Printed.clear();
+  raw_string_ostream MulsathhWOS(Printed);
+  InstPrinter->printInst(&MulsathhW, /*Address=*/0, /*Annot=*/"", *STI,
+                         MulsathhWOS);
+  MulsathhWOS.flush();
+  EXPECT_EQ(Printed, "\tmulsathh.w\tr1, r2:t, r3:b");
+
+  Printed.clear();
+  raw_string_ostream MulsatrndhhHOS(Printed);
+  InstPrinter->printInst(&MulsatrndhhH, /*Address=*/0, /*Annot=*/"", *STI,
+                         MulsatrndhhHOS);
+  MulsatrndhhHOS.flush();
+  EXPECT_EQ(Printed, "\tmulsatrndhh.h\tr1, r2:t, r3:b");
+
+  Printed.clear();
+  raw_string_ostream MulsatrndwhWOS(Printed);
+  InstPrinter->printInst(&MulsatrndwhW, /*Address=*/0, /*Annot=*/"", *STI,
+                         MulsatrndwhWOS);
+  MulsatrndwhWOS.flush();
+  EXPECT_EQ(Printed, "\tmulsatrndwh.w\tr2, r3, r4:t");
+
+  Printed.clear();
+  raw_string_ostream MulsatwhWOS(Printed);
+  InstPrinter->printInst(&MulsatwhW, /*Address=*/0, /*Annot=*/"", *STI,
+                         MulsatwhWOS);
+  MulsatwhWOS.flush();
+  EXPECT_EQ(Printed, "\tmulsatwh.w\tr2, r3, r4:t");
+
+  Printed.clear();
   raw_string_ostream DivsOS(Printed);
   InstPrinter->printInst(&Divs, /*Address=*/0, /*Annot=*/"", *STI, DivsOS);
   DivsOS.flush();
@@ -8661,8 +8821,12 @@ TEST(AVR32TargetInfo, LookupTarget) {
   PsubaddSrcMgr.AddNewSourceBuffer(
       MemoryBuffer::getMemBuffer(
           "machh.d r1, r2:t, r3:b\nmachh.w r1, r2:t, r3:b\n"
+          "macsathh.w r1, r2:t, r3:b\n"
           "macwh.d r2, r3, r4:t\nmulnwh.d r2, r3, r4:t\n"
           "mulhh.w r1, r2:t, r3:b\nmulnhh.w r1, r2:t, r3:b\n"
+          "mulsathh.h r1, r2:t, r3:b\nmulsathh.w r1, r2:t, r3:b\n"
+          "mulsatrndhh.h r1, r2:t, r3:b\n"
+          "mulsatrndwh.w r2, r3, r4:t\nmulsatwh.w r2, r3, r4:t\n"
           "mulwh.d r2, r3, r4:t\n"
           "paddsub.h r1, r2:t, r3:b\npaddsubh.sh r1, r2:t, r3:b\n"
           "paddsubs.uh r1, r2:t, r3:b\npaddsubs.sh r1, r2:t, r3:b\n"

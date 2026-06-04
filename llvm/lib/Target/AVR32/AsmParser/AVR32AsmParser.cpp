@@ -695,7 +695,9 @@ bool AVR32AsmParser::parseInstruction(ParseInstructionInfo &Info,
     if (parseSubOperands(Operands))
       return true;
   } else if (Name == "machh.d" || Name == "machh.w" ||
-             Name == "mulhh.w" || Name == "mulnhh.w" ||
+             Name == "macsathh.w" || Name == "mulhh.w" ||
+             Name == "mulnhh.w" || Name == "mulsathh.h" ||
+             Name == "mulsathh.w" || Name == "mulsatrndhh.h" ||
              Name == "paddsub.h" || Name == "paddsubh.sh" ||
              Name == "paddsubs.sh" || Name == "paddsubs.uh" ||
              Name == "psubadd.h" || Name == "psubaddh.sh" ||
@@ -704,6 +706,7 @@ bool AVR32AsmParser::parseInstruction(ParseInstructionInfo &Info,
     if (parseRegisterCommaRegisterHalfPartCommaRegisterHalfPart(Operands))
       return true;
   } else if (Name == "macwh.d" || Name == "mulnwh.d" ||
+             Name == "mulsatrndwh.w" || Name == "mulsatwh.w" ||
              Name == "mulwh.d") {
     if (parseRegisterCommaRegisterCommaRegisterHalfPart(Operands))
       return true;
