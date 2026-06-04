@@ -6,6 +6,9 @@
 # RUN: llvm-objcopy -I binary -O elf32-littlearm %t.txt %t.arm.o
 # RUN: llvm-readobj --file-headers %t.arm.o | FileCheck %s --check-prefixes=CHECK,LE,ARM,32
 
+# RUN: llvm-objcopy -I binary -O elf32-avr32 %t.txt %t.avr32.o
+# RUN: llvm-readobj --file-headers %t.avr32.o | FileCheck %s --check-prefixes=CHECK,BE,AVR32,32
+
 # RUN: llvm-objcopy -I binary -O elf32-i386 %t.txt %t.i386.o
 # RUN: llvm-readobj --file-headers %t.i386.o | FileCheck %s --check-prefixes=CHECK,LE,I386,32
 
@@ -62,6 +65,7 @@
 # 64-SAME:      elf64-
 # AARCH64-SAME: littleaarch64
 # ARM-SAME:     littlearm
+# AVR32-SAME:   avr32
 # HEXAGON-SAME: hexagon
 # I386-SAME:    i386
 # LA32-SAME:    loongarch{{$}}
@@ -78,6 +82,7 @@
 
 # AARCH64-NEXT: Arch: aarch64
 # ARM-NEXT:     Arch: arm
+# AVR32-NEXT:   Arch: avr32
 # HEXAGON-NEXT: Arch: hexagon
 # I386-NEXT:    Arch: i386
 # LA32-NEXT:    Arch: loongarch32
@@ -116,6 +121,7 @@
 ## We fill in the field regardless of -B.
 # AARCH64-NEXT:   Machine: EM_AARCH64 (0xB7)
 # ARM-NEXT:       Machine: EM_ARM (0x28)
+# AVR32-NEXT:     Machine: EM_AVR32 (0xB9)
 # HEXAGON-NEXT:   Machine: EM_HEXAGON (0xA4)
 # I386-NEXT:      Machine: EM_386 (0x3)
 # LA32-NEXT:      Machine: EM_LOONGARCH (0x102)

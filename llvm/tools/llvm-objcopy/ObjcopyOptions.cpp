@@ -302,6 +302,8 @@ static const StringMap<MachineInfo> TargetMap{
     {"elf32-iamcu", {ELF::EM_IAMCU, false, true}},
     // ARM
     {"elf32-littlearm", {ELF::EM_ARM, false, true}},
+    // AVR32
+    {"elf32-avr32", {ELF::EM_AVR32, false, false}},
     // ARM AArch64
     {"elf64-aarch64", {ELF::EM_AARCH64, true, true}},
     {"elf64-littleaarch64", {ELF::EM_AARCH64, true, true}},

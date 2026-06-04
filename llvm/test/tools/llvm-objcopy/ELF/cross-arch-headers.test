@@ -25,6 +25,10 @@
 # RUN: llvm-readobj --file-headers %t.elf32_littlearm.o | FileCheck %s --check-prefixes=CHECK,LE,ARM,32,SYSV
 # RUN: llvm-readobj --file-headers %t.elf32_littlearm.dwo | FileCheck %s --check-prefixes=CHECK,LE,ARM,32,SYSV
 
+# RUN: llvm-objcopy %t.o -O elf32-avr32 %t.elf32_avr32.o --split-dwo=%t.elf32_avr32.dwo
+# RUN: llvm-readobj --file-headers %t.elf32_avr32.o | FileCheck %s --check-prefixes=CHECK,BE,AVR32,32,SYSV
+# RUN: llvm-readobj --file-headers %t.elf32_avr32.dwo | FileCheck %s --check-prefixes=CHECK,BE,AVR32,32,SYSV
+
 # RUN: llvm-objcopy %t.o -O elf64-aarch64 %t.elf64_aarch64.o --split-dwo=%t.elf64_aarch64.dwo
 # RUN: llvm-readobj --file-headers %t.elf64_aarch64.o | FileCheck %s --check-prefixes=CHECK,LE,AARCH,64,SYSV
 # RUN: llvm-readobj --file-headers %t.elf64_aarch64.dwo | FileCheck %s --check-prefixes=CHECK,LE,AARCH,64,SYSV
@@ -155,6 +159,7 @@ Symbols:
 # IAMCU-SAME:   iamcu
 # AARCH-SAME:   aarch64
 # ARM-SAME:     littlearm
+# AVR32-SAME:   avr32
 # HEXAGON-SAME: hexagon
 # LA32-SAME:    loongarch{{$}}
 # LA64-SAME:    loongarch{{$}}
@@ -172,6 +177,7 @@ Symbols:
 # IAMCU-NEXT:    Arch: i386
 # AARCH-NEXT:    Arch: aarch64
 # ARM-NEXT:      Arch: arm
+# AVR32-NEXT:    Arch: avr32
 # HEXAGON-NEXT:  Arch: hexagon
 # LA32-NEXT:     Arch: loongarch32
 # LA64-NEXT:     Arch: loongarch64
@@ -205,6 +211,7 @@ Symbols:
 
 # AARCH:   Machine: EM_AARCH64 (0xB7)
 # ARM:     Machine: EM_ARM (0x28)
+# AVR32:   Machine: EM_AVR32 (0xB9)
 # HEXAGON: Machine: EM_HEXAGON (0xA4)
 # I386:    Machine: EM_386 (0x3)
 # IAMCU:   Machine: EM_IAMCU (0x6)
