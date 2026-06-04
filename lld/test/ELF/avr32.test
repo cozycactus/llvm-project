@@ -36,6 +36,14 @@
 # FLAGS-NEXT:   EF_AVR32_PIC (0x2)
 # FLAGS-NEXT: ]
 
+# RUN: yaml2obj --docnum=5 %s -o %t.noflags.o
+# RUN: ld.lld %t.flags.o %t.noflags.o -o %t.mixed-flags
+# RUN: llvm-readobj --file-headers %t.mixed-flags \
+# RUN:   | FileCheck %s --check-prefix=MIXED-FLAGS
+
+# MIXED-FLAGS:      Flags [ (0x0)
+# MIXED-FLAGS-NEXT: ]
+
 --- !ELF
 FileHeader:
   Class:   ELFCLASS32
@@ -152,3 +160,15 @@ Symbols:
     Section: .text
     Value: 0
     Binding: STB_GLOBAL
+
+--- !ELF
+FileHeader:
+  Class:   ELFCLASS32
+  Data:    ELFDATA2MSB
+  Type:    ET_REL
+  Machine: EM_AVR32
+Sections:
+  - Name: .rodata
+    Type: SHT_PROGBITS
+    Flags: [ SHF_ALLOC ]
+    Content: "abcd"
