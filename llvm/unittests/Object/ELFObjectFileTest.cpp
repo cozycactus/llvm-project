@@ -9,6 +9,7 @@
 #include "llvm/Object/ELFObjectFile.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/BinaryFormat/ELF.h"
+#include "llvm/Object/RelocationResolver.h"
 #include "llvm/ObjectYAML/yaml2obj.h"
 #include "llvm/Support/BlockFrequency.h"
 #include "llvm/Support/MemoryBuffer.h"
@@ -245,6 +246,27 @@ TEST(ELFObjectFileTest, MachineTestForAVR32) {
                                       "elf64-unknown", "elf64-unknown"};
   for (auto [Idx, Data] : enumerate(generateData(ELF::EM_AVR32)))
     checkFormatAndArch(Data, Formats[Idx], Triple::avr32);
+}
+
+TEST(ELFObjectFileTest, AVR32RelocationResolver) {
+  const DataForTest D(ELF::ELFCLASS32, ELF::ELFDATA2MSB, ELF::EM_AVR32);
+  Expected<std::unique_ptr<ObjectFile>> ELFObjOrErr =
+      object::ObjectFile::createELFObjectFile(
+          MemoryBufferRef(toStringRef(D.Data), "dummyELF"));
+  ASSERT_THAT_EXPECTED(ELFObjOrErr, Succeeded());
+
+  auto [Supports, Resolver] = getRelocationResolver(**ELFObjOrErr);
+  ASSERT_NE(Supports, nullptr);
+  ASSERT_NE(Resolver, nullptr);
+
+  EXPECT_TRUE(Supports(ELF::R_AVR32_22H_PCREL));
+  EXPECT_TRUE(Supports(ELF::R_AVR32_11H_PCREL));
+  EXPECT_FALSE(Supports(ELF::R_AVR32_21S));
+
+  EXPECT_EQ(0xe0a00002u,
+            Resolver(ELF::R_AVR32_22H_PCREL, 0x1008, 0x100c, 0xe0a00000, 0));
+  EXPECT_EQ(0xc028u,
+            Resolver(ELF::R_AVR32_11H_PCREL, 0x2000, 0x2004, 0xc008, 0));
 }
 
 TEST(ELFObjectFileTest, MachineTestForHEXAGON) {

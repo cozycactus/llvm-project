@@ -389,6 +389,8 @@ static bool supportsAVR32(uint64_t Type) {
   case ELF::R_AVR32_8_PCREL:
   case ELF::R_AVR32_16_PCREL:
   case ELF::R_AVR32_32_PCREL:
+  case ELF::R_AVR32_22H_PCREL:
+  case ELF::R_AVR32_11H_PCREL:
     return true;
   default:
     return false;
@@ -414,6 +416,21 @@ static uint64_t resolveAVR32(uint64_t Type, uint64_t Offset, uint64_t S,
     return (S + LocData + Addend - Offset) & 0xFFFF;
   case ELF::R_AVR32_32_PCREL:
     return (S + LocData + Addend - Offset) & 0xFFFFFFFF;
+  case ELF::R_AVR32_22H_PCREL: {
+    int64_t Encoded =
+        (static_cast<int64_t>(S) + Addend - static_cast<int64_t>(Offset)) / 2;
+    uint32_t Disp = static_cast<uint32_t>(Encoded) & 0x1fffff;
+    uint32_t Word = static_cast<uint32_t>(LocData) & ~0x1e10ffff;
+    return Word | (Disp & 0xffff) | ((Disp & 0x10000) << 4) |
+           ((Disp & 0x1e0000) << 8);
+  }
+  case ELF::R_AVR32_11H_PCREL: {
+    int64_t Encoded =
+        (static_cast<int64_t>(S) + Addend - static_cast<int64_t>(Offset)) / 2;
+    uint16_t Disp = static_cast<uint16_t>(Encoded) & 0x3ff;
+    uint16_t Word = static_cast<uint16_t>(LocData) & ~0x0ff3;
+    return Word | ((Disp & 0xff) << 4) | ((Disp & 0x300) >> 8);
+  }
   default:
     llvm_unreachable("Invalid relocation type");
   }
