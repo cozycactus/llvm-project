@@ -695,6 +695,9 @@ bool AVR32AsmParser::parseInstruction(ParseInstructionInfo &Info,
   } else if (Name == "add" || Name == "and" || Name == "andn" ||
              Name == "clz" || Name == "cp.b" || Name == "cp.h" ||
              Name == "eor" || Name == "or" ||
+             Name == "fcastrs.sw" || Name == "fcastrs.uw" ||
+             Name == "fcastsw.s" || Name == "fcastuw.s" ||
+             Name == "frcpa.s" || Name == "frsqrta.s" ||
              Name == "pabs.sb" || Name == "pabs.sh" || Name == "rsub" ||
              Name == "tst") {
     if (parseRegisterCommaRegister(Operands))

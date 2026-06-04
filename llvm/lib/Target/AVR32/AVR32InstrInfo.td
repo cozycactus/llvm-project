@@ -1980,6 +1980,20 @@ class FullFPURegRegReg<bits<4> Op, string Mnemonic>
   let Inst{3-0} = Ry;
 }
 
+class FullFPURegReg<bits<4> Op, string Mnemonic>
+    : AVR32Inst32<(outs GPR:$Rd), (ins GPR:$Ry),
+                  Mnemonic#"\t$Rd, $Ry"> {
+  bits<4> Rd;
+  bits<4> Ry;
+
+  let Inst{31-20} = 0b111001011010;
+  let Inst{19-16} = Op;
+  let Inst{15-12} = 0;
+  let Inst{11-8} = Rd;
+  let Inst{7-4} = 0;
+  let Inst{3-0} = Ry;
+}
+
 class FullFPURegRegRegReg<bits<12> Prefix, bit Neg, string Mnemonic>
     : AVR32Inst32<(outs GPR:$Rd), (ins GPR:$Ra, GPR:$Rx, GPR:$Ry),
                   Mnemonic#"\t$Rd, $Ra, $Rx, $Ry"> {
@@ -2476,6 +2490,10 @@ def EORQSrrr : CondRRR<0b1110, 0b0100, "eorqs">;
 def EORrr : CompactRegReg<0b00101, "eor">;
 def FRS : AVR32Inst<0b1101011101000011, (outs), (ins), "frs">;
 def FADD_Srrr : FullFPURegRegReg<0b0000, "fadd.s">;
+def FCASTRS_SWrr : FullFPURegReg<0b1011, "fcastrs.sw">;
+def FCASTRS_UWrr : FullFPURegReg<0b1001, "fcastrs.uw">;
+def FCASTSW_Srr : FullFPURegReg<0b0110, "fcastsw.s">;
+def FCASTUW_Srr : FullFPURegReg<0b0100, "fcastuw.s">;
 def FMAC_Srrrr : FullFPURegRegRegReg<0b111000011010, 0, "fmac.s">;
 def FNMUL_Srrr : FullFPURegRegReg<0b0011, "fnmul.s">;
 def FNMAC_Srrrr : FullFPURegRegRegReg<0b111000011010, 1, "fnmac.s">;
@@ -2483,6 +2501,8 @@ def FNMSC_Srrrr : FullFPURegRegRegReg<0b111000111010, 1, "fnmsc.s">;
 def FMUL_Srrr : FullFPURegRegReg<0b0010, "fmul.s">;
 def FMSC_Srrrr : FullFPURegRegRegReg<0b111000111010, 0, "fmsc.s">;
 def FSUB_Srrr : FullFPURegRegReg<0b0001, "fsub.s">;
+def FRCPA_Srr : FullFPURegReg<0b1110, "frcpa.s">;
+def FRSQRTA_Srr : FullFPURegReg<0b1111, "frsqrta.s">;
 def ICALLr : CompactRegNoOut<0b010111010001, "icall">;
 def LDM : FullRegList<0b000, 0, "ldm\t$Rp, $Mask">;
 def LDM_UPD : FullRegList<0b000, 1, "ldm\t${Rp}++, $Mask">;
