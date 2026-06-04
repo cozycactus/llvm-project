@@ -98,6 +98,11 @@ def UImm5AsmOperand : AsmOperandClass {
   let RenderMethod = "addImmOperands";
 }
 
+def UImm7AsmOperand : AsmOperandClass {
+  let Name = "UImm7";
+  let RenderMethod = "addImmOperands";
+}
+
 def UImm2AsmOperand : AsmOperandClass {
   let Name = "UImm2";
   let RenderMethod = "addImmOperands";
@@ -355,6 +360,10 @@ def uimm7shift2 : Operand<i32>,
 
 def uimm5 : Operand<i32>, ImmLeaf<i32, [{ return Imm >= 0 && Imm < 32; }]> {
   let ParserMatchClass = UImm5AsmOperand;
+}
+
+def uimm7 : Operand<i32>, ImmLeaf<i32, [{ return Imm >= 0 && Imm < 128; }]> {
+  let ParserMatchClass = UImm7AsmOperand;
 }
 
 def uimm8 : Operand<i32>, ImmLeaf<i32, [{ return Imm >= 0 && Imm < 256; }]> {
@@ -1360,6 +1369,28 @@ class MoveRegToCopRegW<string Mnemonic>
   let Inst{7-0} = 0b00100000;
 }
 
+class CoprocessorOp<string Mnemonic>
+    : AVR32Inst32<(outs),
+                  (ins coprocessor:$CP, coprocessorreg:$CRd,
+                       coprocessorreg:$CRx, coprocessorreg:$CRy, uimm7:$Op),
+                  Mnemonic#"\t$CP, $CRd, $CRx, $CRy, $Op"> {
+  bits<3> CP;
+  bits<4> CRd;
+  bits<4> CRx;
+  bits<4> CRy;
+  bits<7> Op;
+
+  let Inst{31-27} = 0b11100;
+  let Inst{26-25} = Op{5-4};
+  let Inst{24-20} = 0b11010;
+  let Inst{19-16} = Op{3-0};
+  let Inst{15-13} = CP;
+  let Inst{12} = Op{6};
+  let Inst{11-8} = CRd;
+  let Inst{7-4} = CRx;
+  let Inst{3-0} = CRy;
+}
+
 class CopLoadDispD<bits<7> Op, string Mnemonic>
     : AVR32Inst32<(outs),
                   (ins coprocessor:$CP, coprocessorevenreg:$CRd, GPR:$Rp,
@@ -2341,6 +2372,7 @@ def CASTU_Br : CompactReg<0b010111000101, "castu.b">;
 def CASTU_Hr : CompactReg<0b010111000111, "castu.h">;
 def CLZrr : FullRegReg<0b0001001000000000, "clz">;
 def COMr : CompactReg<0b010111001101, "com">;
+def COP : CoprocessorOp<"cop">;
 def CPCr : CompactRegNoOut<0b010111000010, "cpc">;
 def CPCrr : FullRegRegNoOut<0b0001001100000000, "cpc">;
 def CP_Brr : FullRegRegNoOut<0b0001100000000000, "cp.b">;

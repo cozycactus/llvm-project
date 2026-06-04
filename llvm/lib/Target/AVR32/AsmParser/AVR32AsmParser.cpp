@@ -227,6 +227,13 @@ public:
            Const->getValue() % 4 == 0;
   }
 
+  bool isUImm7() const {
+    if (Kind != Immediate)
+      return false;
+    auto *Const = dyn_cast<MCConstantExpr>(Imm);
+    return Const && isUInt<7>(Const->getValue());
+  }
+
   bool isUImm8() const {
     if (Kind != Immediate)
       return false;
@@ -504,6 +511,7 @@ private:
       OperandVector &Operands);
   bool parseCoprocessorCommaCoprocessorRegisterCommaRegister(
       OperandVector &Operands);
+  bool parseCoprocessorOperationOperands(OperandVector &Operands);
   bool parseCoprocessorLoadOperands(OperandVector &Operands);
   bool parseCoprocessor0LoadOperands(OperandVector &Operands);
   bool parseCoprocessorStoreOperands(OperandVector &Operands);
@@ -706,6 +714,9 @@ bool AVR32AsmParser::parseInstruction(ParseInstructionInfo &Info,
       return true;
   } else if (Name == "mvrc.d" || Name == "mvrc.w") {
     if (parseCoprocessorCommaCoprocessorRegisterCommaRegister(Operands))
+      return true;
+  } else if (Name == "cop") {
+    if (parseCoprocessorOperationOperands(Operands))
       return true;
   } else if (Name == "ldc.d" || Name == "ldc.w") {
     if (parseCoprocessorLoadOperands(Operands))
@@ -1026,6 +1037,21 @@ bool AVR32AsmParser::parseCoprocessorCommaCoprocessorRegisterCommaRegister(
   if (!parseOptionalToken(AsmToken::Comma))
     return Error(getLexer().getLoc(), "expected comma");
   return parseRegisterOperand(Operands);
+}
+
+bool AVR32AsmParser::parseCoprocessorOperationOperands(
+    OperandVector &Operands) {
+  if (parseCoprocessorOperand(Operands))
+    return true;
+  for (unsigned I = 0; I < 3; ++I) {
+    if (!parseOptionalToken(AsmToken::Comma))
+      return Error(getLexer().getLoc(), "expected comma");
+    if (parseCoprocessorRegisterOperand(Operands))
+      return true;
+  }
+  if (!parseOptionalToken(AsmToken::Comma))
+    return Error(getLexer().getLoc(), "expected comma");
+  return parseImmediateOperand(Operands);
 }
 
 bool AVR32AsmParser::parseCoprocessorLoadOperands(OperandVector &Operands) {
