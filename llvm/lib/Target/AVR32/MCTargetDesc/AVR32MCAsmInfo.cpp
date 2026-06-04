@@ -17,6 +17,7 @@ AVR32MCAsmInfo::AVR32MCAsmInfo(const MCTargetOptions &Options)
   IsLittleEndian = false;
   CodePointerSize = 4;
   CalleeSaveStackSlotSize = 4;
+  MinInstAlignment = 2;
 
   CommentString = "#";
   SupportsDebugInformation = true;
