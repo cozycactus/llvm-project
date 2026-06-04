@@ -148,6 +148,11 @@ def UImm9Shift2AsmOperand : AsmOperandClass {
   let RenderMethod = "addImmOperands";
 }
 
+def UImm12Shift2AsmOperand : AsmOperandClass {
+  let Name = "UImm12Shift2";
+  let RenderMethod = "addImmOperands";
+}
+
 def UImm8AsmOperand : AsmOperandClass {
   let Name = "UImm8";
   let RenderMethod = "addImmOperands";
@@ -363,6 +368,13 @@ def uimm9shift2 : Operand<i32>,
                   ImmLeaf<i32, [{ return Imm >= 0 && Imm <= 2044 &&
                                          Imm % 4 == 0; }]> {
   let ParserMatchClass = UImm9Shift2AsmOperand;
+  let EncoderMethod = "getShifted2OpValue";
+}
+
+def uimm12shift2 : Operand<i32>,
+                   ImmLeaf<i32, [{ return Imm >= 0 && Imm <= 16380 &&
+                                          Imm % 4 == 0; }]> {
+  let ParserMatchClass = UImm12Shift2AsmOperand;
   let EncoderMethod = "getShifted2OpValue";
 }
 
@@ -1312,6 +1324,220 @@ class MoveRegToCopRegW<string Mnemonic>
   let Inst{7-0} = 0b00100000;
 }
 
+class CopLoadDispD<bits<7> Op, string Mnemonic>
+    : AVR32Inst32<(outs),
+                  (ins coprocessor:$CP, coprocessorevenreg:$CRd, GPR:$Rp,
+                       uimm8shift2:$Disp),
+                  Mnemonic#"\t$CP, $CRd, ${Rp}[$Disp]"> {
+  bits<3> CP;
+  bits<4> CRd;
+  bits<4> Rp;
+  bits<8> Disp;
+
+  let Inst{31-27} = 0b11101;
+  let Inst{26-20} = Op;
+  let Inst{19-16} = Rp;
+  let Inst{15-13} = CP;
+  let Inst{12} = 1;
+  let Inst{11-9} = CRd{3-1};
+  let Inst{8} = 0;
+  let Inst{7-0} = Disp;
+}
+
+class CopLoadDispW<bits<7> Op, string Mnemonic>
+    : AVR32Inst32<(outs),
+                  (ins coprocessor:$CP, coprocessorreg:$CRd, GPR:$Rp,
+                       uimm8shift2:$Disp),
+                  Mnemonic#"\t$CP, $CRd, ${Rp}[$Disp]"> {
+  bits<3> CP;
+  bits<4> CRd;
+  bits<4> Rp;
+  bits<8> Disp;
+
+  let Inst{31-27} = 0b11101;
+  let Inst{26-20} = Op;
+  let Inst{19-16} = Rp;
+  let Inst{15-13} = CP;
+  let Inst{12} = 0;
+  let Inst{11-8} = CRd;
+  let Inst{7-0} = Disp;
+}
+
+class CopLoadPreDecD<bits<9> Low, string Mnemonic>
+    : AVR32Inst32<(outs),
+                  (ins coprocessor:$CP, coprocessorevenreg:$CRd, GPR:$Rp),
+                  Mnemonic#"\t$CP, $CRd, --$Rp"> {
+  bits<3> CP;
+  bits<4> CRd;
+  bits<4> Rp;
+
+  let Inst{31-27} = 0b11101;
+  let Inst{26-20} = 0b1111010;
+  let Inst{19-16} = Rp;
+  let Inst{15-13} = CP;
+  let Inst{12} = 0;
+  let Inst{11-9} = CRd{3-1};
+  let Inst{8-0} = Low;
+}
+
+class CopLoadPreDecW<bits<8> Low, string Mnemonic>
+    : AVR32Inst32<(outs),
+                  (ins coprocessor:$CP, coprocessorreg:$CRd, GPR:$Rp),
+                  Mnemonic#"\t$CP, $CRd, --$Rp"> {
+  bits<3> CP;
+  bits<4> CRd;
+  bits<4> Rp;
+
+  let Inst{31-27} = 0b11101;
+  let Inst{26-20} = 0b1111010;
+  let Inst{19-16} = Rp;
+  let Inst{15-13} = CP;
+  let Inst{12} = 0;
+  let Inst{11-8} = CRd;
+  let Inst{7-0} = Low;
+}
+
+class Cop0LoadDispD<bits<7> Op, string Mnemonic>
+    : AVR32Inst32<(outs),
+                  (ins coprocessorevenreg:$CRd, GPR:$Rp,
+                       uimm12shift2:$Disp),
+                  Mnemonic#"\t$CRd, ${Rp}[$Disp]"> {
+  bits<4> CRd;
+  bits<4> Rp;
+  bits<12> Disp;
+
+  let Inst{31-27} = 0b11110;
+  let Inst{26-20} = Op;
+  let Inst{19-16} = Rp;
+  let Inst{15-12} = Disp{11-8};
+  let Inst{11-9} = CRd{3-1};
+  let Inst{8} = 0;
+  let Inst{7-0} = Disp{7-0};
+}
+
+class Cop0LoadDispW<bits<7> Op, string Mnemonic>
+    : AVR32Inst32<(outs),
+                  (ins coprocessorreg:$CRd, GPR:$Rp, uimm12shift2:$Disp),
+                  Mnemonic#"\t$CRd, ${Rp}[$Disp]"> {
+  bits<4> CRd;
+  bits<4> Rp;
+  bits<12> Disp;
+
+  let Inst{31-27} = 0b11110;
+  let Inst{26-20} = Op;
+  let Inst{19-16} = Rp;
+  let Inst{15-12} = Disp{11-8};
+  let Inst{11-8} = CRd;
+  let Inst{7-0} = Disp{7-0};
+}
+
+class CopStoreDispD<bits<7> Op, string Mnemonic>
+    : AVR32Inst32<(outs),
+                  (ins coprocessor:$CP, GPR:$Rp, uimm8shift2:$Disp,
+                       coprocessorevenreg:$CRs),
+                  Mnemonic#"\t$CP, ${Rp}[$Disp], $CRs"> {
+  bits<3> CP;
+  bits<4> CRs;
+  bits<4> Rp;
+  bits<8> Disp;
+
+  let Inst{31-27} = 0b11101;
+  let Inst{26-20} = Op;
+  let Inst{19-16} = Rp;
+  let Inst{15-13} = CP;
+  let Inst{12} = 1;
+  let Inst{11-9} = CRs{3-1};
+  let Inst{8} = 0;
+  let Inst{7-0} = Disp;
+}
+
+class CopStoreDispW<bits<7> Op, string Mnemonic>
+    : AVR32Inst32<(outs),
+                  (ins coprocessor:$CP, GPR:$Rp, uimm8shift2:$Disp,
+                       coprocessorreg:$CRs),
+                  Mnemonic#"\t$CP, ${Rp}[$Disp], $CRs"> {
+  bits<3> CP;
+  bits<4> CRs;
+  bits<4> Rp;
+  bits<8> Disp;
+
+  let Inst{31-27} = 0b11101;
+  let Inst{26-20} = Op;
+  let Inst{19-16} = Rp;
+  let Inst{15-13} = CP;
+  let Inst{12} = 0;
+  let Inst{11-8} = CRs;
+  let Inst{7-0} = Disp;
+}
+
+class CopStorePostIncD<bits<9> Low, string Mnemonic>
+    : AVR32Inst32<(outs),
+                  (ins coprocessor:$CP, GPR:$Rp, coprocessorevenreg:$CRs),
+                  Mnemonic#"\t$CP, ${Rp}++, $CRs"> {
+  bits<3> CP;
+  bits<4> CRs;
+  bits<4> Rp;
+
+  let Inst{31-27} = 0b11101;
+  let Inst{26-20} = 0b1111010;
+  let Inst{19-16} = Rp;
+  let Inst{15-13} = CP;
+  let Inst{12} = 0;
+  let Inst{11-9} = CRs{3-1};
+  let Inst{8-0} = Low;
+}
+
+class CopStorePostIncW<bits<8> Low, string Mnemonic>
+    : AVR32Inst32<(outs),
+                  (ins coprocessor:$CP, GPR:$Rp, coprocessorreg:$CRs),
+                  Mnemonic#"\t$CP, ${Rp}++, $CRs"> {
+  bits<3> CP;
+  bits<4> CRs;
+  bits<4> Rp;
+
+  let Inst{31-27} = 0b11101;
+  let Inst{26-20} = 0b1111010;
+  let Inst{19-16} = Rp;
+  let Inst{15-13} = CP;
+  let Inst{12} = 0;
+  let Inst{11-8} = CRs;
+  let Inst{7-0} = Low;
+}
+
+class Cop0StoreDispD<bits<7> Op, string Mnemonic>
+    : AVR32Inst32<(outs),
+                  (ins GPR:$Rp, uimm12shift2:$Disp,
+                       coprocessorevenreg:$CRs),
+                  Mnemonic#"\t${Rp}[$Disp], $CRs"> {
+  bits<4> CRs;
+  bits<4> Rp;
+  bits<12> Disp;
+
+  let Inst{31-27} = 0b11110;
+  let Inst{26-20} = Op;
+  let Inst{19-16} = Rp;
+  let Inst{15-12} = Disp{11-8};
+  let Inst{11-9} = CRs{3-1};
+  let Inst{8} = 0;
+  let Inst{7-0} = Disp{7-0};
+}
+
+class Cop0StoreDispW<bits<7> Op, string Mnemonic>
+    : AVR32Inst32<(outs),
+                  (ins GPR:$Rp, uimm12shift2:$Disp, coprocessorreg:$CRs),
+                  Mnemonic#"\t${Rp}[$Disp], $CRs"> {
+  bits<4> CRs;
+  bits<4> Rp;
+  bits<12> Disp;
+
+  let Inst{31-27} = 0b11110;
+  let Inst{26-20} = Op;
+  let Inst{19-16} = Rp;
+  let Inst{15-12} = Disp{11-8};
+  let Inst{11-8} = CRs;
+  let Inst{7-0} = Disp{7-0};
+}
+
 def LD_W_PostInc : CompactLoadPostInc<0b10000, "ld.w">;
 def LD_W_PreDec : CompactLoadPreDec<0b10100, "ld.w">;
 def LD_W_Disp5 : CompactLoadDisp5Shift2<"ld.w">;
@@ -1336,6 +1562,12 @@ def LD_W_HI_Disp9 : FullLoadCondDisp9Shift2<0b1011, "ld.whi">;
 def LD_W_VS_Disp9 : FullLoadCondDisp9Shift2<0b1100, "ld.wvs">;
 def LD_W_VC_Disp9 : FullLoadCondDisp9Shift2<0b1101, "ld.wvc">;
 def LD_W_QS_Disp9 : FullLoadCondDisp9Shift2<0b1110, "ld.wqs">;
+def LDC_D_Disp : CopLoadDispD<0b0011010, "ldc.d">;
+def LDC_D_PreDec : CopLoadPreDecD<0b001010000, "ldc.d">;
+def LDC_W_Disp : CopLoadDispW<0b0011010, "ldc.w">;
+def LDC_W_PreDec : CopLoadPreDecW<0b01000000, "ldc.w">;
+def LDC0_D_Disp : Cop0LoadDispD<0b0111010, "ldc0.d">;
+def LDC0_W_Disp : Cop0LoadDispW<0b0011010, "ldc0.w">;
 def LD_D_PostInc : CompactLoadPair<0b10000, 1, "ld.d\t$Rd, ${Rp}++">;
 def LD_D_PreDec : CompactLoadPair<0b10001, 0, "ld.d\t$Rd, --$Rp">;
 def LD_D_Reg : CompactLoadPair<0b10000, 0, "ld.d\t$Rd, $Rp">;
@@ -2266,6 +2498,12 @@ def ST_W_HI_Disp9 : FullStoreCondDisp9Shift2<0b1011, "st.whi">;
 def ST_W_VS_Disp9 : FullStoreCondDisp9Shift2<0b1100, "st.wvs">;
 def ST_W_VC_Disp9 : FullStoreCondDisp9Shift2<0b1101, "st.wvc">;
 def ST_W_QS_Disp9 : FullStoreCondDisp9Shift2<0b1110, "st.wqs">;
+def STC_D_Disp : CopStoreDispD<0b0111010, "stc.d">;
+def STC_D_PostInc : CopStorePostIncD<0b001110000, "stc.d">;
+def STC_W_Disp : CopStoreDispW<0b0111010, "stc.w">;
+def STC_W_PostInc : CopStorePostIncW<0b01100000, "stc.w">;
+def STC0_D_Disp : Cop0StoreDispD<0b1111010, "stc0.d">;
+def STC0_W_Disp : Cop0StoreDispW<0b1011010, "stc0.w">;
 def STCOND : FullStoreDisp16<0b10111, "stcond">;
 def STDSP : CompactSPStoreDisp7Shift2;
 def STHH_W_Disp8 : FullStoreHalfwordPairDisp8;

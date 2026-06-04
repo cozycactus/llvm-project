@@ -265,6 +265,14 @@ public:
            Const->getValue() % 4 == 0;
   }
 
+  bool isUImm12Shift2() const {
+    if (Kind != Immediate)
+      return false;
+    auto *Const = dyn_cast<MCConstantExpr>(Imm);
+    return Const && Const->getValue() >= 0 && Const->getValue() <= 16380 &&
+           Const->getValue() % 4 == 0;
+  }
+
   bool isUImm16() const {
     if (Kind != Immediate)
       return false;
@@ -473,6 +481,11 @@ private:
       OperandVector &Operands);
   bool parseCoprocessorCommaCoprocessorRegisterCommaRegister(
       OperandVector &Operands);
+  bool parseCoprocessorLoadOperands(OperandVector &Operands);
+  bool parseCoprocessor0LoadOperands(OperandVector &Operands);
+  bool parseCoprocessorStoreOperands(OperandVector &Operands);
+  bool parseCoprocessor0StoreOperands(OperandVector &Operands);
+  bool parseMemoryDispOrPostIncOperand(OperandVector &Operands);
   bool parseMemoryDispOperand(OperandVector &Operands);
   bool parseMemoryDispCommaImmediate(OperandVector &Operands);
   bool parseRegisterCommaImmediate(OperandVector &Operands);
@@ -664,6 +677,18 @@ bool AVR32AsmParser::parseInstruction(ParseInstructionInfo &Info,
       return true;
   } else if (Name == "mvrc.d" || Name == "mvrc.w") {
     if (parseCoprocessorCommaCoprocessorRegisterCommaRegister(Operands))
+      return true;
+  } else if (Name == "ldc.d" || Name == "ldc.w") {
+    if (parseCoprocessorLoadOperands(Operands))
+      return true;
+  } else if (Name == "ldc0.d" || Name == "ldc0.w") {
+    if (parseCoprocessor0LoadOperands(Operands))
+      return true;
+  } else if (Name == "stc.d" || Name == "stc.w") {
+    if (parseCoprocessorStoreOperands(Operands))
+      return true;
+  } else if (Name == "stc0.d" || Name == "stc0.w") {
+    if (parseCoprocessor0StoreOperands(Operands))
       return true;
   } else if (Name == "andh" || Name == "andl") {
     if (parseRegisterCommaImmediateOptionalCOH(Operands))
@@ -966,6 +991,82 @@ bool AVR32AsmParser::parseCoprocessorCommaCoprocessorRegisterCommaRegister(
   if (!parseOptionalToken(AsmToken::Comma))
     return Error(getLexer().getLoc(), "expected comma");
   return parseRegisterOperand(Operands);
+}
+
+bool AVR32AsmParser::parseCoprocessorLoadOperands(OperandVector &Operands) {
+  if (parseCoprocessorOperand(Operands))
+    return true;
+  if (!parseOptionalToken(AsmToken::Comma))
+    return Error(getLexer().getLoc(), "expected comma");
+  if (parseCoprocessorRegisterOperand(Operands))
+    return true;
+  if (!parseOptionalToken(AsmToken::Comma))
+    return Error(getLexer().getLoc(), "expected comma");
+
+  if (parseOptionalToken(AsmToken::Minus)) {
+    SMLoc MinusLoc = getLexer().getLoc();
+    if (!parseOptionalToken(AsmToken::Minus))
+      return Error(getLexer().getLoc(), "expected --");
+    Operands.push_back(AVR32Operand::createToken("--", MinusLoc));
+    return parseRegisterOperand(Operands);
+  }
+
+  return parseMemoryDispOperand(Operands);
+}
+
+bool AVR32AsmParser::parseCoprocessor0LoadOperands(OperandVector &Operands) {
+  if (parseCoprocessorRegisterOperand(Operands))
+    return true;
+  if (!parseOptionalToken(AsmToken::Comma))
+    return Error(getLexer().getLoc(), "expected comma");
+  return parseMemoryDispOperand(Operands);
+}
+
+bool AVR32AsmParser::parseMemoryDispOrPostIncOperand(
+    OperandVector &Operands) {
+  if (parseRegisterOperand(Operands))
+    return true;
+
+  if (getLexer().is(AsmToken::LBrac)) {
+    Operands.push_back(AVR32Operand::createToken("[", getLexer().getLoc()));
+    getLexer().Lex();
+
+    if (parseImmediateOperand(Operands))
+      return true;
+
+    if (getLexer().isNot(AsmToken::RBrac))
+      return Error(getLexer().getLoc(), "expected ]");
+    Operands.push_back(AVR32Operand::createToken("]", getLexer().getLoc()));
+    getLexer().Lex();
+    return false;
+  }
+
+  SMLoc PlusLoc = getLexer().getLoc();
+  if (!parseOptionalToken(AsmToken::Plus) ||
+      !parseOptionalToken(AsmToken::Plus))
+    return Error(PlusLoc, "expected ++ or [disp]");
+  Operands.push_back(AVR32Operand::createToken("++", PlusLoc));
+  return false;
+}
+
+bool AVR32AsmParser::parseCoprocessorStoreOperands(OperandVector &Operands) {
+  if (parseCoprocessorOperand(Operands))
+    return true;
+  if (!parseOptionalToken(AsmToken::Comma))
+    return Error(getLexer().getLoc(), "expected comma");
+  if (parseMemoryDispOrPostIncOperand(Operands))
+    return true;
+  if (!parseOptionalToken(AsmToken::Comma))
+    return Error(getLexer().getLoc(), "expected comma");
+  return parseCoprocessorRegisterOperand(Operands);
+}
+
+bool AVR32AsmParser::parseCoprocessor0StoreOperands(OperandVector &Operands) {
+  if (parseMemoryDispOperand(Operands))
+    return true;
+  if (!parseOptionalToken(AsmToken::Comma))
+    return Error(getLexer().getLoc(), "expected comma");
+  return parseCoprocessorRegisterOperand(Operands);
 }
 
 bool AVR32AsmParser::parseRegisterCommaRegister(OperandVector &Operands) {
