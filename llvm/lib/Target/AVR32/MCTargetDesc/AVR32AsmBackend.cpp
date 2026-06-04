@@ -10,12 +10,14 @@
 #include "AVR32MCTargetDesc.h"
 #include "llvm/ADT/StringSwitch.h"
 #include "llvm/MC/MCAsmBackend.h"
+#include "llvm/MC/MCContext.h"
 #include "llvm/MC/MCELFObjectWriter.h"
 #include "llvm/MC/MCFixup.h"
 #include "llvm/MC/MCObjectWriter.h"
 #include "llvm/MC/MCValue.h"
 #include "llvm/Support/Endian.h"
 #include "llvm/Support/ErrorHandling.h"
+#include "llvm/Support/MathExtras.h"
 #include "llvm/Support/raw_ostream.h"
 
 using namespace llvm;
@@ -39,9 +41,21 @@ public:
       return;
 
     if (Fixup.getKind() == static_cast<MCFixupKind>(AVR32::fixup_22h_pcrel)) {
-      int64_t Encoded = static_cast<int64_t>(Value) >> 1;
+      int64_t SignedValue = static_cast<int64_t>(Value);
+      if (SignedValue & 1) {
+        getContext().reportError(Fixup.getLoc(),
+                                 "fixup value must be 2-byte aligned");
+        return;
+      }
+      if (!isInt<22>(SignedValue)) {
+        getContext().reportError(Fixup.getLoc(), "fixup value out of range");
+        return;
+      }
+
+      int64_t Encoded = SignedValue >> 1;
       uint32_t Disp = static_cast<uint32_t>(Encoded) & 0x1fffff;
       uint32_t Word = support::endian::read32be(Data);
+      Word &= ~0x1e10ffff;
       Word |=
           (Disp & 0xffff) | ((Disp & 0x10000) << 4) | ((Disp & 0x1e0000) << 8);
       support::endian::write32be(Data, Word);
