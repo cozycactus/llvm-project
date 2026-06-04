@@ -31,9 +31,27 @@ TEST(ELFTest, OSABI) {
   EXPECT_EQ("none", convertOSABIToName(0xfe));
 }
 
-TEST(ELFTest, AVR32Machine) {
-  EXPECT_EQ(EM_AVR32, convertArchNameToEMachine("avr32"));
-  EXPECT_EQ("avr32", convertEMachineToArchName(EM_AVR32));
-  EXPECT_EQ(EM_AVR32, convertTripleArchTypeToEMachine(Triple::avr32));
+TEST(ELFTest, MachineMappings) {
+  struct {
+    const char *Name;
+    const char *MachineName;
+    uint16_t Machine;
+    Triple::ArchType Arch;
+  } Cases[] = {
+      {"386", "386", EM_386, Triple::x86},
+      {"x86_64", "x86_64", EM_X86_64, Triple::x86_64},
+      {"arm", "arm", EM_ARM, Triple::arm},
+      {"aarch64", "AArch64", EM_AARCH64, Triple::aarch64},
+      {"avr", "avr", EM_AVR, Triple::avr},
+      {"avr32", "avr32", EM_AVR32, Triple::avr32},
+      {"riscv", "riscv", EM_RISCV, Triple::riscv32},
+  };
+
+  for (const auto &Case : Cases) {
+    SCOPED_TRACE(Case.Name);
+    EXPECT_EQ(Case.Machine, convertArchNameToEMachine(Case.Name));
+    EXPECT_EQ(Case.MachineName, convertEMachineToArchName(Case.Machine));
+    EXPECT_EQ(Case.Machine, convertTripleArchTypeToEMachine(Case.Arch));
+  }
 }
 } // namespace
