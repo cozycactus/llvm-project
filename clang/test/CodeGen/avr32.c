@@ -10,4 +10,4 @@ int add(int a, int b) {
 // CHECK: define {{.*}}i32 @add(i32 {{.*}}, i32 {{.*}})
 // CHECK: add nsw i32
 
-// ERR: error: unable to create target: 'target machine is not available for triple "avr32"'
+// ERR: error: AVR32 formal argument lowering is not implemented yet
