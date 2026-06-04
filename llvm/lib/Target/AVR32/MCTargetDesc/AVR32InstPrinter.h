@@ -50,6 +50,9 @@ private:
                                    raw_ostream &OS);
   void printPicoIn(const MCInst *MI, unsigned OpNo, raw_ostream &OS);
   void printPicoRegister(const MCInst *MI, unsigned OpNo, raw_ostream &OS);
+  void printPicoRegListD(const MCInst *MI, unsigned OpNo, raw_ostream &OS);
+  void printPicoRegListLow(const MCInst *MI, unsigned OpNo, raw_ostream &OS);
+  void printPicoRegListHigh(const MCInst *MI, unsigned OpNo, raw_ostream &OS);
 };
 
 } // end namespace llvm

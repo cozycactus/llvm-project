@@ -228,6 +228,21 @@ def PicoEvenRegisterAsmOperand : AsmOperandClass {
   let RenderMethod = "addImmOperands";
 }
 
+def PicoRegListDAsmOperand : AsmOperandClass {
+  let Name = "PicoRegListD";
+  let RenderMethod = "addImmOperands";
+}
+
+def PicoRegListLowAsmOperand : AsmOperandClass {
+  let Name = "PicoRegListLow";
+  let RenderMethod = "addImmOperands";
+}
+
+def PicoRegListHighAsmOperand : AsmOperandClass {
+  let Name = "PicoRegListHigh";
+  let RenderMethod = "addImmOperands";
+}
+
 def ACallDispAsmOperand : AsmOperandClass {
   let Name = "ACallDisp";
   let RenderMethod = "addImmOperands";
@@ -489,6 +504,23 @@ def picoevenreg : Operand<i32>,
                                          Imm % 2 == 0; }]> {
   let ParserMatchClass = PicoEvenRegisterAsmOperand;
   let PrintMethod = "printPicoRegister";
+}
+
+def picoreglistd : Operand<i32>, ImmLeaf<i32, [{ return Imm > 0 && Imm < 256; }]> {
+  let ParserMatchClass = PicoRegListDAsmOperand;
+  let PrintMethod = "printPicoRegListD";
+}
+
+def picoreglistlow : Operand<i32>, ImmLeaf<i32, [{ return Imm > 0 && Imm < 256; }]> {
+  let ParserMatchClass = PicoRegListLowAsmOperand;
+  let PrintMethod = "printPicoRegListLow";
+}
+
+def picoreglisthigh : Operand<i32>,
+                      ImmLeaf<i32, [{ return Imm > 0 && Imm < 65536 &&
+                                             (Imm & 0xff) == 0; }]> {
+  let ParserMatchClass = PicoRegListHighAsmOperand;
+  let PrintMethod = "printPicoRegListHigh";
 }
 
 def acalldisp : Operand<i32>,
@@ -2063,6 +2095,30 @@ class CopLoadMultipleHigh<bits<4> Sub, bit Update, string Asm>
   let Inst{7-0} = Mask{15-8};
 }
 
+class PicoLoadMultiple<bits<4> Sub, bit Update, Operand RegListOp, string Asm>
+    : AVR32Inst32<(outs), (ins GPR:$Rp, RegListOp:$Mask), Asm> {
+  bits<4> Rp;
+  bits<16> Mask;
+
+  let Inst{31-27} = 0b11101;
+  let Inst{26-20} = 0b1011010;
+  let Inst{19-16} = Rp;
+  let Inst{15-13} = 0b001;
+  let Inst{12} = Update;
+  let Inst{11-8} = Sub;
+}
+
+class PicoLoadMultipleLow<bits<4> Sub, bit Update, Operand RegListOp,
+                          string Asm>
+    : PicoLoadMultiple<Sub, Update, RegListOp, Asm> {
+  let Inst{7-0} = Mask{7-0};
+}
+
+class PicoLoadMultipleHigh<bits<4> Sub, bit Update, string Asm>
+    : PicoLoadMultiple<Sub, Update, picoreglisthigh, Asm> {
+  let Inst{7-0} = Mask{15-8};
+}
+
 class CopStoreMultiple<bits<4> Sub, bit Update, Operand RegListOp,
                        string Asm>
     : AVR32Inst32<(outs), (ins coprocessor:$CP, GPR:$Rp, RegListOp:$Mask),
@@ -2087,6 +2143,30 @@ class CopStoreMultipleLow<bits<4> Sub, bit Update, Operand RegListOp,
 
 class CopStoreMultipleHigh<bits<4> Sub, bit Update, string Asm>
     : CopStoreMultiple<Sub, Update, coprocessorreglisthigh, Asm> {
+  let Inst{7-0} = Mask{15-8};
+}
+
+class PicoStoreMultiple<bits<4> Sub, bit Update, Operand RegListOp, string Asm>
+    : AVR32Inst32<(outs), (ins GPR:$Rp, RegListOp:$Mask), Asm> {
+  bits<4> Rp;
+  bits<16> Mask;
+
+  let Inst{31-27} = 0b11101;
+  let Inst{26-20} = 0b1011010;
+  let Inst{19-16} = Rp;
+  let Inst{15-13} = 0b001;
+  let Inst{12} = Update;
+  let Inst{11-8} = Sub;
+}
+
+class PicoStoreMultipleLow<bits<4> Sub, bit Update, Operand RegListOp,
+                           string Asm>
+    : PicoStoreMultiple<Sub, Update, RegListOp, Asm> {
+  let Inst{7-0} = Mask{7-0};
+}
+
+class PicoStoreMultipleHigh<bits<4> Sub, bit Update, string Asm>
+    : PicoStoreMultiple<Sub, Update, picoreglisthigh, Asm> {
   let Inst{7-0} = Mask{15-8};
 }
 
@@ -2901,6 +2981,18 @@ def LDCM_W_Low : CopLoadMultipleLow<0b0000, 0, coprocessorreglistlow,
                                     "ldcm.w\t$CP, $Rp, $Mask">;
 def LDCM_W_Low_UPD : CopLoadMultipleLow<0b0000, 1, coprocessorreglistlow,
                                         "ldcm.w\t$CP, ${Rp}++, $Mask">;
+def PICOLDM_D : PicoLoadMultipleLow<0b0100, 0, picoreglistd,
+                                    "picoldm.d\t$Rp, $Mask">;
+def PICOLDM_D_UPD : PicoLoadMultipleLow<0b0100, 1, picoreglistd,
+                                        "picoldm.d\t${Rp}++, $Mask">;
+def PICOLDM_W_High : PicoLoadMultipleHigh<0b0001, 0,
+                                          "picoldm.w\t$Rp, $Mask">;
+def PICOLDM_W_High_UPD : PicoLoadMultipleHigh<0b0001, 1,
+                                              "picoldm.w\t${Rp}++, $Mask">;
+def PICOLDM_W_Low : PicoLoadMultipleLow<0b0000, 0, picoreglistlow,
+                                        "picoldm.w\t$Rp, $Mask">;
+def PICOLDM_W_Low_UPD : PicoLoadMultipleLow<0b0000, 1, picoreglistlow,
+                                            "picoldm.w\t${Rp}++, $Mask">;
 def LSLrrr : FullRegRegReg<0b000010010100, "lsl">;
 def LSRrrr : FullRegRegReg<0b000010100100, "lsr">;
 def MAXrrr : FullRegRegReg<0b000011000100, "max">;
@@ -3255,6 +3347,18 @@ def STCM_W_Low : CopStoreMultipleLow<0b0010, 0, coprocessorreglistlow,
                                      "stcm.w\t$CP, $Rp, $Mask">;
 def STCM_W_Low_PRE : CopStoreMultipleLow<0b0010, 1, coprocessorreglistlow,
                                          "stcm.w\t$CP, --$Rp, $Mask">;
+def PICOSTM_D : PicoStoreMultipleLow<0b0101, 0, picoreglistd,
+                                     "picostm.d\t$Rp, $Mask">;
+def PICOSTM_D_PRE : PicoStoreMultipleLow<0b0101, 1, picoreglistd,
+                                         "picostm.d\t--$Rp, $Mask">;
+def PICOSTM_W_High : PicoStoreMultipleHigh<0b0011, 0,
+                                           "picostm.w\t$Rp, $Mask">;
+def PICOSTM_W_High_PRE : PicoStoreMultipleHigh<0b0011, 1,
+                                               "picostm.w\t--$Rp, $Mask">;
+def PICOSTM_W_Low : PicoStoreMultipleLow<0b0010, 0, picoreglistlow,
+                                         "picostm.w\t$Rp, $Mask">;
+def PICOSTM_W_Low_PRE : PicoStoreMultipleLow<0b0010, 1, picoreglistlow,
+                                             "picostm.w\t--$Rp, $Mask">;
 def SUBALrrr : CondRRR<0b1111, 0b0001, "subal">;
 def SUBEQrrr : CondRRR<0b0000, 0b0001, "subeq">;
 def SUBNErrr : CondRRR<0b0001, 0b0001, "subne">;

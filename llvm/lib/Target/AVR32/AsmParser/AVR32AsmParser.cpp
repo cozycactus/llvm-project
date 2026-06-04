@@ -368,6 +368,28 @@ public:
            Const->getValue() % 2 == 0;
   }
 
+  bool isPicoRegListD() const {
+    if (Kind != Immediate)
+      return false;
+    auto *Const = dyn_cast<MCConstantExpr>(Imm);
+    return Const && Const->getValue() > 0 && Const->getValue() < 256;
+  }
+
+  bool isPicoRegListLow() const {
+    if (Kind != Immediate)
+      return false;
+    auto *Const = dyn_cast<MCConstantExpr>(Imm);
+    return Const && Const->getValue() > 0 && Const->getValue() < 256;
+  }
+
+  bool isPicoRegListHigh() const {
+    if (Kind != Immediate)
+      return false;
+    auto *Const = dyn_cast<MCConstantExpr>(Imm);
+    return Const && Const->getValue() > 0 && Const->getValue() < 65536 &&
+           (Const->getValue() & 0xff) == 0;
+  }
+
   bool isACallDisp() const {
     if (Kind != Immediate)
       return false;
@@ -547,12 +569,15 @@ private:
                                             bool IsDouble);
   bool parseCoprocessorStoreMultipleOperands(OperandVector &Operands,
                                              bool IsDouble);
+  bool parsePicoRegListOperand(OperandVector &Operands, bool IsDouble);
   bool parsePicoRegisterOperand(OperandVector &Operands);
   bool parsePicoInOperand(OperandVector &Operands);
   bool parsePicoArithmeticOperands(OperandVector &Operands);
   bool parsePicoMoveOperands(OperandVector &Operands);
   bool parsePicoLoadOperands(OperandVector &Operands);
   bool parsePicoStoreOperands(OperandVector &Operands);
+  bool parsePicoLoadMultipleOperands(OperandVector &Operands, bool IsDouble);
+  bool parsePicoStoreMultipleOperands(OperandVector &Operands, bool IsDouble);
   bool parseMemoryDispOrIndexSuffix(OperandVector &Operands);
   bool parseMemoryDispOrIndexOperand(OperandVector &Operands);
   bool parseMemoryDispOrPostIncOperand(OperandVector &Operands);
@@ -784,6 +809,12 @@ bool AVR32AsmParser::parseInstruction(ParseInstructionInfo &Info,
       return true;
   } else if (Name == "picost.d" || Name == "picost.w") {
     if (parsePicoStoreOperands(Operands))
+      return true;
+  } else if (Name == "picoldm.d" || Name == "picoldm.w") {
+    if (parsePicoLoadMultipleOperands(Operands, Name == "picoldm.d"))
+      return true;
+  } else if (Name == "picostm.d" || Name == "picostm.w") {
+    if (parsePicoStoreMultipleOperands(Operands, Name == "picostm.d"))
       return true;
   } else if (Name == "ldc.d" || Name == "ldc.w") {
     if (parseCoprocessorLoadOperands(Operands))
@@ -1210,6 +1241,97 @@ bool AVR32AsmParser::parsePicoStoreOperands(OperandVector &Operands) {
   if (!parseOptionalToken(AsmToken::Comma))
     return Error(getLexer().getLoc(), "expected comma");
   return parsePicoRegisterOperand(Operands);
+}
+
+bool AVR32AsmParser::parsePicoRegListOperand(OperandVector &Operands,
+                                             bool IsDouble) {
+  SMLoc StartLoc = getLexer().getLoc();
+  unsigned FullMask = 0;
+
+  while (true) {
+    SMLoc RegStartLoc = getLexer().getLoc();
+    if (getLexer().isNot(AsmToken::Identifier))
+      return Error(RegStartLoc, "expected PICO register in list");
+
+    unsigned StartReg;
+    if (parsePicoRegisterName(getLexer().getTok().getString(), StartReg))
+      return Error(RegStartLoc, "expected PICO register in list");
+    getLexer().Lex();
+
+    unsigned EndReg = StartReg;
+    if (parseOptionalToken(AsmToken::Minus)) {
+      SMLoc EndRegStartLoc = getLexer().getLoc();
+      if (getLexer().isNot(AsmToken::Identifier))
+        return Error(EndRegStartLoc, "expected PICO register after -");
+
+      if (parsePicoRegisterName(getLexer().getTok().getString(), EndReg))
+        return Error(EndRegStartLoc, "expected PICO register after -");
+      getLexer().Lex();
+
+      if (EndReg < StartReg)
+        return Error(EndRegStartLoc, "PICO register range must be ascending");
+    }
+
+    for (unsigned Reg = StartReg; Reg <= EndReg; ++Reg)
+      FullMask |= 1u << Reg;
+
+    if (getLexer().is(AsmToken::EndOfStatement))
+      break;
+    if (!parseOptionalToken(AsmToken::Comma))
+      return Error(getLexer().getLoc(), "expected comma");
+  }
+
+  unsigned Mask = FullMask;
+  if (IsDouble) {
+    Mask = 0;
+    for (unsigned Pair = 0; Pair < 8; ++Pair) {
+      bool Even = FullMask & (1u << (Pair * 2));
+      bool Odd = FullMask & (1u << (Pair * 2 + 1));
+      if (Even != Odd)
+        return Error(StartLoc, "double PICO register list must cover "
+                               "even/odd register pairs");
+      if (Even)
+        Mask |= 1u << Pair;
+    }
+  }
+
+  const MCExpr *MaskExpr = MCConstantExpr::create(Mask, getContext());
+  Operands.push_back(
+      AVR32Operand::createImm(MaskExpr, StartLoc, getLexer().getLoc()));
+  return false;
+}
+
+bool AVR32AsmParser::parsePicoLoadMultipleOperands(OperandVector &Operands,
+                                                   bool IsDouble) {
+  if (parseRegisterOperand(Operands))
+    return true;
+
+  if (parseOptionalToken(AsmToken::Plus)) {
+    SMLoc PlusLoc = getLexer().getLoc();
+    if (!parseOptionalToken(AsmToken::Plus))
+      return Error(getLexer().getLoc(), "expected ++");
+    Operands.push_back(AVR32Operand::createToken("++", PlusLoc));
+  }
+
+  if (!parseOptionalToken(AsmToken::Comma))
+    return Error(getLexer().getLoc(), "expected comma");
+  return parsePicoRegListOperand(Operands, IsDouble);
+}
+
+bool AVR32AsmParser::parsePicoStoreMultipleOperands(OperandVector &Operands,
+                                                    bool IsDouble) {
+  if (parseOptionalToken(AsmToken::Minus)) {
+    SMLoc MinusLoc = getLexer().getLoc();
+    if (!parseOptionalToken(AsmToken::Minus))
+      return Error(getLexer().getLoc(), "expected --");
+    Operands.push_back(AVR32Operand::createToken("--", MinusLoc));
+  }
+
+  if (parseRegisterOperand(Operands))
+    return true;
+  if (!parseOptionalToken(AsmToken::Comma))
+    return Error(getLexer().getLoc(), "expected comma");
+  return parsePicoRegListOperand(Operands, IsDouble);
 }
 
 bool AVR32AsmParser::parsePicoInOperand(OperandVector &Operands) {

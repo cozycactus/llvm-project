@@ -529,6 +529,12 @@ TEST(AVR32TargetInfo, LookupTarget) {
   EXPECT_EQ(MII->get(AVR32::LDCM_W_High_UPD).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::LDCM_W_Low).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::LDCM_W_Low_UPD).getSize(), 4u);
+  EXPECT_EQ(MII->get(AVR32::PICOLDM_D).getSize(), 4u);
+  EXPECT_EQ(MII->get(AVR32::PICOLDM_D_UPD).getSize(), 4u);
+  EXPECT_EQ(MII->get(AVR32::PICOLDM_W_High).getSize(), 4u);
+  EXPECT_EQ(MII->get(AVR32::PICOLDM_W_High_UPD).getSize(), 4u);
+  EXPECT_EQ(MII->get(AVR32::PICOLDM_W_Low).getSize(), 4u);
+  EXPECT_EQ(MII->get(AVR32::PICOLDM_W_Low_UPD).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::LDDPC).getSize(), 2u);
   EXPECT_EQ(MII->get(AVR32::LDDSP).getSize(), 2u);
   EXPECT_EQ(MII->get(AVR32::LDINS_B).getSize(), 4u);
@@ -729,6 +735,12 @@ TEST(AVR32TargetInfo, LookupTarget) {
   EXPECT_EQ(MII->get(AVR32::STCM_W_High_PRE).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::STCM_W_Low).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::STCM_W_Low_PRE).getSize(), 4u);
+  EXPECT_EQ(MII->get(AVR32::PICOSTM_D).getSize(), 4u);
+  EXPECT_EQ(MII->get(AVR32::PICOSTM_D_PRE).getSize(), 4u);
+  EXPECT_EQ(MII->get(AVR32::PICOSTM_W_High).getSize(), 4u);
+  EXPECT_EQ(MII->get(AVR32::PICOSTM_W_High_PRE).getSize(), 4u);
+  EXPECT_EQ(MII->get(AVR32::PICOSTM_W_Low).getSize(), 4u);
+  EXPECT_EQ(MII->get(AVR32::PICOSTM_W_Low_PRE).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::SUBALrrr).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::SUBCCrrr).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::SUBCSrrr).getSize(), 4u);
@@ -2899,6 +2911,102 @@ TEST(AVR32TargetInfo, LookupTarget) {
   EXPECT_EQ(static_cast<uint8_t>(Code[2]), 0x51);
   EXPECT_EQ(static_cast<uint8_t>(Code[3]), 0x0f);
 
+  MCInst PicoldmD;
+  PicoldmD.setOpcode(AVR32::PICOLDM_D);
+  PicoldmD.addOperand(MCOperand::createReg(AVR32::PC));
+  PicoldmD.addOperand(MCOperand::createImm(0xff));
+
+  Code.clear();
+  Fixups.clear();
+  MCE->encodeInstruction(PicoldmD, Code, Fixups, *STI);
+
+  EXPECT_TRUE(Fixups.empty());
+  ASSERT_EQ(Code.size(), 4u);
+  EXPECT_EQ(static_cast<uint8_t>(Code[0]), 0xed);
+  EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0xaf);
+  EXPECT_EQ(static_cast<uint8_t>(Code[2]), 0x24);
+  EXPECT_EQ(static_cast<uint8_t>(Code[3]), 0xff);
+
+  MCInst PicoldmDUpd;
+  PicoldmDUpd.setOpcode(AVR32::PICOLDM_D_UPD);
+  PicoldmDUpd.addOperand(MCOperand::createReg(AVR32::PC));
+  PicoldmDUpd.addOperand(MCOperand::createImm(0xff));
+
+  Code.clear();
+  Fixups.clear();
+  MCE->encodeInstruction(PicoldmDUpd, Code, Fixups, *STI);
+
+  EXPECT_TRUE(Fixups.empty());
+  ASSERT_EQ(Code.size(), 4u);
+  EXPECT_EQ(static_cast<uint8_t>(Code[0]), 0xed);
+  EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0xaf);
+  EXPECT_EQ(static_cast<uint8_t>(Code[2]), 0x34);
+  EXPECT_EQ(static_cast<uint8_t>(Code[3]), 0xff);
+
+  MCInst PicoldmWLow;
+  PicoldmWLow.setOpcode(AVR32::PICOLDM_W_Low);
+  PicoldmWLow.addOperand(MCOperand::createReg(AVR32::PC));
+  PicoldmWLow.addOperand(MCOperand::createImm(0x00ff));
+
+  Code.clear();
+  Fixups.clear();
+  MCE->encodeInstruction(PicoldmWLow, Code, Fixups, *STI);
+
+  EXPECT_TRUE(Fixups.empty());
+  ASSERT_EQ(Code.size(), 4u);
+  EXPECT_EQ(static_cast<uint8_t>(Code[0]), 0xed);
+  EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0xaf);
+  EXPECT_EQ(static_cast<uint8_t>(Code[2]), 0x20);
+  EXPECT_EQ(static_cast<uint8_t>(Code[3]), 0xff);
+
+  MCInst PicoldmWLowUpd;
+  PicoldmWLowUpd.setOpcode(AVR32::PICOLDM_W_Low_UPD);
+  PicoldmWLowUpd.addOperand(MCOperand::createReg(AVR32::PC));
+  PicoldmWLowUpd.addOperand(MCOperand::createImm(0x00ff));
+
+  Code.clear();
+  Fixups.clear();
+  MCE->encodeInstruction(PicoldmWLowUpd, Code, Fixups, *STI);
+
+  EXPECT_TRUE(Fixups.empty());
+  ASSERT_EQ(Code.size(), 4u);
+  EXPECT_EQ(static_cast<uint8_t>(Code[0]), 0xed);
+  EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0xaf);
+  EXPECT_EQ(static_cast<uint8_t>(Code[2]), 0x30);
+  EXPECT_EQ(static_cast<uint8_t>(Code[3]), 0xff);
+
+  MCInst PicoldmWHigh;
+  PicoldmWHigh.setOpcode(AVR32::PICOLDM_W_High);
+  PicoldmWHigh.addOperand(MCOperand::createReg(AVR32::PC));
+  PicoldmWHigh.addOperand(MCOperand::createImm(0xff00));
+
+  Code.clear();
+  Fixups.clear();
+  MCE->encodeInstruction(PicoldmWHigh, Code, Fixups, *STI);
+
+  EXPECT_TRUE(Fixups.empty());
+  ASSERT_EQ(Code.size(), 4u);
+  EXPECT_EQ(static_cast<uint8_t>(Code[0]), 0xed);
+  EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0xaf);
+  EXPECT_EQ(static_cast<uint8_t>(Code[2]), 0x21);
+  EXPECT_EQ(static_cast<uint8_t>(Code[3]), 0xff);
+
+  MCInst PicoldmWHighUpd;
+  PicoldmWHighUpd.setOpcode(AVR32::PICOLDM_W_High_UPD);
+  PicoldmWHighUpd.addOperand(MCOperand::createReg(AVR32::PC));
+  PicoldmWHighUpd.addOperand(MCOperand::createImm(0xff00));
+
+  Code.clear();
+  Fixups.clear();
+  MCE->encodeInstruction(PicoldmWHighUpd, Code, Fixups, *STI);
+
+  EXPECT_TRUE(Fixups.empty());
+  ASSERT_EQ(Code.size(), 4u);
+  EXPECT_EQ(static_cast<uint8_t>(Code[0]), 0xed);
+  EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0xaf);
+  EXPECT_EQ(static_cast<uint8_t>(Code[2]), 0x31);
+  EXPECT_EQ(static_cast<uint8_t>(Code[3]), 0xff);
+
   MCInst Stm;
   Stm.setOpcode(AVR32::STM);
   Stm.addOperand(MCOperand::createReg(AVR32::R1));
@@ -3064,6 +3172,102 @@ TEST(AVR32TargetInfo, LookupTarget) {
   EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0xa2);
   EXPECT_EQ(static_cast<uint8_t>(Code[2]), 0x53);
   EXPECT_EQ(static_cast<uint8_t>(Code[3]), 0x0f);
+
+  MCInst PicostmD;
+  PicostmD.setOpcode(AVR32::PICOSTM_D);
+  PicostmD.addOperand(MCOperand::createReg(AVR32::PC));
+  PicostmD.addOperand(MCOperand::createImm(0xff));
+
+  Code.clear();
+  Fixups.clear();
+  MCE->encodeInstruction(PicostmD, Code, Fixups, *STI);
+
+  EXPECT_TRUE(Fixups.empty());
+  ASSERT_EQ(Code.size(), 4u);
+  EXPECT_EQ(static_cast<uint8_t>(Code[0]), 0xed);
+  EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0xaf);
+  EXPECT_EQ(static_cast<uint8_t>(Code[2]), 0x25);
+  EXPECT_EQ(static_cast<uint8_t>(Code[3]), 0xff);
+
+  MCInst PicostmDPre;
+  PicostmDPre.setOpcode(AVR32::PICOSTM_D_PRE);
+  PicostmDPre.addOperand(MCOperand::createReg(AVR32::PC));
+  PicostmDPre.addOperand(MCOperand::createImm(0xff));
+
+  Code.clear();
+  Fixups.clear();
+  MCE->encodeInstruction(PicostmDPre, Code, Fixups, *STI);
+
+  EXPECT_TRUE(Fixups.empty());
+  ASSERT_EQ(Code.size(), 4u);
+  EXPECT_EQ(static_cast<uint8_t>(Code[0]), 0xed);
+  EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0xaf);
+  EXPECT_EQ(static_cast<uint8_t>(Code[2]), 0x35);
+  EXPECT_EQ(static_cast<uint8_t>(Code[3]), 0xff);
+
+  MCInst PicostmWLow;
+  PicostmWLow.setOpcode(AVR32::PICOSTM_W_Low);
+  PicostmWLow.addOperand(MCOperand::createReg(AVR32::PC));
+  PicostmWLow.addOperand(MCOperand::createImm(0x00ff));
+
+  Code.clear();
+  Fixups.clear();
+  MCE->encodeInstruction(PicostmWLow, Code, Fixups, *STI);
+
+  EXPECT_TRUE(Fixups.empty());
+  ASSERT_EQ(Code.size(), 4u);
+  EXPECT_EQ(static_cast<uint8_t>(Code[0]), 0xed);
+  EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0xaf);
+  EXPECT_EQ(static_cast<uint8_t>(Code[2]), 0x22);
+  EXPECT_EQ(static_cast<uint8_t>(Code[3]), 0xff);
+
+  MCInst PicostmWLowPre;
+  PicostmWLowPre.setOpcode(AVR32::PICOSTM_W_Low_PRE);
+  PicostmWLowPre.addOperand(MCOperand::createReg(AVR32::PC));
+  PicostmWLowPre.addOperand(MCOperand::createImm(0x00ff));
+
+  Code.clear();
+  Fixups.clear();
+  MCE->encodeInstruction(PicostmWLowPre, Code, Fixups, *STI);
+
+  EXPECT_TRUE(Fixups.empty());
+  ASSERT_EQ(Code.size(), 4u);
+  EXPECT_EQ(static_cast<uint8_t>(Code[0]), 0xed);
+  EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0xaf);
+  EXPECT_EQ(static_cast<uint8_t>(Code[2]), 0x32);
+  EXPECT_EQ(static_cast<uint8_t>(Code[3]), 0xff);
+
+  MCInst PicostmWHigh;
+  PicostmWHigh.setOpcode(AVR32::PICOSTM_W_High);
+  PicostmWHigh.addOperand(MCOperand::createReg(AVR32::PC));
+  PicostmWHigh.addOperand(MCOperand::createImm(0xff00));
+
+  Code.clear();
+  Fixups.clear();
+  MCE->encodeInstruction(PicostmWHigh, Code, Fixups, *STI);
+
+  EXPECT_TRUE(Fixups.empty());
+  ASSERT_EQ(Code.size(), 4u);
+  EXPECT_EQ(static_cast<uint8_t>(Code[0]), 0xed);
+  EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0xaf);
+  EXPECT_EQ(static_cast<uint8_t>(Code[2]), 0x23);
+  EXPECT_EQ(static_cast<uint8_t>(Code[3]), 0xff);
+
+  MCInst PicostmWHighPre;
+  PicostmWHighPre.setOpcode(AVR32::PICOSTM_W_High_PRE);
+  PicostmWHighPre.addOperand(MCOperand::createReg(AVR32::PC));
+  PicostmWHighPre.addOperand(MCOperand::createImm(0xff00));
+
+  Code.clear();
+  Fixups.clear();
+  MCE->encodeInstruction(PicostmWHighPre, Code, Fixups, *STI);
+
+  EXPECT_TRUE(Fixups.empty());
+  ASSERT_EQ(Code.size(), 4u);
+  EXPECT_EQ(static_cast<uint8_t>(Code[0]), 0xed);
+  EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0xaf);
+  EXPECT_EQ(static_cast<uint8_t>(Code[2]), 0x33);
+  EXPECT_EQ(static_cast<uint8_t>(Code[3]), 0xff);
 
   MCInst Lsl;
   Lsl.setOpcode(AVR32::LSLrrr);
@@ -7955,6 +8159,48 @@ TEST(AVR32TargetInfo, LookupTarget) {
   EXPECT_EQ(Printed, "\tldcm.w\tcp2, r2++, cr8-cr11");
 
   Printed.clear();
+  raw_string_ostream PicoldmDOS(Printed);
+  InstPrinter->printInst(&PicoldmD, /*Address=*/0, /*Annot=*/"", *STI,
+                         PicoldmDOS);
+  PicoldmDOS.flush();
+  EXPECT_EQ(Printed, "\tpicoldm.d\tpc, inpix2-config");
+
+  Printed.clear();
+  raw_string_ostream PicoldmDUpdOS(Printed);
+  InstPrinter->printInst(&PicoldmDUpd, /*Address=*/0, /*Annot=*/"", *STI,
+                         PicoldmDUpdOS);
+  PicoldmDUpdOS.flush();
+  EXPECT_EQ(Printed, "\tpicoldm.d\tpc++, inpix2-config");
+
+  Printed.clear();
+  raw_string_ostream PicoldmWLowOS(Printed);
+  InstPrinter->printInst(&PicoldmWLow, /*Address=*/0, /*Annot=*/"", *STI,
+                         PicoldmWLowOS);
+  PicoldmWLowOS.flush();
+  EXPECT_EQ(Printed, "\tpicoldm.w\tpc, inpix2-coeff0_b");
+
+  Printed.clear();
+  raw_string_ostream PicoldmWLowUpdOS(Printed);
+  InstPrinter->printInst(&PicoldmWLowUpd, /*Address=*/0, /*Annot=*/"", *STI,
+                         PicoldmWLowUpdOS);
+  PicoldmWLowUpdOS.flush();
+  EXPECT_EQ(Printed, "\tpicoldm.w\tpc++, inpix2-coeff0_b");
+
+  Printed.clear();
+  raw_string_ostream PicoldmWHighOS(Printed);
+  InstPrinter->printInst(&PicoldmWHigh, /*Address=*/0, /*Annot=*/"", *STI,
+                         PicoldmWHighOS);
+  PicoldmWHighOS.flush();
+  EXPECT_EQ(Printed, "\tpicoldm.w\tpc, coeff1_a-config");
+
+  Printed.clear();
+  raw_string_ostream PicoldmWHighUpdOS(Printed);
+  InstPrinter->printInst(&PicoldmWHighUpd, /*Address=*/0, /*Annot=*/"", *STI,
+                         PicoldmWHighUpdOS);
+  PicoldmWHighUpdOS.flush();
+  EXPECT_EQ(Printed, "\tpicoldm.w\tpc++, coeff1_a-config");
+
+  Printed.clear();
   raw_string_ostream StmOS(Printed);
   InstPrinter->printInst(&Stm, /*Address=*/0, /*Annot=*/"", *STI, StmOS);
   StmOS.flush();
@@ -8006,6 +8252,48 @@ TEST(AVR32TargetInfo, LookupTarget) {
                          StcmWHighOS);
   StcmWHighOS.flush();
   EXPECT_EQ(Printed, "\tstcm.w\tcp2, r2, cr8-cr11");
+
+  Printed.clear();
+  raw_string_ostream PicostmDOS(Printed);
+  InstPrinter->printInst(&PicostmD, /*Address=*/0, /*Annot=*/"", *STI,
+                         PicostmDOS);
+  PicostmDOS.flush();
+  EXPECT_EQ(Printed, "\tpicostm.d\tpc, inpix2-config");
+
+  Printed.clear();
+  raw_string_ostream PicostmDPreOS(Printed);
+  InstPrinter->printInst(&PicostmDPre, /*Address=*/0, /*Annot=*/"", *STI,
+                         PicostmDPreOS);
+  PicostmDPreOS.flush();
+  EXPECT_EQ(Printed, "\tpicostm.d\t--pc, inpix2-config");
+
+  Printed.clear();
+  raw_string_ostream PicostmWLowOS(Printed);
+  InstPrinter->printInst(&PicostmWLow, /*Address=*/0, /*Annot=*/"", *STI,
+                         PicostmWLowOS);
+  PicostmWLowOS.flush();
+  EXPECT_EQ(Printed, "\tpicostm.w\tpc, inpix2-coeff0_b");
+
+  Printed.clear();
+  raw_string_ostream PicostmWLowPreOS(Printed);
+  InstPrinter->printInst(&PicostmWLowPre, /*Address=*/0, /*Annot=*/"", *STI,
+                         PicostmWLowPreOS);
+  PicostmWLowPreOS.flush();
+  EXPECT_EQ(Printed, "\tpicostm.w\t--pc, inpix2-coeff0_b");
+
+  Printed.clear();
+  raw_string_ostream PicostmWHighOS(Printed);
+  InstPrinter->printInst(&PicostmWHigh, /*Address=*/0, /*Annot=*/"", *STI,
+                         PicostmWHighOS);
+  PicostmWHighOS.flush();
+  EXPECT_EQ(Printed, "\tpicostm.w\tpc, coeff1_a-config");
+
+  Printed.clear();
+  raw_string_ostream PicostmWHighPreOS(Printed);
+  InstPrinter->printInst(&PicostmWHighPre, /*Address=*/0, /*Annot=*/"", *STI,
+                         PicostmWHighPreOS);
+  PicostmWHighPreOS.flush();
+  EXPECT_EQ(Printed, "\tpicostm.w\t--pc, coeff1_a-config");
 
   Printed.clear();
   raw_string_ostream LslOS(Printed);
@@ -9720,6 +10008,12 @@ TEST(AVR32TargetInfo, LookupTarget) {
           "ldcm.d cp2, r2++, cr0-cr3\n"
           "ldcm.w cp2, r2, cr2-cr5\n"
           "ldcm.w cp2, r2++, cr8-cr11\n"
+          "picoldm.d pc, inpix2-config\n"
+          "picoldm.d pc++, inpix2-config\n"
+          "picoldm.w pc, inpix2-coeff0_b\n"
+          "picoldm.w pc++, inpix2-coeff0_b\n"
+          "picoldm.w pc, coeff1_a-config\n"
+          "picoldm.w pc++, coeff1_a-config\n"
           "lddpc r2, pc[12]\nlddsp r2, sp[12]\n"
           "ldins.b r1:u, r2[-1]\nldins.h r1:t, r2[-2]\n"
           "ld.sb r1, r2[-1]\nld.sb r1, r2[r3 << 2]\n"
@@ -9744,6 +10038,12 @@ TEST(AVR32TargetInfo, LookupTarget) {
           "stcm.d cp2, --r2, cr0-cr3\n"
           "stcm.w cp2, r2, cr8-cr11\n"
           "stcm.w cp2, --r2, cr2-cr5\n"
+          "picostm.d pc, inpix2-config\n"
+          "picostm.d --pc, inpix2-config\n"
+          "picostm.w pc, inpix2-coeff0_b\n"
+          "picostm.w --pc, inpix2-coeff0_b\n"
+          "picostm.w pc, coeff1_a-config\n"
+          "picostm.w --pc, coeff1_a-config\n"
           "st.h r1++, r2\nst.h --r1, r2\nst.h r1[6], r2\n"
           "st.h r1[-1], r2\nst.h r1[r2 << 3], r4\n"
           "st.heq r1[6], r2\nst.hal r1[6], r2\n"

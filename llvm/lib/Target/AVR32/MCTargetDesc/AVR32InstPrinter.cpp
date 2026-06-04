@@ -135,19 +135,69 @@ void AVR32InstPrinter::printPicoIn(const MCInst *MI, unsigned OpNo,
   OS << "in" << Op.getImm();
 }
 
-void AVR32InstPrinter::printPicoRegister(const MCInst *MI, unsigned OpNo,
-                                         raw_ostream &OS) {
-  const MCOperand &Op = MI->getOperand(OpNo);
-  assert(Op.isImm() && "PICO register must be immediate");
+static const char *getPicoRegisterName(unsigned Reg) {
   static const char *Names[] = {
       "inpix2",  "inpix1",  "inpix0",   "outpix2",
       "outpix1", "outpix0", "coeff0_a", "coeff0_b",
       "coeff1_a", "coeff1_b", "coeff2_a", "coeff2_b",
       "vmu0_out", "vmu1_out", "vmu2_out", "config"};
+  assert(Reg < 16 && "invalid PICO register");
+  return Names[Reg];
+}
+
+void AVR32InstPrinter::printPicoRegister(const MCInst *MI, unsigned OpNo,
+                                         raw_ostream &OS) {
+  const MCOperand &Op = MI->getOperand(OpNo);
+  assert(Op.isImm() && "PICO register must be immediate");
   int64_t Reg = Op.getImm();
   if (Reg < 0 || Reg > 15)
     llvm_unreachable("invalid PICO register");
-  OS << Names[Reg];
+  OS << getPicoRegisterName(Reg);
+}
+
+static void printPicoRegListMask(uint16_t Mask, unsigned BaseReg,
+                                 unsigned Scale, raw_ostream &OS) {
+  bool NeedComma = false;
+  for (unsigned Start = 0; Start < 8;) {
+    if ((Mask & (1u << Start)) == 0) {
+      ++Start;
+      continue;
+    }
+
+    unsigned End = Start;
+    while (End + 1 < 8 && (Mask & (1u << (End + 1))))
+      ++End;
+
+    if (NeedComma)
+      OS << ", ";
+    OS << getPicoRegisterName(BaseReg + Start * Scale);
+    unsigned EndReg = BaseReg + End * Scale + Scale - 1;
+    if (EndReg != BaseReg + Start * Scale)
+      OS << "-" << getPicoRegisterName(EndReg);
+    NeedComma = true;
+    Start = End + 1;
+  }
+}
+
+void AVR32InstPrinter::printPicoRegListD(const MCInst *MI, unsigned OpNo,
+                                         raw_ostream &OS) {
+  const MCOperand &Op = MI->getOperand(OpNo);
+  assert(Op.isImm() && "PICO register list must be immediate mask");
+  printPicoRegListMask(static_cast<uint8_t>(Op.getImm()), 0, 2, OS);
+}
+
+void AVR32InstPrinter::printPicoRegListLow(const MCInst *MI, unsigned OpNo,
+                                           raw_ostream &OS) {
+  const MCOperand &Op = MI->getOperand(OpNo);
+  assert(Op.isImm() && "PICO register list must be immediate mask");
+  printPicoRegListMask(static_cast<uint8_t>(Op.getImm()), 0, 1, OS);
+}
+
+void AVR32InstPrinter::printPicoRegListHigh(const MCInst *MI, unsigned OpNo,
+                                            raw_ostream &OS) {
+  const MCOperand &Op = MI->getOperand(OpNo);
+  assert(Op.isImm() && "PICO register list must be immediate mask");
+  printPicoRegListMask(static_cast<uint16_t>(Op.getImm()) >> 8, 8, 1, OS);
 }
 
 static void printCoprocessorRegListMask(uint16_t Mask, unsigned BaseReg,
