@@ -17,6 +17,26 @@ int eq(int a, int b) {
   return a == b;
 }
 
+unsigned char bytes[4];
+int values[4];
+int sink;
+
+unsigned char *addr(void) {
+  return bytes;
+}
+
+int load_byte(void) {
+  return bytes[3];
+}
+
+int load_table(unsigned x) {
+  return values[x & 3];
+}
+
+void store_global(int v) {
+  sink = v;
+}
+
 __attribute__((optnone, noinline)) int pick(int a, int b) {
   if (a == b)
     return 1;
@@ -29,6 +49,14 @@ __attribute__((optnone, noinline)) int pick(int a, int b) {
 // CHECK: add nsw i32
 // CHECK: define {{.*}}i32 @eq(i32 {{.*}}, i32 {{.*}})
 // CHECK: icmp eq i32
+// CHECK: define {{.*}}ptr @addr()
+// CHECK: ret ptr @bytes
+// CHECK: define {{.*}}i32 @load_byte()
+// CHECK: load i8, ptr getelementptr
+// CHECK: define {{.*}}i32 @load_table(i32 {{.*}})
+// CHECK: load i32, ptr
+// CHECK: define {{.*}}void @store_global(i32 {{.*}})
+// CHECK: store i32
 // CHECK: define {{.*}}i32 @pick(i32 {{.*}}, i32 {{.*}})
 // CHECK: icmp eq i32
 
@@ -42,6 +70,27 @@ __attribute__((optnone, noinline)) int pick(int a, int b) {
 // ASM: breq .LBB
 // ASM: mov {{r[0-9]+}}, 0
 // ASM: andal r12
+// ASM: ret r12
+
+// ASM-LABEL: addr:
+// ASM: mov r12, bytes
+// ASM: ret r12
+
+// ASM-LABEL: load_byte:
+// ASM: mov {{r[0-9]+}}, 3
+// ASM: mov {{r[0-9]+}}, bytes
+// ASM: ld.ub r12, {{r[0-9]+}}[{{r[0-9]+}} << 0]
+// ASM: ret r12
+
+// ASM-LABEL: load_table:
+// ASM: andal
+// ASM: mov {{r[0-9]+}}, values
+// ASM: ld.w r12, {{r[0-9]+}}[{{r[0-9]+}} << 2]
+// ASM: ret r12
+
+// ASM-LABEL: store_global:
+// ASM: mov {{r[0-9]+}}, sink
+// ASM: st.w {{r[0-9]+}}[0], r12
 // ASM: ret r12
 
 // O0ASM-LABEL: add:
@@ -69,3 +118,7 @@ __attribute__((optnone, noinline)) int pick(int a, int b) {
 // O0ASM: ret r12
 
 // RELOC: R_AVR32_22H_PCREL add
+// RELOC: R_AVR32_21S bytes 0x0
+// RELOC: R_AVR32_21S bytes 0x0
+// RELOC: R_AVR32_21S values 0x0
+// RELOC: R_AVR32_21S sink 0x0

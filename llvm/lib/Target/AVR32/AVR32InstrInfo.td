@@ -346,6 +346,7 @@ def simm16 : Operand<i32>,
 def simm21 : Operand<i32>,
              ImmLeaf<i32, [{ return Imm >= -1048576 && Imm < 1048576; }]> {
   let ParserMatchClass = SImm21AsmOperand;
+  let EncoderMethod = "getSImm21OpValue";
 }
 
 def simm21shift1 : Operand<i32>,

@@ -34,6 +34,9 @@ public:
       return;
     }
 
+    if (selectGlobalAddress(Node))
+      return;
+
     if (selectStackLoadStore(Node))
       return;
 
@@ -51,6 +54,101 @@ public:
     return true;
   }
 
+  unsigned getLoadOpcode(EVT MemVT, ISD::LoadExtType ExtType) const {
+    if (MemVT == MVT::i32)
+      return AVR32::LD_W_Disp16;
+    if (MemVT == MVT::i8)
+      return ExtType == ISD::SEXTLOAD ? AVR32::LD_SB_Disp16
+                                      : AVR32::LD_UB_Disp16;
+    if (MemVT == MVT::i16)
+      return ExtType == ISD::SEXTLOAD ? AVR32::LD_SH_Disp16
+                                      : AVR32::LD_UH_Disp16;
+    return 0;
+  }
+
+  unsigned getIndexedLoadOpcode(EVT MemVT, ISD::LoadExtType ExtType) const {
+    if (MemVT == MVT::i32)
+      return AVR32::LD_W_IndexShift;
+    if (MemVT == MVT::i8)
+      return ExtType == ISD::SEXTLOAD ? AVR32::LD_SB_IndexShift
+                                      : AVR32::LD_UB_IndexShift;
+    if (MemVT == MVT::i16)
+      return ExtType == ISD::SEXTLOAD ? AVR32::LD_SH_IndexShift
+                                      : AVR32::LD_UH_IndexShift;
+    return 0;
+  }
+
+  unsigned getStoreOpcode(EVT MemVT) const {
+    if (MemVT == MVT::i32)
+      return AVR32::ST_W_Disp16;
+    if (MemVT == MVT::i16)
+      return AVR32::ST_H_Disp16;
+    if (MemVT == MVT::i8)
+      return AVR32::ST_B_Disp16;
+    return 0;
+  }
+
+  bool selectGlobalAddress(SDValue Addr, SDValue &Base, SDValue &Disp) {
+    auto *GA = dyn_cast<GlobalAddressSDNode>(Addr);
+    if (!GA)
+      return false;
+
+    SDLoc DL(Addr);
+    SDValue TargetGA = CurDAG->getTargetGlobalAddress(
+        GA->getGlobal(), DL, MVT::i32, GA->getOffset());
+    Base = SDValue(CurDAG->getMachineNode(AVR32::MOVri21, DL, MVT::i32,
+                                          TargetGA),
+                   0);
+    Disp = CurDAG->getTargetConstant(0, DL, MVT::i32);
+    return true;
+  }
+
+  bool selectGlobalIndexedAddress(SDValue Addr, SDValue &Base, SDValue &Index,
+                                  SDValue &Shift) {
+    if (Addr.getOpcode() != ISD::ADD)
+      return false;
+
+    SDValue LHS = Addr.getOperand(0);
+    SDValue RHS = Addr.getOperand(1);
+    if (!isa<GlobalAddressSDNode>(RHS))
+      std::swap(LHS, RHS);
+
+    auto *GA = dyn_cast<GlobalAddressSDNode>(RHS);
+    if (!GA)
+      return false;
+
+    uint64_t ShiftAmt = 0;
+    Index = LHS;
+    if (LHS.getOpcode() == ISD::SHL) {
+      auto *ShiftC = dyn_cast<ConstantSDNode>(LHS.getOperand(1));
+      if (!ShiftC || ShiftC->getZExtValue() > 3)
+        return false;
+      ShiftAmt = ShiftC->getZExtValue();
+      Index = LHS.getOperand(0);
+    }
+
+    SDLoc DL(Addr);
+    SDValue TargetGA = CurDAG->getTargetGlobalAddress(
+        GA->getGlobal(), DL, MVT::i32, GA->getOffset());
+    Base = SDValue(CurDAG->getMachineNode(AVR32::MOVri21, DL, MVT::i32,
+                                          TargetGA),
+                   0);
+    Shift = CurDAG->getTargetConstant(ShiftAmt, DL, MVT::i32);
+    return true;
+  }
+
+  bool selectGlobalAddress(SDNode *Node) {
+    if (Node->getOpcode() != ISD::GlobalAddress)
+      return false;
+
+    auto *GA = cast<GlobalAddressSDNode>(Node);
+    SDLoc DL(Node);
+    SDValue TargetGA = CurDAG->getTargetGlobalAddress(
+        GA->getGlobal(), DL, MVT::i32, GA->getOffset());
+    CurDAG->SelectNodeTo(Node, AVR32::MOVri21, MVT::i32, TargetGA);
+    return true;
+  }
+
   bool selectStackLoadStore(SDNode *Node) {
     SDLoc DL(Node);
     SDValue Base;
@@ -58,13 +156,29 @@ public:
 
     if (Node->getOpcode() == ISD::LOAD) {
       auto *LD = cast<LoadSDNode>(Node);
-      if (LD->getMemoryVT() != MVT::i32 ||
-          !selectFrameIndexAddress(LD->getBasePtr(), Base, Disp))
+      unsigned Opcode = getLoadOpcode(LD->getMemoryVT(), LD->getExtensionType());
+      unsigned IndexedOpcode =
+          getIndexedLoadOpcode(LD->getMemoryVT(), LD->getExtensionType());
+      SDValue Index;
+      SDValue Shift;
+      if (IndexedOpcode &&
+          selectGlobalIndexedAddress(LD->getBasePtr(), Base, Index, Shift)) {
+        SDValue Ops[] = {Base, Index, Shift, LD->getChain()};
+        SDNode *Result =
+            CurDAG->SelectNodeTo(Node, IndexedOpcode, MVT::i32, MVT::Other, Ops);
+        CurDAG->setNodeMemRefs(cast<MachineSDNode>(Result),
+                               {LD->getMemOperand()});
+        return true;
+      }
+
+      if (!Opcode ||
+          (!selectFrameIndexAddress(LD->getBasePtr(), Base, Disp) &&
+           !selectGlobalAddress(LD->getBasePtr(), Base, Disp)))
         return false;
 
       SDValue Ops[] = {Base, Disp, LD->getChain()};
-      SDNode *Result = CurDAG->SelectNodeTo(Node, AVR32::LD_W_Disp16, MVT::i32,
-                                           MVT::Other, Ops);
+      SDNode *Result =
+          CurDAG->SelectNodeTo(Node, Opcode, MVT::i32, MVT::Other, Ops);
       CurDAG->setNodeMemRefs(cast<MachineSDNode>(Result),
                              {LD->getMemOperand()});
       return true;
@@ -72,13 +186,14 @@ public:
 
     if (Node->getOpcode() == ISD::STORE) {
       auto *ST = cast<StoreSDNode>(Node);
-      if (ST->isTruncatingStore() || ST->getMemoryVT() != MVT::i32 ||
-          !selectFrameIndexAddress(ST->getBasePtr(), Base, Disp))
+      unsigned Opcode = getStoreOpcode(ST->getMemoryVT());
+      if (!Opcode ||
+          (!selectFrameIndexAddress(ST->getBasePtr(), Base, Disp) &&
+           !selectGlobalAddress(ST->getBasePtr(), Base, Disp)))
         return false;
 
       SDValue Ops[] = {Base, Disp, ST->getValue(), ST->getChain()};
-      SDNode *Result =
-          CurDAG->SelectNodeTo(Node, AVR32::ST_W_Disp16, MVT::Other, Ops);
+      SDNode *Result = CurDAG->SelectNodeTo(Node, Opcode, MVT::Other, Ops);
       CurDAG->setNodeMemRefs(cast<MachineSDNode>(Result),
                              {ST->getMemOperand()});
       return true;
