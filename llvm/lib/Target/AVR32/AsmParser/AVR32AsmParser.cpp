@@ -692,7 +692,9 @@ bool AVR32AsmParser::parseInstruction(ParseInstructionInfo &Info,
   } else if (Name == "sub") {
     if (parseSubOperands(Operands))
       return true;
-  } else if (Name == "paddsub.h" || Name == "paddsubh.sh" ||
+  } else if (Name == "machh.d" || Name == "machh.w" ||
+             Name == "mulhh.w" || Name == "mulnhh.w" ||
+             Name == "paddsub.h" || Name == "paddsubh.sh" ||
              Name == "paddsubs.sh" || Name == "paddsubs.uh" ||
              Name == "psubadd.h" || Name == "psubaddh.sh" ||
              Name == "psubadds.sh" || Name == "psubadds.uh" ||
