@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/BinaryFormat/ELF.h"
+#include "llvm/TargetParser/Triple.h"
 #include "gtest/gtest.h"
 
 using namespace llvm;
@@ -28,5 +29,11 @@ TEST(ELFTest, OSABI) {
   EXPECT_EQ("none", convertOSABIToName(ELFOSABI_NONE));
   // Test unrecognized values.
   EXPECT_EQ("none", convertOSABIToName(0xfe));
+}
+
+TEST(ELFTest, AVR32Machine) {
+  EXPECT_EQ(EM_AVR32, convertArchNameToEMachine("avr32"));
+  EXPECT_EQ("avr32", convertEMachineToArchName(EM_AVR32));
+  EXPECT_EQ(EM_AVR32, convertTripleArchTypeToEMachine(Triple::avr32));
 }
 } // namespace
