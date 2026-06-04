@@ -624,7 +624,8 @@ bool AVR32AsmParser::parseInstruction(ParseInstructionInfo &Info,
       Name == "eormi" || Name == "eorne" || Name == "eorpl" ||
       Name == "eorqs" || Name == "eorvc" || Name == "eorvs" ||
       Name == "lsl" ||
-      Name == "lsr" || Name == "max" || Name == "min" ||
+      Name == "lsr" || Name == "mac" || Name == "macs.d" ||
+      Name == "macu.d" || Name == "max" || Name == "min" ||
       Name == "oral" || Name == "orcc" || Name == "orcs" ||
       Name == "oreq" || Name == "orge" || Name == "orgt" ||
       Name == "orhi" || Name == "orhs" || Name == "orle" ||
