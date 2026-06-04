@@ -88,6 +88,11 @@ def UImm3AsmOperand : AsmOperandClass {
   let RenderMethod = "addImmOperands";
 }
 
+def UImm4AsmOperand : AsmOperandClass {
+  let Name = "UImm4";
+  let RenderMethod = "addImmOperands";
+}
+
 def UImm3Shift1AsmOperand : AsmOperandClass {
   let Name = "UImm3Shift1";
   let RenderMethod = "addImmOperands";
@@ -220,6 +225,10 @@ def uimm2 : Operand<i32>, ImmLeaf<i32, [{ return Imm >= 0 && Imm < 4; }]> {
 
 def uimm3 : Operand<i32>, ImmLeaf<i32, [{ return Imm >= 0 && Imm < 8; }]> {
   let ParserMatchClass = UImm3AsmOperand;
+}
+
+def uimm4 : Operand<i32>, ImmLeaf<i32, [{ return Imm >= 0 && Imm < 16; }]> {
+  let ParserMatchClass = UImm4AsmOperand;
 }
 
 def uimm3shift1 : Operand<i32>,
@@ -1265,6 +1274,36 @@ class FullRegRegRegShift<bits<10> Op, string Mnemonic>
   let Inst{3-0} = Rd;
 }
 
+class FullRegRegUImm3Shift<bits<12> Op, string Mnemonic>
+    : AVR32Inst32<(outs GPR:$Rd), (ins GPR:$Rs, uimm3:$Sa),
+                  Mnemonic#"\t$Rd, $Rs, $Sa"> {
+  bits<4> Rd;
+  bits<4> Rs;
+  bits<3> Sa;
+
+  let Inst{31-29} = 0b111;
+  let Inst{28-25} = Rs;
+  let Inst{24-19} = 0;
+  let Inst{18-16} = Sa;
+  let Inst{15-4} = Op;
+  let Inst{3-0} = Rd;
+}
+
+class FullRegRegUImm4Shift<bits<12> Op, string Mnemonic>
+    : AVR32Inst32<(outs GPR:$Rd), (ins GPR:$Rs, uimm4:$Sa),
+                  Mnemonic#"\t$Rd, $Rs, $Sa"> {
+  bits<4> Rd;
+  bits<4> Rs;
+  bits<4> Sa;
+
+  let Inst{31-29} = 0b111;
+  let Inst{28-25} = Rs;
+  let Inst{24-20} = 0;
+  let Inst{19-16} = Sa;
+  let Inst{15-4} = Op;
+  let Inst{3-0} = Rd;
+}
+
 class FullRegRegImm<bits<8> Op, string Mnemonic>
     : AVR32Inst32<(outs GPR:$Rd), (ins GPR:$Rs, simm8:$Imm),
                   Mnemonic#"\t$Rd, $Rs, $Imm"> {
@@ -1691,6 +1730,8 @@ def PADDX_Hrrr : FullRegRegReg<0b001000000010, "paddx.h">;
 def PADDXH_SHrrr : FullRegRegReg<0b001000001110, "paddxh.sh">;
 def PADDXS_UHrrr : FullRegRegReg<0b001000001010, "paddxs.uh">;
 def PADDXS_SHrrr : FullRegRegReg<0b001000000110, "paddxs.sh">;
+def PASR_Brri : FullRegRegUImm3Shift<0b001001000001, "pasr.b">;
+def PASR_Hrri : FullRegRegUImm4Shift<0b001001000100, "pasr.h">;
 def PREF : FullMemDisp16<0b111100100001, "pref">;
 def PSADrrr : FullRegRegReg<0b001001000000, "psad">;
 def PSUB_Brrr : FullRegRegReg<0b001000110001, "psub.b">;

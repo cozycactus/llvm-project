@@ -156,6 +156,13 @@ public:
     return Const && isUInt<3>(Const->getValue());
   }
 
+  bool isUImm4() const {
+    if (Kind != Immediate)
+      return false;
+    auto *Const = dyn_cast<MCConstantExpr>(Imm);
+    return Const && isUInt<4>(Const->getValue());
+  }
+
   bool isUImm3Shift1() const {
     if (Kind != Immediate)
       return false;
@@ -366,6 +373,7 @@ private:
   bool parseImmediateOperand(OperandVector &Operands);
   bool parseRegisterCommaRegister(OperandVector &Operands);
   bool parseRegisterCommaRegisterCommaRegister(OperandVector &Operands);
+  bool parseRegisterCommaRegisterCommaImmediate(OperandVector &Operands);
   bool parseRegisterCommaRegisterCommaRegisterOrImmediate(
       OperandVector &Operands);
   bool parseRegisterCommaRegisterCommaRegisterOrImmediateOperand(
@@ -509,6 +517,9 @@ bool AVR32AsmParser::parseInstruction(ParseInstructionInfo &Info,
       Name == "satadd.w" ||
       Name == "satsub.h" || Name == "sbc" || Name == "xchg") {
     if (parseRegisterCommaRegisterCommaRegister(Operands))
+      return true;
+  } else if (Name == "pasr.b" || Name == "pasr.h") {
+    if (parseRegisterCommaRegisterCommaImmediate(Operands))
       return true;
   } else if (Name == "satsub.w") {
     if (parseRegisterCommaRegisterCommaRegisterOrImmediateOperand(Operands))
@@ -784,6 +795,17 @@ bool AVR32AsmParser::parseRegisterCommaRegisterCommaRegister(
   if (!parseOptionalToken(AsmToken::Comma))
     return Error(getLexer().getLoc(), "expected comma");
   if (parseRegisterOperand(Operands))
+    return true;
+  return false;
+}
+
+bool AVR32AsmParser::parseRegisterCommaRegisterCommaImmediate(
+    OperandVector &Operands) {
+  if (parseRegisterCommaRegister(Operands))
+    return true;
+  if (!parseOptionalToken(AsmToken::Comma))
+    return Error(getLexer().getLoc(), "expected comma");
+  if (parseImmediateOperand(Operands))
     return true;
   return false;
 }
