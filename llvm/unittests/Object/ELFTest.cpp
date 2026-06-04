@@ -56,6 +56,26 @@ TEST(ELFTest, getELFRelocationTypeNameForVE) {
   EXPECT_EQ("R_VE_CALL_LO32", getELFRelocationTypeName(EM_VE, R_VE_CALL_LO32));
 }
 
+TEST(ELFTest, getELFRelocationTypeNameForAVR32) {
+  EXPECT_EQ("R_AVR32_NONE", getELFRelocationTypeName(EM_AVR32, R_AVR32_NONE));
+  EXPECT_EQ("R_AVR32_32", getELFRelocationTypeName(EM_AVR32, R_AVR32_32));
+  EXPECT_EQ("R_AVR32_21S", getELFRelocationTypeName(EM_AVR32, R_AVR32_21S));
+  EXPECT_EQ("R_AVR32_22H_PCREL",
+            getELFRelocationTypeName(EM_AVR32, R_AVR32_22H_PCREL));
+  EXPECT_EQ("R_AVR32_GOTPC",
+            getELFRelocationTypeName(EM_AVR32, R_AVR32_GOTPC));
+  EXPECT_EQ("R_AVR32_LDA_GOT",
+            getELFRelocationTypeName(EM_AVR32, R_AVR32_LDA_GOT));
+  EXPECT_EQ("R_AVR32_32_CPENT",
+            getELFRelocationTypeName(EM_AVR32, R_AVR32_32_CPENT));
+  EXPECT_EQ("R_AVR32_RELATIVE",
+            getELFRelocationTypeName(EM_AVR32, R_AVR32_RELATIVE));
+  EXPECT_EQ("R_AVR32_ALIGN",
+            getELFRelocationTypeName(EM_AVR32, R_AVR32_ALIGN));
+  EXPECT_EQ("R_AVR32_15S",
+            getELFRelocationTypeName(EM_AVR32, R_AVR32_15S));
+}
+
 TEST(ELFTest, getELFRelocationTypeNameForLoongArch) {
   EXPECT_EQ("R_LARCH_NONE",
             getELFRelocationTypeName(EM_LOONGARCH, R_LARCH_NONE));
