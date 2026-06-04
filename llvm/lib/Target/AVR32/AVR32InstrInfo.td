@@ -213,6 +213,11 @@ def CoprocessorRegListHighAsmOperand : AsmOperandClass {
   let RenderMethod = "addImmOperands";
 }
 
+def PicoInAsmOperand : AsmOperandClass {
+  let Name = "PicoIn";
+  let RenderMethod = "addImmOperands";
+}
+
 def ACallDispAsmOperand : AsmOperandClass {
   let Name = "ACallDisp";
   let RenderMethod = "addImmOperands";
@@ -457,6 +462,11 @@ def coprocessorreglisthigh : Operand<i32>,
                                                      Imm < 65536; }]> {
   let ParserMatchClass = CoprocessorRegListHighAsmOperand;
   let PrintMethod = "printCoprocessorRegListHigh";
+}
+
+def picoin : Operand<i32>, ImmLeaf<i32, [{ return Imm >= 0 && Imm < 12; }]> {
+  let ParserMatchClass = PicoInAsmOperand;
+  let PrintMethod = "printPicoIn";
 }
 
 def acalldisp : Operand<i32>,
@@ -1400,6 +1410,24 @@ class CoprocessorOp<string Mnemonic>
   let Inst{24-20} = 0b11010;
   let Inst{19-16} = Op{3-0};
   let Inst{15-13} = CP;
+  let Inst{12} = Op{6};
+  let Inst{11-8} = CRd;
+  let Inst{7-4} = CRx;
+  let Inst{3-0} = CRy;
+}
+
+class PicoCoprocessorOp<bits<7> Op, string Output, string Mnemonic>
+    : AVR32Inst32<(outs), (ins picoin:$CRd, picoin:$CRx, picoin:$CRy),
+                  Mnemonic#"\t"#Output#", $CRd, $CRx, $CRy"> {
+  bits<4> CRd;
+  bits<4> CRx;
+  bits<4> CRy;
+
+  let Inst{31-27} = 0b11100;
+  let Inst{26-25} = Op{5-4};
+  let Inst{24-20} = 0b11010;
+  let Inst{19-16} = Op{3-0};
+  let Inst{15-13} = 0b001;
   let Inst{12} = Op{6};
   let Inst{11-8} = CRd;
   let Inst{7-4} = CRx;
@@ -2480,6 +2508,10 @@ def CASTU_Hr : CompactReg<0b010111000111, "castu.h">;
 def CLZrr : FullRegReg<0b0001001000000000, "clz">;
 def COMr : CompactReg<0b010111001101, "com">;
 def COP : CoprocessorOp<"cop">;
+def PICOSVMUL0 : PicoCoprocessorOp<0x08, "out0", "picosvmul">;
+def PICOSVMUL1 : PicoCoprocessorOp<0x09, "out1", "picosvmul">;
+def PICOSVMUL2 : PicoCoprocessorOp<0x0a, "out2", "picosvmul">;
+def PICOSVMUL3 : PicoCoprocessorOp<0x0b, "out3", "picosvmul">;
 def CPCr : CompactRegNoOut<0b010111000010, "cpc">;
 def CPCrr : FullRegRegNoOut<0b0001001100000000, "cpc">;
 def CP_Brr : FullRegRegNoOut<0b0001100000000000, "cp.b">;

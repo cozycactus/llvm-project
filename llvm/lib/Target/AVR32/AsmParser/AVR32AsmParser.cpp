@@ -345,6 +345,13 @@ public:
            Const->getValue() % 2 == 0;
   }
 
+  bool isPicoIn() const {
+    if (Kind != Immediate)
+      return false;
+    auto *Const = dyn_cast<MCConstantExpr>(Imm);
+    return Const && Const->getValue() >= 0 && Const->getValue() < 12;
+  }
+
   bool isACallDisp() const {
     if (Kind != Immediate)
       return false;
@@ -524,6 +531,8 @@ private:
                                             bool IsDouble);
   bool parseCoprocessorStoreMultipleOperands(OperandVector &Operands,
                                              bool IsDouble);
+  bool parsePicoInOperand(OperandVector &Operands);
+  bool parsePicoMulOperands(OperandVector &Operands);
   bool parseMemoryDispOrIndexSuffix(OperandVector &Operands);
   bool parseMemoryDispOrIndexOperand(OperandVector &Operands);
   bool parseMemoryDispOrPostIncOperand(OperandVector &Operands);
@@ -742,6 +751,9 @@ bool AVR32AsmParser::parseInstruction(ParseInstructionInfo &Info,
       return true;
   } else if (Name == "cop") {
     if (parseCoprocessorOperationOperands(Operands))
+      return true;
+  } else if (Name == "picosvmul") {
+    if (parsePicoMulOperands(Operands))
       return true;
   } else if (Name == "ldc.d" || Name == "ldc.w") {
     if (parseCoprocessorLoadOperands(Operands))
@@ -1079,6 +1091,53 @@ bool AVR32AsmParser::parseCoprocessorOperationOperands(
   if (!parseOptionalToken(AsmToken::Comma))
     return Error(getLexer().getLoc(), "expected comma");
   return parseImmediateOperand(Operands);
+}
+
+bool AVR32AsmParser::parsePicoInOperand(OperandVector &Operands) {
+  SMLoc StartLoc = getLexer().getLoc();
+  if (getLexer().isNot(AsmToken::Identifier))
+    return Error(StartLoc, "expected PICO input");
+
+  unsigned Number;
+  if (parsePrefixedNumber(getLexer().getTok().getString(), "in", 11, Number))
+    return Error(StartLoc, "expected PICO input");
+
+  getLexer().Lex();
+  const MCExpr *Expr = MCConstantExpr::create(Number, getContext());
+  Operands.push_back(
+      AVR32Operand::createImm(Expr, StartLoc, getLexer().getLoc()));
+  return false;
+}
+
+bool AVR32AsmParser::parsePicoMulOperands(OperandVector &Operands) {
+  SMLoc StartLoc = getLexer().getLoc();
+  if (getLexer().isNot(AsmToken::Identifier))
+    return Error(StartLoc, "expected PICO output");
+
+  StringRef Output = getLexer().getTok().getString();
+  std::string LowerStorage = Output.lower();
+  StringRef Lower = LowerStorage;
+  StringRef OutputToken;
+  if (Lower == "out0")
+    OutputToken = "out0";
+  else if (Lower == "out1")
+    OutputToken = "out1";
+  else if (Lower == "out2")
+    OutputToken = "out2";
+  else if (Lower == "out3")
+    OutputToken = "out3";
+  else
+    return Error(StartLoc, "expected PICO output");
+
+  Operands.push_back(AVR32Operand::createToken(OutputToken, StartLoc));
+  getLexer().Lex();
+  for (unsigned I = 0; I < 3; ++I) {
+    if (!parseOptionalToken(AsmToken::Comma))
+      return Error(getLexer().getLoc(), "expected comma");
+    if (parsePicoInOperand(Operands))
+      return true;
+  }
+  return false;
 }
 
 bool AVR32AsmParser::parseCoprocessorLoadOperands(OperandVector &Operands) {

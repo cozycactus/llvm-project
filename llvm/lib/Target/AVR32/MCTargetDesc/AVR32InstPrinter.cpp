@@ -128,6 +128,13 @@ void AVR32InstPrinter::printCoprocessorRegister(const MCInst *MI,
   OS << "cr" << Op.getImm();
 }
 
+void AVR32InstPrinter::printPicoIn(const MCInst *MI, unsigned OpNo,
+                                   raw_ostream &OS) {
+  const MCOperand &Op = MI->getOperand(OpNo);
+  assert(Op.isImm() && "PICO input must be immediate");
+  OS << "in" << Op.getImm();
+}
+
 static void printCoprocessorRegListMask(uint16_t Mask, unsigned BaseReg,
                                         unsigned Scale, raw_ostream &OS) {
   bool NeedComma = false;
