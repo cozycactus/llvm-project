@@ -168,6 +168,11 @@ def RegList16AsmOperand : AsmOperandClass {
   let RenderMethod = "addImmOperands";
 }
 
+def RegList8AsmOperand : AsmOperandClass {
+  let Name = "RegList8";
+  let RenderMethod = "addImmOperands";
+}
+
 def ACallDispAsmOperand : AsmOperandClass {
   let Name = "ACallDisp";
   let RenderMethod = "addImmOperands";
@@ -355,6 +360,12 @@ def reglist16 : Operand<i32>,
                 ImmLeaf<i32, [{ return Imm > 0 && Imm < 65536; }]> {
   let ParserMatchClass = RegList16AsmOperand;
   let PrintMethod = "printRegList16";
+}
+
+def reglist8 : Operand<i32>,
+               ImmLeaf<i32, [{ return Imm > 0 && Imm < 256; }]> {
+  let ParserMatchClass = RegList8AsmOperand;
+  let PrintMethod = "printRegList8";
 }
 
 def acalldisp : Operand<i32>,
@@ -1176,6 +1187,22 @@ class FullRegList<bits<3> Op, bit Update, string Asm>
   let Inst{15-0} = Mask;
 }
 
+class CompactRegList8<bits<4> Low, string Mnemonic>
+    : AVR32Inst<0, (outs), (ins reglist8:$Mask), Mnemonic#"\t$Mask"> {
+  bits<8> Mask;
+
+  let Inst{15-12} = 0b1101;
+  let Inst{11} = Mask{7};
+  let Inst{10} = Mask{6};
+  let Inst{9} = Mask{5};
+  let Inst{8} = Mask{4};
+  let Inst{7} = Mask{3};
+  let Inst{6} = Mask{2};
+  let Inst{5} = Mask{1};
+  let Inst{4} = Mask{0};
+  let Inst{3-0} = Low;
+}
+
 def LD_W_PostInc : CompactLoadPostInc<0b10000, "ld.w">;
 def LD_W_PreDec : CompactLoadPreDec<0b10100, "ld.w">;
 def LD_W_Disp5 : CompactLoadDisp5Shift2<"ld.w">;
@@ -1965,7 +1992,9 @@ def PSUBXS_UHrrr : FullRegRegReg<0b001000001011, "psubxs.uh">;
 def PSUBXS_SHrrr : FullRegRegReg<0b001000000111, "psubxs.sh">;
 def PUNPCKUB_H : FullRegRegHalf<0b00100100100, "punpckub.h">;
 def PUNPCKSB_H : FullRegRegHalf<0b00100100101, "punpcksb.h">;
+def POPM : CompactRegList8<0b0010, "popm">;
 def POPJC : AVR32Inst<0b1101011100010011, (outs), (ins), "popjc">;
+def PUSHM : CompactRegList8<0b0001, "pushm">;
 def PUSHJC : AVR32Inst<0b1101011100100011, (outs), (ins), "pushjc">;
 def RJMP : CompactPCRel10<0b10, "rjmp">;
 let isBarrier = 1, isReturn = 1, isTerminator = 1 in {

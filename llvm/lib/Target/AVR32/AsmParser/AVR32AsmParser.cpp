@@ -279,6 +279,13 @@ public:
     return Const && Const->getValue() > 0 && Const->getValue() < 65536;
   }
 
+  bool isRegList8() const {
+    if (Kind != Immediate)
+      return false;
+    auto *Const = dyn_cast<MCConstantExpr>(Imm);
+    return Const && Const->getValue() > 0 && Const->getValue() < 256;
+  }
+
   bool isACallDisp() const {
     if (Kind != Immediate)
       return false;
@@ -437,6 +444,7 @@ private:
   bool parseLoadMultipleOperands(OperandVector &Operands);
   bool parseStoreMultipleOperands(OperandVector &Operands);
   bool parseRegList16Operand(OperandVector &Operands);
+  bool parseRegList8Operand(OperandVector &Operands);
   bool parseMemoryDispOperand(OperandVector &Operands);
   bool parseMemoryDispCommaImmediate(OperandVector &Operands);
   bool parseRegisterCommaImmediate(OperandVector &Operands);
@@ -674,6 +682,9 @@ bool AVR32AsmParser::parseInstruction(ParseInstructionInfo &Info,
       return true;
   } else if (Name == "memc" || Name == "mems" || Name == "memt") {
     if (parseImmediateCommaImmediate(Operands))
+      return true;
+  } else if (Name == "popm" || Name == "pushm") {
+    if (parseRegList8Operand(Operands))
       return true;
   } else if (Name == "ldins.b" || Name == "ldins.h") {
     if (parseLoadInsertOperands(Operands, Name == "ldins.b"))
@@ -1398,6 +1409,79 @@ bool AVR32AsmParser::parseRegList16Operand(OperandVector &Operands) {
 
     for (int Bit = StartBit; Bit <= EndBit; ++Bit)
       Mask |= 1u << Bit;
+
+    if (getLexer().is(AsmToken::EndOfStatement))
+      break;
+    if (!parseOptionalToken(AsmToken::Comma))
+      return Error(getLexer().getLoc(), "expected comma");
+  }
+
+  const MCExpr *MaskExpr = MCConstantExpr::create(Mask, getContext());
+  Operands.push_back(
+      AVR32Operand::createImm(MaskExpr, StartLoc, getLexer().getLoc()));
+  return false;
+}
+
+static int getRegList8Bit(int StartBit, int EndBit) {
+  if (StartBit == 0 && EndBit == 3)
+    return 0;
+  if (StartBit == 4 && EndBit == 7)
+    return 1;
+  if (StartBit == 8 && EndBit == 9)
+    return 2;
+  if (StartBit == 10 && EndBit == 10)
+    return 3;
+  if (StartBit == 11 && EndBit == 11)
+    return 4;
+  if (StartBit == 12 && EndBit == 12)
+    return 5;
+  if (StartBit == 14 && EndBit == 14)
+    return 6;
+  if (StartBit == 15 && EndBit == 15)
+    return 7;
+  return -1;
+}
+
+bool AVR32AsmParser::parseRegList8Operand(OperandVector &Operands) {
+  SMLoc StartLoc = getLexer().getLoc();
+  unsigned Mask = 0;
+
+  while (true) {
+    MCRegister StartReg;
+    SMLoc RegStartLoc;
+    SMLoc RegEndLoc;
+    ParseStatus Status = tryParseRegister(StartReg, RegStartLoc, RegEndLoc);
+    if (Status.isNoMatch())
+      return Error(getLexer().getLoc(), "expected register in register list");
+    if (Status.isFailure())
+      return true;
+
+    int StartBit = getRegList16Bit(StartReg);
+    if (StartBit < 0)
+      return Error(RegStartLoc, "invalid register in register list");
+
+    int EndBit = StartBit;
+    if (parseOptionalToken(AsmToken::Minus)) {
+      MCRegister EndReg;
+      SMLoc EndRegStartLoc;
+      SMLoc EndRegEndLoc;
+      Status = tryParseRegister(EndReg, EndRegStartLoc, EndRegEndLoc);
+      if (Status.isNoMatch())
+        return Error(getLexer().getLoc(), "expected register after -");
+      if (Status.isFailure())
+        return true;
+
+      EndBit = getRegList16Bit(EndReg);
+      if (EndBit < 0)
+        return Error(EndRegStartLoc, "invalid register in register list");
+      if (EndBit < StartBit)
+        return Error(EndRegStartLoc, "register range must be ascending");
+    }
+
+    int RegListBit = getRegList8Bit(StartBit, EndBit);
+    if (RegListBit < 0)
+      return Error(RegStartLoc, "invalid popm/pushm register-list group");
+    Mask |= 1u << RegListBit;
 
     if (getLexer().is(AsmToken::EndOfStatement))
       break;

@@ -93,3 +93,22 @@ void AVR32InstPrinter::printRegList16(const MCInst *MI, unsigned OpNo,
     Start = End + 1;
   }
 }
+
+void AVR32InstPrinter::printRegList8(const MCInst *MI, unsigned OpNo,
+                                     raw_ostream &OS) {
+  const MCOperand &Op = MI->getOperand(OpNo);
+  assert(Op.isImm() && "register list must be immediate mask");
+  static const char *Groups[] = {"r0-r3", "r4-r7", "r8-r9", "r10",
+                                 "r11",   "r12",   "lr",    "pc"};
+  uint8_t Mask = static_cast<uint8_t>(Op.getImm());
+  bool NeedComma = false;
+
+  for (unsigned Bit = 0; Bit < 8; ++Bit) {
+    if ((Mask & (1u << Bit)) == 0)
+      continue;
+    if (NeedComma)
+      OS << ", ";
+    OS << Groups[Bit];
+    NeedComma = true;
+  }
+}
