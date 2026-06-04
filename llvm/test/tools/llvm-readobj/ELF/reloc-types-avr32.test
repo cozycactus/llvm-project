@@ -56,6 +56,9 @@
 # GNU-NEXT: 00000000  00000000 R_AVR32_NONE                      0
 # GNU:      00000000  00000012 R_AVR32_22H_PCREL                 0
 # GNU:      00000000  00000017 R_AVR32_11H_PCREL                 0
+# GNU:      00000000  00000028 R_AVR32_RELATIVE                  0
+# GNU:      00000000  00000029 R_AVR32_GLOB_DAT                  0
+# GNU:      00000000  0000002a R_AVR32_JMP_SLOT                  0
 # GNU:      00000000  0000002c R_AVR32_15S                       0
 
 --- !ELF
