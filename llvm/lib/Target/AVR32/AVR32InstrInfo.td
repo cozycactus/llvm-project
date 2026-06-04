@@ -1965,6 +1965,21 @@ class FullRegRegReg<bits<12> Op, string Mnemonic>
   let Inst{3-0} = Rd;
 }
 
+class FullFPURegRegReg<bits<4> Op, string Mnemonic>
+    : AVR32Inst32<(outs GPR:$Rd), (ins GPR:$Rx, GPR:$Ry),
+                  Mnemonic#"\t$Rd, $Rx, $Ry"> {
+  bits<4> Rd;
+  bits<4> Rx;
+  bits<4> Ry;
+
+  let Inst{31-20} = 0b111001011010;
+  let Inst{19-16} = Op;
+  let Inst{15-12} = 0;
+  let Inst{11-8} = Rd;
+  let Inst{7-4} = Rx;
+  let Inst{3-0} = Ry;
+}
+
 class FullRegRegHalfRegHalf<bits<10> Op, string Mnemonic>
     : AVR32Inst32<(outs GPR:$Rd), (ins GPR:$Rx, halfpart:$XPart, GPR:$Ry,
                                        halfpart:$YPart),
@@ -2443,6 +2458,10 @@ def EORVCrrr : CondRRR<0b1101, 0b0100, "eorvc">;
 def EORQSrrr : CondRRR<0b1110, 0b0100, "eorqs">;
 def EORrr : CompactRegReg<0b00101, "eor">;
 def FRS : AVR32Inst<0b1101011101000011, (outs), (ins), "frs">;
+def FADD_Srrr : FullFPURegRegReg<0b0000, "fadd.s">;
+def FNMUL_Srrr : FullFPURegRegReg<0b0011, "fnmul.s">;
+def FMUL_Srrr : FullFPURegRegReg<0b0010, "fmul.s">;
+def FSUB_Srrr : FullFPURegRegReg<0b0001, "fsub.s">;
 def ICALLr : CompactRegNoOut<0b010111010001, "icall">;
 def LDM : FullRegList<0b000, 0, "ldm\t$Rp, $Mask">;
 def LDM_UPD : FullRegList<0b000, 1, "ldm\t${Rp}++, $Mask">;
