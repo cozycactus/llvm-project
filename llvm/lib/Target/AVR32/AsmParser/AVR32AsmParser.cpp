@@ -360,6 +360,14 @@ public:
     return Const && Const->getValue() >= 0 && Const->getValue() < 16;
   }
 
+  bool isPicoEvenRegister() const {
+    if (Kind != Immediate)
+      return false;
+    auto *Const = dyn_cast<MCConstantExpr>(Imm);
+    return Const && Const->getValue() >= 0 && Const->getValue() < 16 &&
+           Const->getValue() % 2 == 0;
+  }
+
   bool isACallDisp() const {
     if (Kind != Immediate)
       return false;
@@ -542,7 +550,7 @@ private:
   bool parsePicoRegisterOperand(OperandVector &Operands);
   bool parsePicoInOperand(OperandVector &Operands);
   bool parsePicoArithmeticOperands(OperandVector &Operands);
-  bool parsePicoMoveWOperands(OperandVector &Operands);
+  bool parsePicoMoveOperands(OperandVector &Operands);
   bool parseMemoryDispOrIndexSuffix(OperandVector &Operands);
   bool parseMemoryDispOrIndexOperand(OperandVector &Operands);
   bool parseMemoryDispOrPostIncOperand(OperandVector &Operands);
@@ -759,8 +767,8 @@ bool AVR32AsmParser::parseInstruction(ParseInstructionInfo &Info,
   } else if (Name == "mvrc.d" || Name == "mvrc.w") {
     if (parseCoprocessorCommaCoprocessorRegisterCommaRegister(Operands))
       return true;
-  } else if (Name == "picomv.w") {
-    if (parsePicoMoveWOperands(Operands))
+  } else if (Name == "picomv.d" || Name == "picomv.w") {
+    if (parsePicoMoveOperands(Operands))
       return true;
   } else if (Name == "cop") {
     if (parseCoprocessorOperationOperands(Operands))
@@ -1151,7 +1159,7 @@ bool AVR32AsmParser::parsePicoRegisterOperand(OperandVector &Operands) {
   return false;
 }
 
-bool AVR32AsmParser::parsePicoMoveWOperands(OperandVector &Operands) {
+bool AVR32AsmParser::parsePicoMoveOperands(OperandVector &Operands) {
   SMLoc StartLoc = getLexer().getLoc();
   if (getLexer().isNot(AsmToken::Identifier))
     return Error(StartLoc, "expected register");

@@ -223,6 +223,11 @@ def PicoRegisterAsmOperand : AsmOperandClass {
   let RenderMethod = "addImmOperands";
 }
 
+def PicoEvenRegisterAsmOperand : AsmOperandClass {
+  let Name = "PicoEvenRegister";
+  let RenderMethod = "addImmOperands";
+}
+
 def ACallDispAsmOperand : AsmOperandClass {
   let Name = "ACallDisp";
   let RenderMethod = "addImmOperands";
@@ -476,6 +481,13 @@ def picoin : Operand<i32>, ImmLeaf<i32, [{ return Imm >= 0 && Imm < 12; }]> {
 
 def picoreg : Operand<i32>, ImmLeaf<i32, [{ return Imm >= 0 && Imm < 16; }]> {
   let ParserMatchClass = PicoRegisterAsmOperand;
+  let PrintMethod = "printPicoRegister";
+}
+
+def picoevenreg : Operand<i32>,
+                  ImmLeaf<i32, [{ return Imm >= 0 && Imm < 16 &&
+                                         Imm % 2 == 0; }]> {
+  let ParserMatchClass = PicoEvenRegisterAsmOperand;
   let PrintMethod = "printPicoRegister";
 }
 
@@ -1384,7 +1396,7 @@ class MoveRegToCopRegD<string Mnemonic>
   let Inst{12} = 0;
   let Inst{11-9} = CRd{3-1};
   let Inst{8} = 0;
-  let Inst{7-0} = 0b00011000;
+  let Inst{7-0} = 0b00110000;
 }
 
 class MoveRegToCopRegW<string Mnemonic>
@@ -1404,6 +1416,24 @@ class MoveRegToCopRegW<string Mnemonic>
   let Inst{7-0} = 0b00100000;
 }
 
+class PicoMoveCopRegToRegD<string Mnemonic>
+    : AVR32Inst32<(outs GPREven:$Rd), (ins picoevenreg:$CRs),
+                  Mnemonic#"\t$Rd, $CRs"> {
+  bits<4> Rd;
+  bits<4> CRs;
+
+  let Inst{31-29} = 0b111;
+  let Inst{28-25} = 0b0111;
+  let Inst{24-20} = 0b11010;
+  let Inst{19-17} = Rd{3-1};
+  let Inst{16} = 0;
+  let Inst{15-13} = 0b001;
+  let Inst{12} = 0;
+  let Inst{11-9} = CRs{3-1};
+  let Inst{8} = 0;
+  let Inst{7-0} = 0b00010000;
+}
+
 class PicoMoveCopRegToRegW<string Mnemonic>
     : AVR32Inst32<(outs GPR:$Rd), (ins picoreg:$CRs),
                   Mnemonic#"\t$Rd, $CRs"> {
@@ -1418,6 +1448,24 @@ class PicoMoveCopRegToRegW<string Mnemonic>
   let Inst{12} = 0;
   let Inst{11-8} = CRs;
   let Inst{7-0} = 0;
+}
+
+class PicoMoveRegToCopRegD<string Mnemonic>
+    : AVR32Inst32<(outs), (ins picoevenreg:$CRd, GPREven:$Rs),
+                  Mnemonic#"\t$CRd, $Rs"> {
+  bits<4> CRd;
+  bits<4> Rs;
+
+  let Inst{31-29} = 0b111;
+  let Inst{28-25} = 0b0111;
+  let Inst{24-20} = 0b11010;
+  let Inst{19-17} = Rs{3-1};
+  let Inst{16} = 0;
+  let Inst{15-13} = 0b001;
+  let Inst{12} = 0;
+  let Inst{11-9} = CRd{3-1};
+  let Inst{8} = 0;
+  let Inst{7-0} = 0b00110000;
 }
 
 class PicoMoveRegToCopRegW<string Mnemonic>
@@ -2566,6 +2614,8 @@ def PICOSVMAC0 : PicoCoprocessorOp<0x0c, "out0", "picosvmac">;
 def PICOSVMAC1 : PicoCoprocessorOp<0x0d, "out1", "picosvmac">;
 def PICOSVMAC2 : PicoCoprocessorOp<0x0e, "out2", "picosvmac">;
 def PICOSVMAC3 : PicoCoprocessorOp<0x0f, "out3", "picosvmac">;
+def PICOMV_D_FromReg : PicoMoveRegToCopRegD<"picomv.d">;
+def PICOMV_D_ToReg : PicoMoveCopRegToRegD<"picomv.d">;
 def PICOMV_W_FromReg : PicoMoveRegToCopRegW<"picomv.w">;
 def PICOMV_W_ToReg : PicoMoveCopRegToRegW<"picomv.w">;
 def CPCr : CompactRegNoOut<0b010111000010, "cpc">;

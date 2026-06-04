@@ -288,6 +288,8 @@ TEST(AVR32TargetInfo, LookupTarget) {
   EXPECT_EQ(MII->get(AVR32::MVCRw).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::MVRCd).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::MVRCw).getSize(), 4u);
+  EXPECT_EQ(MII->get(AVR32::PICOMV_D_FromReg).getSize(), 4u);
+  EXPECT_EQ(MII->get(AVR32::PICOMV_D_ToReg).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::PICOMV_W_FromReg).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::PICOMV_W_ToReg).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::LDC_D_Disp).getSize(), 4u);
@@ -6506,6 +6508,38 @@ TEST(AVR32TargetInfo, LookupTarget) {
   EXPECT_EQ(static_cast<uint8_t>(Code[2]), 0x43);
   EXPECT_EQ(static_cast<uint8_t>(Code[3]), 0x00);
 
+  MCInst PicomvDFromReg;
+  PicomvDFromReg.setOpcode(AVR32::PICOMV_D_FromReg);
+  PicomvDFromReg.addOperand(MCOperand::createImm(14));
+  PicomvDFromReg.addOperand(MCOperand::createReg(AVR32::LR));
+
+  Code.clear();
+  Fixups.clear();
+  MCE->encodeInstruction(PicomvDFromReg, Code, Fixups, *STI);
+
+  EXPECT_TRUE(Fixups.empty());
+  ASSERT_EQ(Code.size(), 4u);
+  EXPECT_EQ(static_cast<uint8_t>(Code[0]), 0xef);
+  EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0xae);
+  EXPECT_EQ(static_cast<uint8_t>(Code[2]), 0x2e);
+  EXPECT_EQ(static_cast<uint8_t>(Code[3]), 0x30);
+
+  MCInst PicomvDToReg;
+  PicomvDToReg.setOpcode(AVR32::PICOMV_D_ToReg);
+  PicomvDToReg.addOperand(MCOperand::createReg(AVR32::LR));
+  PicomvDToReg.addOperand(MCOperand::createImm(14));
+
+  Code.clear();
+  Fixups.clear();
+  MCE->encodeInstruction(PicomvDToReg, Code, Fixups, *STI);
+
+  EXPECT_TRUE(Fixups.empty());
+  ASSERT_EQ(Code.size(), 4u);
+  EXPECT_EQ(static_cast<uint8_t>(Code[0]), 0xef);
+  EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0xae);
+  EXPECT_EQ(static_cast<uint8_t>(Code[2]), 0x2e);
+  EXPECT_EQ(static_cast<uint8_t>(Code[3]), 0x10);
+
   MCInst PicomvWFromReg;
   PicomvWFromReg.setOpcode(AVR32::PICOMV_W_FromReg);
   PicomvWFromReg.addOperand(MCOperand::createImm(15));
@@ -6553,7 +6587,7 @@ TEST(AVR32TargetInfo, LookupTarget) {
   EXPECT_EQ(static_cast<uint8_t>(Code[0]), 0xef);
   EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0xa2);
   EXPECT_EQ(static_cast<uint8_t>(Code[2]), 0x40);
-  EXPECT_EQ(static_cast<uint8_t>(Code[3]), 0x18);
+  EXPECT_EQ(static_cast<uint8_t>(Code[3]), 0x30);
 
   MCInst MvrcW;
   MvrcW.setOpcode(AVR32::MVRCw);
@@ -9162,6 +9196,20 @@ TEST(AVR32TargetInfo, LookupTarget) {
   EXPECT_EQ(Printed, "\tpicosvmac\tout3, in9, in10, in11");
 
   Printed.clear();
+  raw_string_ostream PicomvDFromRegOS(Printed);
+  InstPrinter->printInst(&PicomvDFromReg, /*Address=*/0, /*Annot=*/"", *STI,
+                         PicomvDFromRegOS);
+  PicomvDFromRegOS.flush();
+  EXPECT_EQ(Printed, "\tpicomv.d\tvmu2_out, lr");
+
+  Printed.clear();
+  raw_string_ostream PicomvDToRegOS(Printed);
+  InstPrinter->printInst(&PicomvDToReg, /*Address=*/0, /*Annot=*/"", *STI,
+                         PicomvDToRegOS);
+  PicomvDToRegOS.flush();
+  EXPECT_EQ(Printed, "\tpicomv.d\tlr, vmu2_out");
+
+  Printed.clear();
   raw_string_ostream PicomvWFromRegOS(Printed);
   InstPrinter->printInst(&PicomvWFromReg, /*Address=*/0, /*Annot=*/"", *STI,
                          PicomvWFromRegOS);
@@ -9406,6 +9454,8 @@ TEST(AVR32TargetInfo, LookupTarget) {
           "ldc.w cp2, cr3, r2[r3 << 2]\n"
           "stc.d cp2, r2[r3 << 1], cr0\n"
           "stc.w cp2, r2[r3 << 2], cr3\n"
+          "picomv.d vmu2_out, lr\n"
+          "picomv.d lr, vmu2_out\n"
           "picomv.w config, pc\n"
           "picomv.w r0, inpix2\n"
           "picovmul out3, in9, in10, in11\n"
