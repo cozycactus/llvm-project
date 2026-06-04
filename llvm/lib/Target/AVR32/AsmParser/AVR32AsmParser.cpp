@@ -809,6 +809,8 @@ bool AVR32AsmParser::parseInstruction(ParseInstructionInfo &Info,
              Name == "ld.shlt" || Name == "ld.shmi" || Name == "ld.shne" ||
              Name == "ld.shpl" || Name == "ld.shqs" || Name == "ld.shvc" ||
              Name == "ld.shvs" ||
+             Name == "ldswp.sh" || Name == "ldswp.uh" ||
+             Name == "ldswp.w" ||
              Name == "ld.uh" || Name == "ld.uhal" || Name == "ld.uhcc" ||
              Name == "ld.uhcs" || Name == "ld.uheq" || Name == "ld.uhge" ||
              Name == "ld.uhgt" || Name == "ld.uhhi" || Name == "ld.uhhs" ||

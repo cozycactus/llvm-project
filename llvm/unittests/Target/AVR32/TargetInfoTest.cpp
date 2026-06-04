@@ -470,6 +470,9 @@ TEST(AVR32TargetInfo, LookupTarget) {
   EXPECT_EQ(MII->get(AVR32::LDDSP).getSize(), 2u);
   EXPECT_EQ(MII->get(AVR32::LDINS_B).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::LDINS_H).getSize(), 4u);
+  EXPECT_EQ(MII->get(AVR32::LDSWP_SH_Disp12).getSize(), 4u);
+  EXPECT_EQ(MII->get(AVR32::LDSWP_UH_Disp12).getSize(), 4u);
+  EXPECT_EQ(MII->get(AVR32::LDSWP_W_Disp12).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::LD_SB_Disp16).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::LD_SB_IndexShift).getSize(), 4u);
   EXPECT_EQ(MII->get(AVR32::LD_SB_AL_Disp9).getSize(), 4u);
@@ -1860,6 +1863,57 @@ TEST(AVR32TargetInfo, LookupTarget) {
   EXPECT_EQ(static_cast<uint8_t>(Code[0]), 0xe5);
   EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0xd1);
   EXPECT_EQ(static_cast<uint8_t>(Code[2]), 0x1f);
+  EXPECT_EQ(static_cast<uint8_t>(Code[3]), 0xff);
+
+  MCInst LdswpSHDisp12;
+  LdswpSHDisp12.setOpcode(AVR32::LDSWP_SH_Disp12);
+  LdswpSHDisp12.addOperand(MCOperand::createReg(AVR32::R1));
+  LdswpSHDisp12.addOperand(MCOperand::createReg(AVR32::R2));
+  LdswpSHDisp12.addOperand(MCOperand::createImm(-2));
+
+  Code.clear();
+  Fixups.clear();
+  MCE->encodeInstruction(LdswpSHDisp12, Code, Fixups, *STI);
+
+  EXPECT_TRUE(Fixups.empty());
+  ASSERT_EQ(Code.size(), 4u);
+  EXPECT_EQ(static_cast<uint8_t>(Code[0]), 0xe5);
+  EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0xd1);
+  EXPECT_EQ(static_cast<uint8_t>(Code[2]), 0x2f);
+  EXPECT_EQ(static_cast<uint8_t>(Code[3]), 0xff);
+
+  MCInst LdswpUHDisp12;
+  LdswpUHDisp12.setOpcode(AVR32::LDSWP_UH_Disp12);
+  LdswpUHDisp12.addOperand(MCOperand::createReg(AVR32::R1));
+  LdswpUHDisp12.addOperand(MCOperand::createReg(AVR32::R2));
+  LdswpUHDisp12.addOperand(MCOperand::createImm(-2));
+
+  Code.clear();
+  Fixups.clear();
+  MCE->encodeInstruction(LdswpUHDisp12, Code, Fixups, *STI);
+
+  EXPECT_TRUE(Fixups.empty());
+  ASSERT_EQ(Code.size(), 4u);
+  EXPECT_EQ(static_cast<uint8_t>(Code[0]), 0xe5);
+  EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0xd1);
+  EXPECT_EQ(static_cast<uint8_t>(Code[2]), 0x3f);
+  EXPECT_EQ(static_cast<uint8_t>(Code[3]), 0xff);
+
+  MCInst LdswpWDisp12;
+  LdswpWDisp12.setOpcode(AVR32::LDSWP_W_Disp12);
+  LdswpWDisp12.addOperand(MCOperand::createReg(AVR32::R1));
+  LdswpWDisp12.addOperand(MCOperand::createReg(AVR32::R2));
+  LdswpWDisp12.addOperand(MCOperand::createImm(-4));
+
+  Code.clear();
+  Fixups.clear();
+  MCE->encodeInstruction(LdswpWDisp12, Code, Fixups, *STI);
+
+  EXPECT_TRUE(Fixups.empty());
+  ASSERT_EQ(Code.size(), 4u);
+  EXPECT_EQ(static_cast<uint8_t>(Code[0]), 0xe5);
+  EXPECT_EQ(static_cast<uint8_t>(Code[1]), 0xd1);
+  EXPECT_EQ(static_cast<uint8_t>(Code[2]), 0x8f);
   EXPECT_EQ(static_cast<uint8_t>(Code[3]), 0xff);
 
   MCInst LdSBDisp16;
@@ -6593,6 +6647,27 @@ TEST(AVR32TargetInfo, LookupTarget) {
   EXPECT_EQ(Printed, "\tld.shal\tr1, r2[6]");
 
   Printed.clear();
+  raw_string_ostream LdswpSHDisp12OS(Printed);
+  InstPrinter->printInst(&LdswpSHDisp12, /*Address=*/0, /*Annot=*/"", *STI,
+                         LdswpSHDisp12OS);
+  LdswpSHDisp12OS.flush();
+  EXPECT_EQ(Printed, "\tldswp.sh\tr1, r2[-2]");
+
+  Printed.clear();
+  raw_string_ostream LdswpUHDisp12OS(Printed);
+  InstPrinter->printInst(&LdswpUHDisp12, /*Address=*/0, /*Annot=*/"", *STI,
+                         LdswpUHDisp12OS);
+  LdswpUHDisp12OS.flush();
+  EXPECT_EQ(Printed, "\tldswp.uh\tr1, r2[-2]");
+
+  Printed.clear();
+  raw_string_ostream LdswpWDisp12OS(Printed);
+  InstPrinter->printInst(&LdswpWDisp12, /*Address=*/0, /*Annot=*/"", *STI,
+                         LdswpWDisp12OS);
+  LdswpWDisp12OS.flush();
+  EXPECT_EQ(Printed, "\tldswp.w\tr1, r2[-4]");
+
+  Printed.clear();
   raw_string_ostream LdUHPostIncOS(Printed);
   InstPrinter->printInst(&LdUHPostInc, /*Address=*/0, /*Annot=*/"", *STI,
                          LdUHPostIncOS);
@@ -8219,6 +8294,8 @@ TEST(AVR32TargetInfo, LookupTarget) {
           "ld.sh r1, r2++\nld.sh r1, --r2\nld.sh r1, r2[6]\n"
           "ld.sh r1, r2[-1]\nld.sh r1, r2[r3 << 2]\n"
           "ld.sheq r1, r2[6]\nld.shal r1, r2[6]\n"
+          "ldswp.sh r1, r2[-2]\nldswp.uh r1, r2[-2]\n"
+          "ldswp.w r1, r2[-4]\n"
           "ld.uh r1, r2++\nld.uh r1, --r2\nld.uh r1, r2[6]\n"
           "ld.uh r1, r2[-1]\nld.uh r1, r2[r3 << 2]\n"
           "ld.uheq r1, r2[6]\nld.uhal r1, r2[6]\n"

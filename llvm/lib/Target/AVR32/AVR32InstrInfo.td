@@ -1021,6 +1021,21 @@ class FullStoreSwapDisp12<bits<4> Prefix, string Mnemonic, Operand DispOp>
   let Inst{11-0} = Disp;
 }
 
+class FullLoadSwapDisp12<bits<4> Prefix, string Mnemonic, Operand DispOp>
+    : AVR32Inst32<(outs GPR:$Rd), (ins GPR:$Rp, DispOp:$Disp),
+                  Mnemonic#"\t$Rd, ${Rp}[$Disp]"> {
+  bits<4> Rd;
+  bits<4> Rp;
+  bits<12> Disp;
+
+  let Inst{31-29} = 0b111;
+  let Inst{28-25} = Rp;
+  let Inst{24-20} = 0b11101;
+  let Inst{19-16} = Rd;
+  let Inst{15-12} = Prefix;
+  let Inst{11-0} = Disp;
+}
+
 class FullStorePairDisp16<bits<5> Op, string Mnemonic>
     : AVR32Inst32<(outs), (ins GPR:$Rp, simm16:$Disp, GPREven:$Rs),
                   Mnemonic#"\t${Rp}[$Disp], $Rs"> {
@@ -1790,6 +1805,11 @@ def LDDPC : CompactLoadBaseDisp7Shift2<0b01001, PCOnly, "lddpc">;
 def LDDSP : CompactLoadBaseDisp7Shift2<0b01000, SPOnly, "lddsp">;
 def LDINS_B : FullLoadInsertByteDisp12;
 def LDINS_H : FullLoadInsertHalfDisp12;
+def LDSWP_SH_Disp12 : FullLoadSwapDisp12<0b0010, "ldswp.sh",
+                                         simm12shift1>;
+def LDSWP_UH_Disp12 : FullLoadSwapDisp12<0b0011, "ldswp.uh",
+                                         simm12shift1>;
+def LDSWP_W_Disp12 : FullLoadSwapDisp12<0b1000, "ldswp.w", simm12shift2>;
 def LD_SB_Disp16 : FullLoadDisp16<0b10010, "ld.sb">;
 def LD_SB_IndexShift : FullLoadIndexShift<0b0000011000, "ld.sb">;
 def LD_SB_AL_Disp9 : FullLoadCondDisp9Sub<0b1111, 0b011, "ld.sbal">;
