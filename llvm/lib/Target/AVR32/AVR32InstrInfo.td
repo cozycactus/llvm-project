@@ -58,6 +58,11 @@ def SImm15Shift2AsmOperand : AsmOperandClass {
   let RenderMethod = "addImmOperands";
 }
 
+def SImm16Shift2AsmOperand : AsmOperandClass {
+  let Name = "SImm16Shift2";
+  let RenderMethod = "addImmOperands";
+}
+
 def HalfPartAsmOperand : AsmOperandClass {
   let Name = "HalfPart";
   let RenderMethod = "addImmOperands";
@@ -209,6 +214,13 @@ def simm15shift2 : Operand<i32>,
                    ImmLeaf<i32, [{ return Imm >= -65536 && Imm <= 65532 &&
                                           Imm % 4 == 0; }]> {
   let ParserMatchClass = SImm15Shift2AsmOperand;
+  let EncoderMethod = "getShifted2OpValue";
+}
+
+def simm16shift2 : Operand<i32>,
+                   ImmLeaf<i32, [{ return Imm >= -131072 && Imm <= 131068 &&
+                                          Imm % 4 == 0; }]> {
+  let ParserMatchClass = SImm16Shift2AsmOperand;
   let EncoderMethod = "getShifted2OpValue";
 }
 
@@ -619,6 +631,17 @@ class FullLoadPairDisp16<bits<5> Op, string Mnemonic>
 
 class FullMemDisp16<bits<12> Op, string Mnemonic>
     : AVR32Inst32<(outs), (ins GPR:$Rp, simm16:$Disp),
+                  Mnemonic#"\t${Rp}[$Disp]"> {
+  bits<4> Rp;
+  bits<16> Disp;
+
+  let Inst{31-20} = Op;
+  let Inst{19-16} = Rp;
+  let Inst{15-0} = Disp;
+}
+
+class FullMemDisp16Shift2<bits<12> Op, string Mnemonic>
+    : AVR32Inst32<(outs), (ins GPR:$Rp, simm16shift2:$Disp),
                   Mnemonic#"\t${Rp}[$Disp]"> {
   bits<4> Rp;
   bits<16> Disp;
@@ -1670,6 +1693,7 @@ def ICALLr : CompactRegNoOut<0b010111010001, "icall">;
 def LSLrrr : FullRegRegReg<0b000010010100, "lsl">;
 def LSRrrr : FullRegRegReg<0b000010100100, "lsr">;
 def MAXrrr : FullRegRegReg<0b000011000100, "max">;
+def MCALL : FullMemDisp16Shift2<0b111100000001, "mcall">;
 def MINrrr : FullRegRegReg<0b000011010100, "min">;
 def MFDRi : FullRegDebugReg<0b111001011011, "mfdr">;
 def MFSRi : FullRegSysReg<0b111000011011, "mfsr">;

@@ -106,6 +106,14 @@ public:
            Const->getValue() <= 65532 && Const->getValue() % 4 == 0;
   }
 
+  bool isSImm16Shift2() const {
+    if (Kind != Immediate)
+      return false;
+    auto *Const = dyn_cast<MCConstantExpr>(Imm);
+    return Const && Const->getValue() >= -131072 &&
+           Const->getValue() <= 131068 && Const->getValue() % 4 == 0;
+  }
+
   bool isSubSPImm() const {
     if (Kind != Immediate)
       return false;
@@ -705,6 +713,9 @@ bool AVR32AsmParser::parseInstruction(ParseInstructionInfo &Info,
       return true;
   } else if (Name == "cache") {
     if (parseMemoryDispCommaImmediate(Operands))
+      return true;
+  } else if (Name == "mcall") {
+    if (parseMemoryDispOperand(Operands))
       return true;
   } else if (Name == "pref") {
     if (parseMemoryDispOperand(Operands))
