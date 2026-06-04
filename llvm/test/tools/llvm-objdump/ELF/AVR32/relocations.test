@@ -1,0 +1,52 @@
+# RUN: yaml2obj %s -o %t.o
+# RUN: llvm-objdump -r %t.o | FileCheck %s
+
+# CHECK:      RELOCATION RECORDS FOR [.text]:
+# CHECK-NEXT: OFFSET   TYPE                     VALUE
+# CHECK-NEXT: 00000000 R_AVR32_32               abs32
+# CHECK-NEXT: 00000004 R_AVR32_22H_PCREL        target+0x4
+# CHECK-NEXT: 00000008 R_AVR32_RELATIVE         *ABS*
+# CHECK-NEXT: 0000000c R_AVR32_GLOB_DAT         ext
+# CHECK-NEXT: 00000010 R_AVR32_JMP_SLOT         func
+
+--- !ELF
+FileHeader:
+  Class:   ELFCLASS32
+  Data:    ELFDATA2MSB
+  Type:    ET_REL
+  Machine: EM_AVR32
+Sections:
+  - Name: .text
+    Type: SHT_PROGBITS
+  - Name: .rela.text
+    Type: SHT_RELA
+    Info: .text
+    Relocations:
+      - Offset: 0
+        Symbol: abs32
+        Type: R_AVR32_32
+      - Offset: 4
+        Addend: 4
+        Symbol: target
+        Type: R_AVR32_22H_PCREL
+      - Offset: 8
+        Type: R_AVR32_RELATIVE
+      - Offset: 12
+        Symbol: ext
+        Type: R_AVR32_GLOB_DAT
+      - Offset: 16
+        Symbol: func
+        Type: R_AVR32_JMP_SLOT
+Symbols:
+  - Name: abs32
+    Index: SHN_ABS
+    Value: 0x12345678
+    Binding: STB_GLOBAL
+  - Name: target
+    Section: .text
+    Value: 0
+    Binding: STB_GLOBAL
+  - Name: ext
+    Binding: STB_GLOBAL
+  - Name: func
+    Binding: STB_GLOBAL
