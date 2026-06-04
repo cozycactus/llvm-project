@@ -496,6 +496,8 @@ bool AVR32AsmParser::parseInstruction(ParseInstructionInfo &Info,
       Name == "muls.d" || Name == "mulu.d" ||
       Name == "padd.b" || Name == "padd.h" ||
       Name == "paddh.sh" || Name == "paddh.ub" ||
+      Name == "padds.sb" || Name == "padds.sh" ||
+      Name == "padds.ub" || Name == "padds.uh" ||
       Name == "psad" || Name == "psub.b" || Name == "psub.h" ||
       Name == "psubh.sh" || Name == "psubh.ub" ||
       Name == "psubs.sb" || Name == "psubs.sh" ||
