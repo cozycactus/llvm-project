@@ -532,7 +532,7 @@ private:
   bool parseCoprocessorStoreMultipleOperands(OperandVector &Operands,
                                              bool IsDouble);
   bool parsePicoInOperand(OperandVector &Operands);
-  bool parsePicoMulOperands(OperandVector &Operands);
+  bool parsePicoArithmeticOperands(OperandVector &Operands);
   bool parseMemoryDispOrIndexSuffix(OperandVector &Operands);
   bool parseMemoryDispOrIndexOperand(OperandVector &Operands);
   bool parseMemoryDispOrPostIncOperand(OperandVector &Operands);
@@ -752,8 +752,8 @@ bool AVR32AsmParser::parseInstruction(ParseInstructionInfo &Info,
   } else if (Name == "cop") {
     if (parseCoprocessorOperationOperands(Operands))
       return true;
-  } else if (Name == "picosvmul") {
-    if (parsePicoMulOperands(Operands))
+  } else if (Name == "picosvmac" || Name == "picosvmul") {
+    if (parsePicoArithmeticOperands(Operands))
       return true;
   } else if (Name == "ldc.d" || Name == "ldc.w") {
     if (parseCoprocessorLoadOperands(Operands))
@@ -1109,7 +1109,7 @@ bool AVR32AsmParser::parsePicoInOperand(OperandVector &Operands) {
   return false;
 }
 
-bool AVR32AsmParser::parsePicoMulOperands(OperandVector &Operands) {
+bool AVR32AsmParser::parsePicoArithmeticOperands(OperandVector &Operands) {
   SMLoc StartLoc = getLexer().getLoc();
   if (getLexer().isNot(AsmToken::Identifier))
     return Error(StartLoc, "expected PICO output");
