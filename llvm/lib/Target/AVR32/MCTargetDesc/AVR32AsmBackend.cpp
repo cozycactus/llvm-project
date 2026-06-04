@@ -62,6 +62,27 @@ public:
       return;
     }
 
+    if (Fixup.getKind() == static_cast<MCFixupKind>(AVR32::fixup_11h_pcrel)) {
+      int64_t SignedValue = static_cast<int64_t>(Value);
+      if (SignedValue & 1) {
+        getContext().reportError(Fixup.getLoc(),
+                                 "fixup value must be 2-byte aligned");
+        return;
+      }
+      if (!isInt<11>(SignedValue)) {
+        getContext().reportError(Fixup.getLoc(), "fixup value out of range");
+        return;
+      }
+
+      int64_t Encoded = SignedValue >> 1;
+      uint16_t Disp = static_cast<uint16_t>(Encoded) & 0x3ff;
+      uint16_t Word = support::endian::read16be(Data);
+      Word &= ~0x0ff3;
+      Word |= ((Disp & 0xff) << 4) | ((Disp & 0x300) >> 8);
+      support::endian::write16be(Data, Word);
+      return;
+    }
+
     MCFixupKindInfo Info = getFixupKindInfo(Fixup.getKind());
     assert(Info.TargetOffset == 0 && "unsupported AVR32 fixup offset");
     assert(Info.TargetSize % 8 == 0 && "invalid AVR32 fixup size");
@@ -84,6 +105,7 @@ public:
   MCFixupKindInfo getFixupKindInfo(MCFixupKind Kind) const override {
     static const MCFixupKindInfo Infos[AVR32::NumTargetFixupKinds] = {
         {"fixup_22h_pcrel", 0, 32, 0},
+        {"fixup_11h_pcrel", 0, 16, 0},
     };
 
     if (Kind < FirstTargetFixupKind)

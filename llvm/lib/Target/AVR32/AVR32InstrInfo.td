@@ -28,6 +28,11 @@ def SImm10Shift1AsmOperand : AsmOperandClass {
   let RenderMethod = "addImmOperands";
 }
 
+def SImm10PCRelShift1AsmOperand : AsmOperandClass {
+  let Name = "SImm10PCRelShift1";
+  let RenderMethod = "addImmOperands";
+}
+
 def SImm11AsmOperand : AsmOperandClass {
   let Name = "SImm11";
   let RenderMethod = "addImmOperands";
@@ -283,6 +288,14 @@ def simm10shift1 : Operand<i32>,
                                           Imm % 2 == 0; }]> {
   let ParserMatchClass = SImm10Shift1AsmOperand;
   let EncoderMethod = "getShifted1OpValue";
+}
+
+def simm10pcrelshift1 : Operand<i32>,
+                        ImmLeaf<i32, [{ return Imm >= -1024 &&
+                                               Imm <= 1022 &&
+                                               Imm % 2 == 0; }]> {
+  let ParserMatchClass = SImm10PCRelShift1AsmOperand;
+  let EncoderMethod = "getPCRel11HOpValue";
 }
 
 def simm11 : Operand<i32>,
@@ -1297,6 +1310,17 @@ class CompactPCRel10<bits<2> Op, string Mnemonic>
   let Inst{15-12} = 0b1100;
   let Inst{11-4} = Disp{7-0};
   let Inst{3-2} = Op;
+  let Inst{1-0} = Disp{9-8};
+}
+
+class CompactRjmp<string Mnemonic>
+    : AVR32Inst<0, (outs), (ins PCOnly:$Rp, simm10pcrelshift1:$Disp),
+                Mnemonic#"\t${Rp}[$Disp]"> {
+  bits<10> Disp;
+
+  let Inst{15-12} = 0b1100;
+  let Inst{11-4} = Disp{7-0};
+  let Inst{3-2} = 0b10;
   let Inst{1-0} = Disp{9-8};
 }
 
@@ -3162,7 +3186,7 @@ def POPM : CompactRegList8<0b0010, "popm">;
 def POPJC : AVR32Inst<0b1101011100010011, (outs), (ins), "popjc">;
 def PUSHM : CompactRegList8<0b0001, "pushm">;
 def PUSHJC : AVR32Inst<0b1101011100100011, (outs), (ins), "pushjc">;
-def RJMP : CompactPCRel10<0b10, "rjmp">;
+def RJMP : CompactRjmp<"rjmp">;
 let isBarrier = 1, isReturn = 1, isTerminator = 1 in {
 def RETD : AVR32Inst<0b1101011000100011, (outs), (ins), "retd">;
 def RETE : AVR32Inst<0b1101011000000011, (outs), (ins), "rete">;

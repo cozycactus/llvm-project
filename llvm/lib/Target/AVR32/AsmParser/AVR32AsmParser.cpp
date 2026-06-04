@@ -85,6 +85,16 @@ public:
            Const->getValue() <= 1022 && Const->getValue() % 2 == 0;
   }
 
+  bool isSImm10PCRelShift1() const {
+    if (Kind != Immediate)
+      return false;
+    auto *Const = dyn_cast<MCConstantExpr>(Imm);
+    if (!Const)
+      return true;
+    return Const->getValue() >= -1024 &&
+           Const->getValue() <= 1022 && Const->getValue() % 2 == 0;
+  }
+
   bool isSImm16() const {
     if (Kind != Immediate)
       return false;

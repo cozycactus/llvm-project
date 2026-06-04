@@ -16,6 +16,7 @@ namespace AVR32 {
 
 enum Fixups {
   fixup_22h_pcrel = FirstTargetFixupKind,
+  fixup_11h_pcrel,
 
   LastTargetFixupKind,
   NumTargetFixupKinds = LastTargetFixupKind - FirstTargetFixupKind
