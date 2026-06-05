@@ -127,11 +127,7 @@ public:
       return false;
 
     SDLoc DL(Addr);
-    SDValue TargetGA = CurDAG->getTargetGlobalAddress(
-        GA->getGlobal(), DL, MVT::i32, GA->getOffset());
-    Base = SDValue(CurDAG->getMachineNode(AVR32::MOVri21, DL, MVT::i32,
-                                          TargetGA),
-                   0);
+    Base = materializeGlobalAddress(GA, DL);
     Disp = CurDAG->getTargetConstant(0, DL, MVT::i32);
     return true;
   }
@@ -161,11 +157,7 @@ public:
     }
 
     SDLoc DL(Addr);
-    SDValue TargetGA = CurDAG->getTargetGlobalAddress(
-        GA->getGlobal(), DL, MVT::i32, GA->getOffset());
-    Base = SDValue(CurDAG->getMachineNode(AVR32::MOVri21, DL, MVT::i32,
-                                          TargetGA),
-                   0);
+    Base = materializeGlobalAddress(GA, DL);
     Shift = CurDAG->getTargetConstant(ShiftAmt, DL, MVT::i32);
     return true;
   }
@@ -176,10 +168,24 @@ public:
 
     auto *GA = cast<GlobalAddressSDNode>(Node);
     SDLoc DL(Node);
-    SDValue TargetGA = CurDAG->getTargetGlobalAddress(
-        GA->getGlobal(), DL, MVT::i32, GA->getOffset());
-    CurDAG->SelectNodeTo(Node, AVR32::MOVri21, MVT::i32, TargetGA);
+    SDValue Result = materializeGlobalAddress(GA, DL);
+    ReplaceNode(Node, Result.getNode());
     return true;
+  }
+
+  SDValue materializeGlobalAddress(const GlobalAddressSDNode *GA,
+                                   const SDLoc &DL) {
+    SDValue Hi = CurDAG->getTargetGlobalAddress(
+        GA->getGlobal(), DL, MVT::i32, GA->getOffset(), AVR32II::MO_ABS_HI);
+    SDValue Lo = CurDAG->getTargetGlobalAddress(
+        GA->getGlobal(), DL, MVT::i32, GA->getOffset(), AVR32II::MO_ABS_LO);
+
+    SDValue HiReg =
+        SDValue(CurDAG->getMachineNode(AVR32::MOVHri, DL, MVT::i32, Hi), 0);
+    SDValue LoReg =
+        SDValue(CurDAG->getMachineNode(AVR32::MOVri21, DL, MVT::i32, Lo), 0);
+    return SDValue(
+        CurDAG->getMachineNode(AVR32::ORALrrr, DL, MVT::i32, HiReg, LoReg), 0);
   }
 
   bool selectConstant(SDNode *Node) {

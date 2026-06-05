@@ -33,6 +33,10 @@ enum CondCodes {
 };
 } // namespace AVR32CC
 
+namespace AVR32II {
+enum TargetFlags { MO_NO_FLAG = 0, MO_ABS_HI, MO_ABS_LO };
+} // namespace AVR32II
+
 namespace llvm {
 class AVR32TargetMachine;
 class FunctionPass;

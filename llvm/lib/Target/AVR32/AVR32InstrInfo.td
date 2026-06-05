@@ -505,6 +505,7 @@ def uimm12shift2 : Operand<i32>,
 def uimm16 : Operand<i32>,
              ImmLeaf<i32, [{ return Imm >= 0 && Imm < 65536; }]> {
   let ParserMatchClass = UImm16AsmOperand;
+  let EncoderMethod = "getUImm16OpValue";
 }
 
 def reglist16 : Operand<i32>,

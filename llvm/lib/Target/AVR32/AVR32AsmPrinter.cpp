@@ -9,6 +9,7 @@
 #include "AVR32.h"
 #include "MCTargetDesc/AVR32InstPrinter.h"
 #include "TargetInfo/AVR32TargetInfo.h"
+#include "llvm/BinaryFormat/ELF.h"
 #include "llvm/CodeGen/AsmPrinter.h"
 #include "llvm/CodeGen/MachineInstr.h"
 #include "llvm/MC/MCExpr.h"
@@ -62,6 +63,18 @@ const MCExpr *AVR32AsmPrinter::lowerSymbolOperand(const MachineOperand &MO) {
   if (Offset != 0)
     Expr = MCBinaryExpr::createAdd(
         Expr, MCConstantExpr::create(Offset, OutContext), OutContext);
+  switch (MO.getTargetFlags()) {
+  case AVR32II::MO_NO_FLAG:
+    break;
+  case AVR32II::MO_ABS_HI:
+    Expr = MCSpecifierExpr::create(Expr, ELF::R_AVR32_HI16, OutContext);
+    break;
+  case AVR32II::MO_ABS_LO:
+    Expr = MCSpecifierExpr::create(Expr, ELF::R_AVR32_LO16, OutContext);
+    break;
+  default:
+    llvm_unreachable("Unexpected AVR32 symbol operand target flag");
+  }
   return Expr;
 }
 

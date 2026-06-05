@@ -13,6 +13,7 @@
 
 namespace llvm {
 
+class MCSpecifierExpr;
 class Triple;
 
 class AVR32MCAsmInfo : public MCAsmInfoELF {
@@ -20,6 +21,8 @@ class AVR32MCAsmInfo : public MCAsmInfoELF {
 
 public:
   explicit AVR32MCAsmInfo(const MCTargetOptions &Options);
+  void printSpecifierExpr(raw_ostream &OS,
+                          const MCSpecifierExpr &Expr) const override;
 };
 
 } // end namespace llvm

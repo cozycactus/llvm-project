@@ -7,6 +7,9 @@
 //===----------------------------------------------------------------------===//
 
 #include "AVR32MCAsmInfo.h"
+#include "llvm/BinaryFormat/ELF.h"
+#include "llvm/MC/MCExpr.h"
+#include "llvm/Support/raw_ostream.h"
 
 using namespace llvm;
 
@@ -22,4 +25,20 @@ AVR32MCAsmInfo::AVR32MCAsmInfo(const MCTargetOptions &Options)
   CommentString = "#";
   SupportsDebugInformation = true;
   ExceptionsType = ExceptionHandling::DwarfCFI;
+}
+
+void AVR32MCAsmInfo::printSpecifierExpr(raw_ostream &OS,
+                                        const MCSpecifierExpr &Expr) const {
+  switch (Expr.getSpecifier()) {
+  case ELF::R_AVR32_HI16:
+    OS << "HI(";
+    break;
+  case ELF::R_AVR32_LO16:
+    OS << "LO(";
+    break;
+  default:
+    llvm_unreachable("Unsupported AVR32 expression specifier");
+  }
+  printExpr(OS, *Expr.getSubExpr());
+  OS << ')';
 }

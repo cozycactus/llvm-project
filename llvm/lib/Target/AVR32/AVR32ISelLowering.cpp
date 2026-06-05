@@ -44,10 +44,17 @@ AVR32TargetLowering::AVR32TargetLowering(const TargetMachine &TM,
   setOperationAction(ISD::ROTL, MVT::i32, Expand);
   setOperationAction(ISD::ROTR, MVT::i32, Expand);
   setOperationAction(ISD::SELECT, MVT::i32, Custom);
+  setOperationAction(ISD::SDIVREM, MVT::i32, Expand);
+  setOperationAction(ISD::SREM, MVT::i32, Expand);
   setOperationAction(ISD::SMUL_LOHI, MVT::i32, Expand);
+  setOperationAction(ISD::UDIVREM, MVT::i32, Expand);
   setOperationAction(ISD::UMUL_LOHI, MVT::i32, Expand);
+  setOperationAction(ISD::UREM, MVT::i32, Expand);
   setOperationAction(ISD::SELECT_CC, MVT::i32, Custom);
   setOperationAction(ISD::SETCC, MVT::i32, Custom);
+  setOperationAction(ISD::SHL_PARTS, MVT::i32, Expand);
+  setOperationAction(ISD::SRA_PARTS, MVT::i32, Expand);
+  setOperationAction(ISD::SRL_PARTS, MVT::i32, Expand);
   setMinimumJumpTableEntries(UINT_MAX);
   computeRegisterProperties(STI.getRegisterInfo());
   setStackPointerRegisterToSaveRestore(AVR32::SP);

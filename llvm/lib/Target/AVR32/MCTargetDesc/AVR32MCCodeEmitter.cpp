@@ -8,9 +8,11 @@
 
 #include "AVR32FixupKinds.h"
 #include "AVR32MCTargetDesc.h"
+#include "llvm/BinaryFormat/ELF.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/MC/MCCodeEmitter.h"
 #include "llvm/MC/MCContext.h"
+#include "llvm/MC/MCExpr.h"
 #include "llvm/MC/MCFixup.h"
 #include "llvm/MC/MCInst.h"
 #include "llvm/MC/MCInstrInfo.h"
@@ -79,9 +81,41 @@ public:
       return static_cast<unsigned>(MO.getImm());
 
     assert(MO.isExpr() && "expected expression operand");
+    if (const auto *Specifier = dyn_cast<MCSpecifierExpr>(MO.getExpr())) {
+      MCFixupKind Kind = FK_NONE;
+      if (Specifier->getSpecifier() == ELF::R_AVR32_HI16)
+        Kind = static_cast<MCFixupKind>(AVR32::fixup_hi16);
+      else if (Specifier->getSpecifier() == ELF::R_AVR32_LO16)
+        Kind = static_cast<MCFixupKind>(AVR32::fixup_lo16);
+      if (Kind != FK_NONE) {
+        Fixups.push_back(MCFixup::create(0, MO.getExpr(), Kind,
+                                         /*PCRel=*/false));
+        return 0;
+      }
+    }
     Fixups.push_back(MCFixup::create(
         0, MO.getExpr(), static_cast<MCFixupKind>(AVR32::fixup_21s),
         /*PCRel=*/false));
+    return 0;
+  }
+
+  unsigned getUImm16OpValue(const MCInst &MI, unsigned OpNo,
+                            SmallVectorImpl<MCFixup> &Fixups,
+                            const MCSubtargetInfo &STI) const {
+    const MCOperand &MO = MI.getOperand(OpNo);
+    if (MO.isImm())
+      return static_cast<unsigned>(MO.getImm());
+
+    assert(MO.isExpr() && "expected expression operand");
+    const MCExpr *Expr = MO.getExpr();
+    MCFixupKind Kind = FK_Data_2;
+    if (const auto *Specifier = dyn_cast<MCSpecifierExpr>(Expr)) {
+      if (Specifier->getSpecifier() == ELF::R_AVR32_HI16)
+        Kind = static_cast<MCFixupKind>(AVR32::fixup_hi16);
+      else if (Specifier->getSpecifier() == ELF::R_AVR32_LO16)
+        Kind = static_cast<MCFixupKind>(AVR32::fixup_lo16);
+    }
+    Fixups.push_back(MCFixup::create(0, Expr, Kind, /*PCRel=*/false));
     return 0;
   }
 

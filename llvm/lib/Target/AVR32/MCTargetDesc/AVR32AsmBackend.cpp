@@ -99,6 +99,16 @@ public:
       return;
     }
 
+    if (Fixup.getKind() == static_cast<MCFixupKind>(AVR32::fixup_hi16) ||
+        Fixup.getKind() == static_cast<MCFixupKind>(AVR32::fixup_lo16)) {
+      uint16_t Encoded =
+          Fixup.getKind() == static_cast<MCFixupKind>(AVR32::fixup_hi16)
+              ? static_cast<uint16_t>(Value >> 16)
+              : static_cast<uint16_t>(Value);
+      support::endian::write16be(Data, Encoded);
+      return;
+    }
+
     MCFixupKindInfo Info = getFixupKindInfo(Fixup.getKind());
     assert(Info.TargetOffset == 0 && "unsupported AVR32 fixup offset");
     assert(Info.TargetSize % 8 == 0 && "invalid AVR32 fixup size");
@@ -123,6 +133,8 @@ public:
         {"fixup_22h_pcrel", 0, 32, 0},
         {"fixup_11h_pcrel", 0, 16, 0},
         {"fixup_21s", 0, 32, 0},
+        {"fixup_hi16", 0, 16, 0},
+        {"fixup_lo16", 0, 16, 0},
     };
 
     if (Kind < FirstTargetFixupKind)

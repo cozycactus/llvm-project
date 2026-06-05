@@ -9,6 +9,7 @@
 #include "../MCTargetDesc/AVR32MCTargetDesc.h"
 #include "../TargetInfo/AVR32TargetInfo.h"
 #include "llvm/ADT/StringSwitch.h"
+#include "llvm/BinaryFormat/ELF.h"
 #include "llvm/MC/MCContext.h"
 #include "llvm/MC/MCExpr.h"
 #include "llvm/MC/MCInst.h"
@@ -106,6 +107,12 @@ public:
     if (Kind != Immediate)
       return false;
     auto *Const = dyn_cast<MCConstantExpr>(Imm);
+    if (!Const) {
+      if (const auto *Specifier = dyn_cast<MCSpecifierExpr>(Imm))
+        return Specifier->getSpecifier() == ELF::R_AVR32_HI16 ||
+               Specifier->getSpecifier() == ELF::R_AVR32_LO16;
+      return false;
+    }
     return Const && isInt<21>(Const->getValue());
   }
 
@@ -297,7 +304,13 @@ public:
     if (Kind != Immediate)
       return false;
     auto *Const = dyn_cast<MCConstantExpr>(Imm);
-    return Const && isUInt<16>(Const->getValue());
+    if (!Const) {
+      if (const auto *Specifier = dyn_cast<MCSpecifierExpr>(Imm))
+        return Specifier->getSpecifier() == ELF::R_AVR32_HI16 ||
+               Specifier->getSpecifier() == ELF::R_AVR32_LO16;
+      return false;
+    }
+    return isUInt<16>(Const->getValue());
   }
 
   bool isRegList16() const {
@@ -531,6 +544,7 @@ public:
 
 private:
   MCRegister parseRegisterName(StringRef Name) const;
+  bool parseImmediateExpression(const MCExpr *&Expr);
   bool parseRegisterOperand(OperandVector &Operands);
   bool parseImmediateOperand(OperandVector &Operands);
   bool parseRegisterCommaRegister(OperandVector &Operands);
@@ -1074,11 +1088,35 @@ bool AVR32AsmParser::parseRegisterOperand(OperandVector &Operands) {
 bool AVR32AsmParser::parseImmediateOperand(OperandVector &Operands) {
   SMLoc StartLoc = getLexer().getLoc();
   const MCExpr *Expr = nullptr;
-  if (getParser().parseExpression(Expr))
+  if (parseImmediateExpression(Expr))
     return Error(StartLoc, "expected immediate");
   Operands.push_back(
       AVR32Operand::createImm(Expr, StartLoc, getLexer().getLoc()));
   return false;
+}
+
+bool AVR32AsmParser::parseImmediateExpression(const MCExpr *&Expr) {
+  if (getLexer().is(AsmToken::Identifier)) {
+    StringRef Name = getParser().getTok().getIdentifier();
+    unsigned Specifier = StringSwitch<unsigned>(Name.lower())
+                             .Case("hi", ELF::R_AVR32_HI16)
+                             .Case("lo", ELF::R_AVR32_LO16)
+                             .Default(ELF::R_AVR32_NONE);
+    if (Specifier != ELF::R_AVR32_NONE) {
+      getLexer().Lex();
+      if (!parseOptionalToken(AsmToken::LParen))
+        return true;
+      const MCExpr *SubExpr = nullptr;
+      if (getParser().parseExpression(SubExpr))
+        return true;
+      if (!parseOptionalToken(AsmToken::RParen))
+        return true;
+      Expr = MCSpecifierExpr::create(SubExpr, Specifier, getContext());
+      return false;
+    }
+  }
+
+  return getParser().parseExpression(Expr);
 }
 
 static bool parsePrefixedNumber(StringRef Tok, StringRef Prefix, unsigned Max,
@@ -2384,7 +2422,7 @@ bool AVR32AsmParser::parseRegisterOrImmediateOperand(OperandVector &Operands) {
 
   StartLoc = getLexer().getLoc();
   const MCExpr *Expr = nullptr;
-  if (getParser().parseExpression(Expr))
+  if (parseImmediateExpression(Expr))
     return Error(StartLoc, "expected register or immediate");
   Operands.push_back(
       AVR32Operand::createImm(Expr, StartLoc, getLexer().getLoc()));

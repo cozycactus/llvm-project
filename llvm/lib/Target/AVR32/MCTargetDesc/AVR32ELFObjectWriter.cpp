@@ -34,6 +34,10 @@ protected:
       return ELF::R_AVR32_11H_PCREL;
     case AVR32::fixup_21s:
       return ELF::R_AVR32_21S;
+    case AVR32::fixup_hi16:
+      return ELF::R_AVR32_HI16;
+    case AVR32::fixup_lo16:
+      return ELF::R_AVR32_LO16;
     case FK_Data_1:
       return IsPCRel ? ELF::R_AVR32_8_PCREL : ELF::R_AVR32_8;
     case FK_Data_2:

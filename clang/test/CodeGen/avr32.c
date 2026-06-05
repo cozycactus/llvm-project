@@ -86,6 +86,18 @@ int shift_arith(int x, unsigned y) {
   return x >> (y & 31);
 }
 
+unsigned long long shift_left64(unsigned long long x, unsigned y) {
+  return x << (y & 63);
+}
+
+unsigned long long shift_right64(unsigned long long x, unsigned y) {
+  return x >> (y & 63);
+}
+
+long long shift_arith64(long long x, unsigned y) {
+  return x >> (y & 63);
+}
+
 int sign_byte(unsigned x) {
   return (signed char)x;
 }
@@ -100,6 +112,14 @@ int arith_ops(int a, int b) {
 
 unsigned unsigned_div(unsigned a, unsigned b) {
   return a / b;
+}
+
+int signed_rem(int a, int b) {
+  return a % b;
+}
+
+unsigned unsigned_rem(unsigned a, unsigned b) {
+  return a % b;
 }
 
 unsigned long long unsigned_div64(unsigned long long a, unsigned long long b) {
@@ -253,6 +273,12 @@ __attribute__((optnone, noinline)) int pick(int a, int b) {
 // CHECK: lshr i32
 // CHECK: define {{.*}}i32 @shift_arith(i32 {{.*}}, i32 {{.*}})
 // CHECK: ashr i32
+// CHECK: define {{.*}}i64 @shift_left64(i64 {{.*}}, i32 {{.*}})
+// CHECK: shl i64
+// CHECK: define {{.*}}i64 @shift_right64(i64 {{.*}}, i32 {{.*}})
+// CHECK: lshr i64
+// CHECK: define {{.*}}i64 @shift_arith64(i64 {{.*}}, i32 {{.*}})
+// CHECK: ashr i64
 // CHECK: define {{.*}}i32 @sign_byte(i32 {{.*}})
 // CHECK: sext i8
 // CHECK: define {{.*}}i32 @sign_half(i32 {{.*}})
@@ -263,6 +289,10 @@ __attribute__((optnone, noinline)) int pick(int a, int b) {
 // CHECK: sub nsw i32
 // CHECK: define {{.*}}i32 @unsigned_div(i32 {{.*}}, i32 {{.*}})
 // CHECK: udiv i32
+// CHECK: define {{.*}}i32 @signed_rem(i32 {{.*}}, i32 {{.*}})
+// CHECK: srem i32
+// CHECK: define {{.*}}i32 @unsigned_rem(i32 {{.*}}, i32 {{.*}})
+// CHECK: urem i32
 // CHECK: define {{.*}}i64 @unsigned_div64(i64 {{.*}}, i64 {{.*}})
 // CHECK: udiv i64
 // CHECK: define {{.*}}double @double_sub(double {{.*}}, double {{.*}})
@@ -346,18 +376,24 @@ __attribute__((optnone, noinline)) int pick(int a, int b) {
 // ASM: ret r12
 
 // ASM-LABEL: addr:
-// ASM: mov r12, bytes
+// ASM: mov {{r[0-9]+}}, LO(bytes)
+// ASM: movh {{r[0-9]+}}, HI(bytes)
+// ASM: oral r12
 // ASM: ret r12
 
 // ASM-LABEL: load_byte:
+// ASM: mov {{r[0-9]+}}, LO(bytes)
+// ASM: movh {{r[0-9]+}}, HI(bytes)
+// ASM: oral
 // ASM: mov {{r[0-9]+}}, 3
-// ASM: mov {{r[0-9]+}}, bytes
 // ASM: ld.ub r12, {{r[0-9]+}}[{{r[0-9]+}} << 0]
 // ASM: ret r12
 
 // ASM-LABEL: load_table:
 // ASM: andal
-// ASM: mov {{r[0-9]+}}, values
+// ASM: mov {{r[0-9]+}}, LO(values)
+// ASM: movh {{r[0-9]+}}, HI(values)
+// ASM: oral
 // ASM: ld.w r12, {{r[0-9]+}}[{{r[0-9]+}} << 2]
 // ASM: ret r12
 
@@ -392,6 +428,15 @@ __attribute__((optnone, noinline)) int pick(int a, int b) {
 // ASM: asr
 // ASM: ret r12
 
+// ASM-LABEL: shift_left64:
+// ASM: ret r12
+
+// ASM-LABEL: shift_right64:
+// ASM: ret r12
+
+// ASM-LABEL: shift_arith64:
+// ASM: ret r12
+
 // ASM-LABEL: sign_byte:
 // ASM: lsl
 // ASM: asr
@@ -410,6 +455,18 @@ __attribute__((optnone, noinline)) int pick(int a, int b) {
 
 // ASM-LABEL: unsigned_div:
 // ASM: divu
+// ASM: ret r12
+
+// ASM-LABEL: signed_rem:
+// ASM: divs
+// ASM: mul
+// ASM: sub
+// ASM: ret r12
+
+// ASM-LABEL: unsigned_rem:
+// ASM: divu
+// ASM: mul
+// ASM: sub
 // ASM: ret r12
 
 // ASM-LABEL: unsigned_div64:
@@ -496,7 +553,9 @@ __attribute__((optnone, noinline)) int pick(int a, int b) {
 // ASM: ret r12
 
 // ASM-LABEL: store_global:
-// ASM: mov {{r[0-9]+}}, sink
+// ASM: mov {{r[0-9]+}}, LO(sink)
+// ASM: movh {{r[0-9]+}}, HI(sink)
+// ASM: oral
 // ASM: st.w {{r[0-9]+}}[0], r12
 // ASM: ret r12
 
@@ -525,7 +584,11 @@ __attribute__((optnone, noinline)) int pick(int a, int b) {
 // O0ASM: ret r12
 
 // RELOC: R_AVR32_22H_PCREL add
-// RELOC: R_AVR32_21S bytes 0x0
-// RELOC: R_AVR32_21S bytes 0x0
-// RELOC: R_AVR32_21S values 0x0
-// RELOC: R_AVR32_21S sink 0x0
+// RELOC: R_AVR32_LO16 bytes 0x0
+// RELOC: R_AVR32_HI16 bytes 0x0
+// RELOC: R_AVR32_LO16 bytes 0x0
+// RELOC: R_AVR32_HI16 bytes 0x0
+// RELOC: R_AVR32_LO16 values 0x0
+// RELOC: R_AVR32_HI16 values 0x0
+// RELOC: R_AVR32_LO16 sink 0x0
+// RELOC: R_AVR32_HI16 sink 0x0
