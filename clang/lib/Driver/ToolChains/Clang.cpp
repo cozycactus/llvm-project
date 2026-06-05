@@ -1212,6 +1212,7 @@ static bool isSignedCharDefault(const llvm::Triple &Triple) {
     return false;
 
   case llvm::Triple::csky:
+  case llvm::Triple::avr32:
   case llvm::Triple::hexagon:
   case llvm::Triple::msp430:
   case llvm::Triple::ppcle:

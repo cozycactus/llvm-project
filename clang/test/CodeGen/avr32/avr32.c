@@ -1,8 +1,8 @@
-// RUN: %clang_cc1 -triple avr32 -emit-llvm -o - %s | FileCheck %s
-// RUN: %clang_cc1 -triple avr32 -O1 -S -o - %s | FileCheck --check-prefix=ASM %s
-// RUN: %clang_cc1 -triple avr32 -O1 -emit-obj -o %t.o %s
-// RUN: %clang_cc1 -triple avr32 -S -o - %s | FileCheck --check-prefix=O0ASM %s
-// RUN: %clang_cc1 -triple avr32 -emit-obj -o %t.o %s
+// RUN: %clang_cc1 -triple avr32 -fno-signed-char -emit-llvm -o - %s | FileCheck %s
+// RUN: %clang_cc1 -triple avr32 -fno-signed-char -O1 -S -o - %s | FileCheck --check-prefix=ASM %s
+// RUN: %clang_cc1 -triple avr32 -fno-signed-char -O1 -emit-obj -o %t.o %s
+// RUN: %clang_cc1 -triple avr32 -fno-signed-char -S -o - %s | FileCheck --check-prefix=O0ASM %s
+// RUN: %clang_cc1 -triple avr32 -fno-signed-char -emit-obj -o %t.o %s
 // RUN: llvm-readobj -r %t.o | FileCheck --check-prefix=RELOC %s
 
 int add(int a, int b) {
@@ -36,6 +36,14 @@ unsigned short swap_16(unsigned short value) {
 
 int eq(int a, int b) {
   return a == b;
+}
+
+int char_to_int(char value) {
+  return value;
+}
+
+int char_is_negative(void) {
+  return (char)0xff < 0;
 }
 
 unsigned char bytes[4];
@@ -283,6 +291,10 @@ __attribute__((optnone, noinline)) int pick(int a, int b) {
 // CHECK: call i16 @llvm.bswap.i16
 // CHECK: define {{.*}}i32 @eq(i32 {{.*}}, i32 {{.*}})
 // CHECK: icmp eq i32
+// CHECK: define {{.*}}i32 @char_to_int(i8 {{.*}}zeroext
+// CHECK: zext i8
+// CHECK: define {{.*}}i32 @char_is_negative()
+// CHECK: ret i32 0
 // CHECK: define {{.*}}ptr @addr()
 // CHECK: ret ptr @bytes
 // CHECK: define {{.*}}i32 @load_byte()
@@ -417,6 +429,14 @@ __attribute__((optnone, noinline)) int pick(int a, int b) {
 // ASM: cp r12, r11
 // ASM: mov r12, 0
 // ASM: moveq r12, 1
+// ASM: ret r12
+
+// ASM-LABEL: char_to_int:
+// ASM-NOT: casts.b
+// ASM: ret r12
+
+// ASM-LABEL: char_is_negative:
+// ASM: mov r12, 0
 // ASM: ret r12
 
 // ASM-LABEL: addr:

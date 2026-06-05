@@ -38,3 +38,9 @@
 // RUN:   -c %s 2>&1 | FileCheck --check-prefix=MMCU %s
 // MMCU-NOT: warning: argument unused during compilation
 // MMCU: "-target-cpu" "uc3a3revd"
+
+// RUN: %clang -### --target=avr32 -mcpu=uc3a3128 \
+// RUN:   -c %s 2>&1 | FileCheck --check-prefix=CHAR %s
+// CHAR: "-cc1"
+// CHAR-DAG: "-fno-signed-char"
+// CHAR-DAG: "-target-cpu" "uc3a3128"

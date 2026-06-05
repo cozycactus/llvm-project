@@ -25,6 +25,7 @@ public:
   AVR32TargetInfo(const llvm::Triple &Triple, const TargetOptions &)
       : TargetInfo(Triple) {
     TLSSupported = false;
+    WIntType = UnsignedInt;
     resetDataLayout("E-m:e-p:32:32-i64:32-n32-S32");
   }
 
