@@ -14,6 +14,7 @@
 #include <optional>
 
 namespace llvm {
+class TargetTransformInfo;
 
 class AVR32TargetMachine : public CodeGenTargetMachineImpl {
   std::unique_ptr<TargetLoweringObjectFile> TLOF;
@@ -32,6 +33,7 @@ public:
   }
 
   TargetPassConfig *createPassConfig(PassManagerBase &PM) override;
+  TargetTransformInfo getTargetTransformInfo(const Function &F) const override;
 
   TargetLoweringObjectFile *getObjFileLowering() const override {
     return TLOF.get();

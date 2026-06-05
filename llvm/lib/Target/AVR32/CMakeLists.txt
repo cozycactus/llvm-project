@@ -27,6 +27,7 @@ add_llvm_target(AVR32CodeGen
   AVR32TargetMachine.cpp
 
   LINK_COMPONENTS
+  Analysis
   AsmPrinter
   AVR32Desc
   AVR32Info

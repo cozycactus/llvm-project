@@ -132,17 +132,52 @@ public:
 
     SDValue LHS = Value.getOperand(0);
     SDValue RHS = Value.getOperand(1);
-    auto *C = dyn_cast<ConstantSDNode>(RHS);
-    if (!C) {
+    if (!getI32Constant(RHS, Imm)) {
       std::swap(LHS, RHS);
-      C = dyn_cast<ConstantSDNode>(RHS);
+      if (!getI32Constant(RHS, Imm))
+        return false;
     }
-    if (!C)
-      return false;
 
     Other = LHS;
-    Imm = static_cast<uint32_t>(C->getZExtValue());
     return true;
+  }
+
+  static bool getI32Constant(SDValue Value, uint32_t &Imm) {
+    if (auto *C = dyn_cast<ConstantSDNode>(Value)) {
+      Imm = static_cast<uint32_t>(C->getZExtValue());
+      return true;
+    }
+
+    uint32_t LHS;
+    uint32_t RHS;
+    switch (Value.getOpcode()) {
+    case ISD::ADD:
+      if (!getI32Constant(Value.getOperand(0), LHS) ||
+          !getI32Constant(Value.getOperand(1), RHS))
+        return false;
+      Imm = LHS + RHS;
+      return true;
+    case ISD::AND:
+      if (!getI32Constant(Value.getOperand(0), LHS) ||
+          !getI32Constant(Value.getOperand(1), RHS))
+        return false;
+      Imm = LHS & RHS;
+      return true;
+    case ISD::OR:
+      if (!getI32Constant(Value.getOperand(0), LHS) ||
+          !getI32Constant(Value.getOperand(1), RHS))
+        return false;
+      Imm = LHS | RHS;
+      return true;
+    case ISD::XOR:
+      if (!getI32Constant(Value.getOperand(0), LHS) ||
+          !getI32Constant(Value.getOperand(1), RHS))
+        return false;
+      Imm = LHS ^ RHS;
+      return true;
+    default:
+      return false;
+    }
   }
 
   static bool getShiftLeftConstant(SDValue Value, SDValue &Other,
@@ -178,8 +213,8 @@ public:
     SDValue Other;
     uint32_t Mask;
 
-    if (auto *C = dyn_cast<ConstantSDNode>(Value)) {
-      uint32_t Imm = static_cast<uint32_t>(C->getZExtValue());
+    uint32_t Imm;
+    if (getI32Constant(Value, Imm)) {
       if ((Imm & ~FieldMask) == 0) {
         Src = materializeI32Constant(Imm >> BitPos, DL);
         return true;

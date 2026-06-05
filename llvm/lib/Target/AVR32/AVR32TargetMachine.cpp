@@ -8,7 +8,9 @@
 
 #include "AVR32TargetMachine.h"
 #include "AVR32.h"
+#include "AVR32TargetTransformInfo.h"
 #include "TargetInfo/AVR32TargetInfo.h"
+#include "llvm/Analysis/TargetTransformInfo.h"
 #include "llvm/CodeGen/TargetLoweringObjectFileImpl.h"
 #include "llvm/CodeGen/TargetPassConfig.h"
 #include "llvm/MC/TargetRegistry.h"
@@ -50,6 +52,11 @@ public:
 
 TargetPassConfig *AVR32TargetMachine::createPassConfig(PassManagerBase &PM) {
   return new AVR32PassConfig(*this, PM);
+}
+
+TargetTransformInfo
+AVR32TargetMachine::getTargetTransformInfo(const Function &F) const {
+  return TargetTransformInfo(std::make_unique<AVR32TTIImpl>(this, F));
 }
 
 bool AVR32PassConfig::addInstSelector() {
