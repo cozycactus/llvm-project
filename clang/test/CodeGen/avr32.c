@@ -337,7 +337,7 @@ __attribute__((optnone, noinline)) int pick(int a, int b) {
 // CHECK: icmp eq i32
 
 // ASM-LABEL: add:
-// ASM: addal r12, r11, r12
+// ASM: add r12, r11
 // ASM: ret r12
 
 // ASM-LABEL: call_indirect:
@@ -363,7 +363,7 @@ __attribute__((optnone, noinline)) int pick(int a, int b) {
 // ASM-LABEL: swap_16:
 // ASM: lsr
 // ASM: lsl
-// ASM: oral
+// ASM: or
 // ASM: andal
 // ASM: ret r12
 
@@ -384,27 +384,27 @@ __attribute__((optnone, noinline)) int pick(int a, int b) {
 // ASM-LABEL: load_byte:
 // ASM: mov {{r[0-9]+}}, LO(bytes)
 // ASM: movh {{r[0-9]+}}, HI(bytes)
-// ASM: oral
+// ASM: or
 // ASM: mov {{r[0-9]+}}, 3
 // ASM: ld.ub r12, {{r[0-9]+}}[{{r[0-9]+}} << 0]
 // ASM: ret r12
 
 // ASM-LABEL: load_table:
-// ASM: andal
+// ASM: and
 // ASM: mov {{r[0-9]+}}, LO(values)
 // ASM: movh {{r[0-9]+}}, HI(values)
-// ASM: oral
+// ASM: or
 // ASM: ld.w r12, {{r[0-9]+}}[{{r[0-9]+}} << 2]
 // ASM: ret r12
 
 // ASM-LABEL: or_mask:
 // ASM: mov {{r[0-9]+}}, 65536
-// ASM: oral
+// ASM: or
 // ASM: ret r12
 
 // ASM-LABEL: xor_mask:
 // ASM: mov {{r[0-9]+}}, 65536
-// ASM: eoral
+// ASM: eor
 // ASM: ret r12
 
 // ASM-LABEL: count_leading:
@@ -555,7 +555,7 @@ __attribute__((optnone, noinline)) int pick(int a, int b) {
 // ASM-LABEL: store_global:
 // ASM: mov {{r[0-9]+}}, LO(sink)
 // ASM: movh {{r[0-9]+}}, HI(sink)
-// ASM: oral
+// ASM: or
 // ASM: st.w {{r[0-9]+}}[0], r12
 // ASM: ret r12
 

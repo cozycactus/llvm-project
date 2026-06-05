@@ -44,8 +44,10 @@ class PassRegistry;
 
 FunctionPass *createAVR32ISelDag(AVR32TargetMachine &TM,
                                  CodeGenOptLevel OptLevel);
+FunctionPass *createAVR32PeepholePass();
 void initializeAVR32AsmPrinterPass(PassRegistry &);
 void initializeAVR32DAGToDAGISelLegacyPass(PassRegistry &);
+void initializeAVR32PeepholePass(PassRegistry &);
 } // namespace llvm
 
 #endif // LLVM_LIB_TARGET_AVR32_AVR32_H

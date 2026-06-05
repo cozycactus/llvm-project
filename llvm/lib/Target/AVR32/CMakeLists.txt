@@ -19,6 +19,7 @@ add_llvm_target(AVR32CodeGen
   AVR32ISelDAGToDAG.cpp
   AVR32ISelLowering.cpp
   AVR32InstrInfo.cpp
+  AVR32Peephole.cpp
   AVR32RegisterInfo.cpp
   AVR32SelectionDAGInfo.cpp
   AVR32Subtarget.cpp

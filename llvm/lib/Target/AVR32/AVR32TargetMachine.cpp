@@ -44,6 +44,7 @@ public:
   }
 
   bool addInstSelector() override;
+  void addPreEmitPass() override;
 };
 } // namespace
 
@@ -56,9 +57,12 @@ bool AVR32PassConfig::addInstSelector() {
   return false;
 }
 
+void AVR32PassConfig::addPreEmitPass() { addPass(createAVR32PeepholePass()); }
+
 extern "C" LLVM_ABI LLVM_EXTERNAL_VISIBILITY void LLVMInitializeAVR32Target() {
   RegisterTargetMachine<AVR32TargetMachine> X(getTheAVR32Target());
   PassRegistry &PR = *PassRegistry::getPassRegistry();
   initializeAVR32AsmPrinterPass(PR);
   initializeAVR32DAGToDAGISelLegacyPass(PR);
+  initializeAVR32PeepholePass(PR);
 }
