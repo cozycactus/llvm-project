@@ -1,21 +1,22 @@
 # RUN: yaml2obj %s -o %t.o
-# RUN: echo 'MEMORY { RAM (wxa!ri) : ORIGIN = 0x1000, LENGTH = 0x1000 } SECTIONS { .bss : { *(.bss) } >RAM .reserved ORIGIN(RAM) + 0x100 : { __reserved_start = .; . = 0x20; __reserved_end = .; } >RAM }' > %t.script
+# RUN: echo 'MEMORY { RAM (wxa!ri) : ORIGIN = 0x4, LENGTH = 0xfffc } SECTIONS { .bss : { *(.bss) } >RAM .stack ORIGIN(RAM) + LENGTH(RAM) - _stack_size : { _stack = .; . = _stack_size; _estack = .; } >RAM }' > %t.script
 # RUN: ld.lld %t.o -T %t.script -o %t
 # RUN: llvm-readelf -S -s -lW %t | FileCheck %s
 
-# CHECK: .bss             NOBITS          0000000000001000 {{[0-9a-f]+}} 000004 00  WA
-# CHECK: .reserved        NOBITS          0000000000001100 {{[0-9a-f]+}} 000020 00  WA
-# CHECK-DAG: LOAD {{.*}} 0x0000000000001000 {{.*}} 0x000000 0x000004 RW
-# CHECK-DAG: LOAD {{.*}} 0x0000000000001100 {{.*}} 0x000000 0x000020 RW
-# CHECK-DAG: 0000000000001100     0 NOTYPE  GLOBAL DEFAULT     {{[0-9]+}} __reserved_start
-# CHECK-DAG: 0000000000001120     0 NOTYPE  GLOBAL DEFAULT     {{[0-9]+}} __reserved_end
+# CHECK: .bss              NOBITS          00000004 {{[0-9a-f]+}} 000004 00  WA
+# CHECK: .stack            NOBITS          0000f000 {{[0-9a-f]+}} 001000 00  WA
+# CHECK-DAG: LOAD {{.*}} 0x00000004 {{.*}} 0x00000 0x00004 RW
+# CHECK-DAG: LOAD {{.*}} 0x0000f000 {{.*}} 0x00000 0x01000 RW
+# CHECK-DAG: 00001000     0 NOTYPE  GLOBAL DEFAULT   ABS _stack_size
+# CHECK-DAG: 0000f000     0 NOTYPE  GLOBAL DEFAULT     {{[0-9]+}} _stack
+# CHECK-DAG: 00010000     0 NOTYPE  GLOBAL DEFAULT     {{[0-9]+}} _estack
 
 --- !ELF
 FileHeader:
-  Class: ELFCLASS64
-  Data: ELFDATA2LSB
+  Class: ELFCLASS32
+  Data: ELFDATA2MSB
   Type: ET_REL
-  Machine: EM_X86_64
+  Machine: EM_AVR32
 Sections:
   - Name: .bss
     Type: SHT_NOBITS

@@ -200,14 +200,19 @@ static bool hasByteCommand(const OutputSection &sec) {
   });
 }
 
+static bool isAVR32StackSection(Ctx &ctx, const OutputSection &sec) {
+  return ctx.arg.emachine == EM_AVR32 && sec.name == ".stack" &&
+         !sec.memoryRegionName.empty() && !sec.hasInputSections &&
+         !hasByteCommand(sec);
+}
+
 void LinkerScript::setDot(Expr e, const Twine &loc, bool inSec) {
   ExprValue expr = e();
   uint64_t val = expr.getValue();
-  // In assignment-only reserved sections, GNU ld treats an absolute dot value
-  // below the section VMA as an offset from the start of the section.
+  // AVR32 GNU linker scripts define .stack with `. = _stack_size;`, treating
+  // the absolute value as a section-relative size.
   if (inSec && expr.sec == nullptr && !expr.forceAbsolute && val < dot &&
-      state->outSec && !state->outSec->memoryRegionName.empty() &&
-      !state->outSec->hasInputSections && !hasByteCommand(*state->outSec))
+      state->outSec && isAVR32StackSection(ctx, *state->outSec))
     val += state->outSec->addr;
 
   // If val is smaller and we are in an output section, record the error and
@@ -1410,13 +1415,10 @@ void LinkerScript::adjustOutputSections() {
     if (isEmpty) {
       sec->flags =
           flags & ((sec->nonAlloc ? 0 : (uint64_t)SHF_ALLOC) | SHF_WRITE);
-      if (!sec->memoryRegionName.empty() && !sec->nonAlloc) {
-        // A MEMORY region assignment makes a reserved empty section part of
-        // the image even if no input section contributes flags.
-        sec->flags |= SHF_ALLOC;
-        if (MemoryRegion *m = memoryRegions.lookup(sec->memoryRegionName))
-          if ((m->flags | m->negInvFlags) & SHF_WRITE)
-            sec->flags |= SHF_WRITE;
+      if (!sec->nonAlloc && isAVR32StackSection(ctx, *sec)) {
+        // The AVR32 default linker script reserves .stack with assignments
+        // rather than input sections.
+        sec->flags |= SHF_ALLOC | SHF_WRITE;
         if (!sec->typeIsSet && !hasByteCommand(*sec))
           sec->type = SHT_NOBITS;
       }

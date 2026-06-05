@@ -156,6 +156,8 @@ static std::tuple<ELFKind, uint16_t, uint8_t> parseEmulation(Ctx &ctx,
     s = s.drop_back(5);
     osabi = ELFOSABI_FREEBSD;
   }
+  if (s == "avr32elf" || s.starts_with("avr32elf_"))
+    return std::make_tuple(ELF32BEKind, EM_AVR32, osabi);
 
   std::pair<ELFKind, uint16_t> ret =
       StringSwitch<std::pair<ELFKind, uint16_t>>(s)

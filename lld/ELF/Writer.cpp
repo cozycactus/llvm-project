@@ -2419,14 +2419,14 @@ Writer<ELFT>::createPhdrs(Partition &part) {
 
     bool sameLMARegion =
         load && !sec->lmaExpr && sec->lmaRegion == load->firstSec->lmaRegion;
-    // Output addresses are not assigned yet. A section with an explicit
-    // address expression may be discontiguous from the previous PT_LOAD, so do
-    // not fold it into an existing segment.
-    bool hasExplicitAddr =
-        load && sec->addrExpr && load->lastSec != ctx.out.programHeaders.get();
+    // AVR32 GNU linker scripts place .stack with an explicit address near the
+    // top of SRAM. Keep it in a separate LOAD instead of spanning the RAM gap.
+    bool isAVR32Stack =
+        load && ctx.arg.emachine == EM_AVR32 && sec->name == ".stack" &&
+        sec->addrExpr && load->lastSec != ctx.out.programHeaders.get();
     if (load && sec != relroEnd &&
         sec->memRegion == load->firstSec->memRegion &&
-        !hasExplicitAddr &&
+        !isAVR32Stack &&
         (sameLMARegion || load->lastSec == ctx.out.programHeaders.get()) &&
         (ctx.script->hasSectionsCommand || sec->type == SHT_NOBITS ||
          load->lastSec->type != SHT_NOBITS)) {
