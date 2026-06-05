@@ -4113,6 +4113,8 @@ def mno_tocdata_EQ : CommaJoined<["-"], "mno-tocdata=">,
   HelpText<"Specifies a list of variables to be exempt from the TOC data "
            "transformation.">,
   MarshallingInfoStringVector<CodeGenOpts<"NoTocDataVars">>;
+def rodata_writable : Flag<["--"], "rodata-writable">,
+  Flags<[TargetSpecific]>, Visibility<[ClangOption]>;
 defm preserve_as_comments : BoolFOption<"preserve-as-comments",
   CodeGenOpts<"PreserveAsmComments">, DefaultTrue,
   NegFlag<SetFalse, [], [ClangOption, CC1Option],
@@ -5173,6 +5175,8 @@ def mguard_EQ : Joined<["-"], "mguard=">, Group<m_Group>,
   HelpText<"Enable or disable Control Flow Guard checks and guard tables emission">,
   Values<"none,cf,cf-nochecks">;
 def mmcu_EQ : Joined<["-"], "mmcu=">, Group<m_Group>;
+def mpart_EQ : Joined<["-"], "mpart=">, Group<m_Group>,
+  Flags<[TargetSpecific]>;
 def msim : Flag<["-"], "msim">, Group<m_Group>;
 def mfix_and_continue : Flag<["-"], "mfix-and-continue">, Group<clang_ignored_m_Group>;
 def mieee_fp : Flag<["-"], "mieee-fp">, Group<clang_ignored_m_Group>;

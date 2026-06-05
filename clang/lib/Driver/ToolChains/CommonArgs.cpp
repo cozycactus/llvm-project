@@ -748,6 +748,11 @@ std::string tools::getCPUName(const Driver &D, const ArgList &Args,
       return A->getValue();
     return "";
 
+  case llvm::Triple::avr32:
+    if (const Arg *A = Args.getLastArg(options::OPT_mcpu_EQ))
+      return A->getValue();
+    return "";
+
   case llvm::Triple::m68k:
     return m68k::getM68kTargetCPU(Args);
 

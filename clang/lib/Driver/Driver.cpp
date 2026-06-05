@@ -11,6 +11,7 @@
 #include "ToolChains/AMDGPU.h"
 #include "ToolChains/AMDGPUOpenMP.h"
 #include "ToolChains/AVR.h"
+#include "ToolChains/AVR32.h"
 #include "ToolChains/Arch/RISCV.h"
 #include "ToolChains/BareMetal.h"
 #include "ToolChains/CSKYToolChain.h"
@@ -6987,6 +6988,9 @@ const ToolChain &Driver::getToolChain(const ArgList &Args,
         break;
       case llvm::Triple::avr:
         TC = std::make_unique<toolchains::AVRToolChain>(*this, Target, Args);
+        break;
+      case llvm::Triple::avr32:
+        TC = std::make_unique<toolchains::AVR32ToolChain>(*this, Target, Args);
         break;
       case llvm::Triple::msp430:
         TC = std::make_unique<toolchains::MSP430ToolChain>(*this, Target, Args);
