@@ -547,9 +547,8 @@ __attribute__((optnone, noinline)) int pick(int a, int b) {
 // ASM: ret r12
 
 // ASM-LABEL: mmio_address:
-// ASM-DAG: movh {{r[0-9]+}}, 16384
-// ASM-DAG: mov {{r[0-9]+}}, 68
-// ASM: oral
+// ASM: mov r12, 68
+// ASM: orh r12, 16384
 // ASM: ret r12
 
 // ASM-LABEL: store_global:

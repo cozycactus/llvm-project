@@ -47,6 +47,7 @@ private:
                     unsigned Align, const TargetInstrInfo &TII);
   bool foldStoreDisp(MachineInstr &MI, unsigned CompactOpc, unsigned MaxDisp,
                      unsigned Align, const TargetInstrInfo &TII);
+  bool foldMovhOr(MachineInstr &MI, const TargetInstrInfo &TII);
 };
 
 } // end anonymous namespace
@@ -69,6 +70,20 @@ static bool isSignedNBit(int64_t Value, unsigned Bits) {
 static bool isCompactDisp(int64_t Value, unsigned MaxDisp, unsigned Align) {
   return Value >= 0 && static_cast<uint64_t>(Value) <= MaxDisp &&
          Value % Align == 0;
+}
+
+static bool isMovLowImmOpcode(unsigned Opcode) {
+  return Opcode == AVR32::MOVri8 || Opcode == AVR32::MOVri21;
+}
+
+static bool isMovLowImm(const MachineInstr &MI) {
+  return isMovLowImmOpcode(MI.getOpcode()) && MI.getNumOperands() == 2 &&
+         isRegOperand(MI.getOperand(0)) && MI.getOperand(1).isImm();
+}
+
+static bool isMovhImm(const MachineInstr &MI) {
+  return MI.getOpcode() == AVR32::MOVHri && MI.getNumOperands() == 2 &&
+         isRegOperand(MI.getOperand(0)) && MI.getOperand(1).isImm();
 }
 
 bool AVR32Peephole::foldTwoAddressALU(MachineInstr &MI, unsigned CompactOpc,
@@ -100,6 +115,62 @@ bool AVR32Peephole::foldTwoAddressALU(MachineInstr &MI, unsigned CompactOpc,
           .addReg(Src.getReg(), getKillRegState(Src.isKill()));
   MIB.setMIFlags(MI.getFlags());
   MIB->copyImplicitOps(MF, MI);
+  MI.eraseFromParent();
+  ++NumCompactForms;
+  return true;
+}
+
+bool AVR32Peephole::foldMovhOr(MachineInstr &MI,
+                               const TargetInstrInfo &TII) {
+  if (MI.getIterator() == MI.getParent()->begin())
+    return false;
+
+  MachineBasicBlock::iterator HighIt = std::prev(MI.getIterator());
+  if (HighIt == MI.getParent()->begin())
+    return false;
+  MachineBasicBlock::iterator LowIt = std::prev(HighIt);
+  MachineInstr &LowMI = *LowIt;
+  MachineInstr &HighMI = *HighIt;
+  if (!isMovLowImm(LowMI) || !isMovhImm(HighMI))
+    return false;
+
+  Register DstReg;
+  Register LowReg = LowMI.getOperand(0).getReg();
+  Register HighReg = HighMI.getOperand(0).getReg();
+
+  if (MI.getOpcode() == AVR32::ORALrrr) {
+    if (MI.getNumOperands() != 3 || !isRegOperand(MI.getOperand(0)) ||
+        !isRegOperand(MI.getOperand(1)) || !isRegOperand(MI.getOperand(2)))
+      return false;
+
+    Register Src0 = MI.getOperand(1).getReg();
+    Register Src1 = MI.getOperand(2).getReg();
+    if (!((Src0 == HighReg && Src1 == LowReg) ||
+          (Src0 == LowReg && Src1 == HighReg)))
+      return false;
+    DstReg = MI.getOperand(0).getReg();
+  } else if (MI.getOpcode() == AVR32::ORrr) {
+    if (MI.getNumOperands() != 2 || !isRegOperand(MI.getOperand(0)) ||
+        !isRegOperand(MI.getOperand(1)))
+      return false;
+
+    DstReg = MI.getOperand(0).getReg();
+    if (DstReg != LowReg || MI.getOperand(1).getReg() != HighReg)
+      return false;
+  } else {
+    return false;
+  }
+
+  MachineBasicBlock &MBB = *MI.getParent();
+  BuildMI(MBB, LowMI, LowMI.getDebugLoc(), TII.get(LowMI.getOpcode()), DstReg)
+      .addImm(LowMI.getOperand(1).getImm())
+      .setMIFlags(LowMI.getFlags());
+  BuildMI(MBB, LowMI, HighMI.getDebugLoc(), TII.get(AVR32::ORHri), DstReg)
+      .addImm(HighMI.getOperand(1).getImm())
+      .setMIFlags(HighMI.getFlags());
+
+  LowMI.eraseFromParent();
+  HighMI.eraseFromParent();
   MI.eraseFromParent();
   ++NumCompactForms;
   return true;
@@ -216,7 +287,11 @@ bool AVR32Peephole::runOnMachineFunction(MachineFunction &MF) {
         Changed |= foldSignedImmediate(MI, AVR32::CPri6, 6, false, TII);
         break;
       case AVR32::ORALrrr:
-        Changed |= foldTwoAddressALU(MI, AVR32::ORrr, true, TII);
+        Changed |= foldMovhOr(MI, TII) ||
+                   foldTwoAddressALU(MI, AVR32::ORrr, true, TII);
+        break;
+      case AVR32::ORrr:
+        Changed |= foldMovhOr(MI, TII);
         break;
       case AVR32::CP_Wri21:
         Changed |= foldSignedImmediate(MI, AVR32::CP_Wri6, 6, false, TII);
