@@ -14,6 +14,7 @@
 #include "llvm/CodeGen/MachineFunctionPass.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
 #include "llvm/CodeGen/TargetInstrInfo.h"
+#include "llvm/Support/MathExtras.h"
 
 using namespace llvm;
 
@@ -49,6 +50,7 @@ private:
   bool foldStoreDisp(MachineInstr &MI, unsigned CompactOpc, unsigned MaxDisp,
                      unsigned Align, const TargetInstrInfo &TII);
   bool foldMovhOr(MachineInstr &MI, const TargetInstrInfo &TII);
+  bool foldBitImmediate(MachineInstr &MI, const TargetInstrInfo &TII);
   bool foldNearBranches(MachineFunction &MF, const TargetInstrInfo &TII);
 };
 
@@ -119,6 +121,44 @@ static bool isMovhMaterialization(const MachineInstr &MI) {
   return MI.getOpcode() == AVR32::MOVHri && MI.getNumOperands() == 2 &&
          isRegOperand(MI.getOperand(0)) &&
          isHighMaterializationOperand(MI.getOperand(1));
+}
+
+static std::optional<unsigned> getSingleSetBit(uint32_t Value) {
+  if (Value == 0 || (Value & (Value - 1)) != 0)
+    return std::nullopt;
+  return llvm::countr_zero(Value);
+}
+
+static std::optional<unsigned> getBitSetIndex(unsigned Opcode, int64_t Imm) {
+  uint32_t Value = static_cast<uint32_t>(Imm);
+  switch (Opcode) {
+  case AVR32::ORrr:
+    return getSingleSetBit(Value);
+  case AVR32::ORLri:
+    return getSingleSetBit(Value & 0xffff);
+  case AVR32::ORHri:
+    if (std::optional<unsigned> Bit = getSingleSetBit(Value & 0xffff))
+      return *Bit + 16;
+    return std::nullopt;
+  default:
+    return std::nullopt;
+  }
+}
+
+static std::optional<unsigned> getBitClearIndex(unsigned Opcode, int64_t Imm) {
+  uint32_t Value = static_cast<uint32_t>(Imm);
+  switch (Opcode) {
+  case AVR32::ANDrr:
+    return getSingleSetBit(~Value);
+  case AVR32::ANDLri:
+    return getSingleSetBit((~Value) & 0xffff);
+  case AVR32::ANDHri:
+    if (std::optional<unsigned> Bit = getSingleSetBit((~Value) & 0xffff))
+      return *Bit + 16;
+    return std::nullopt;
+  default:
+    return std::nullopt;
+  }
 }
 
 static unsigned getInstSize(const MachineInstr &MI) {
@@ -232,6 +272,75 @@ bool AVR32Peephole::foldMovhOr(MachineInstr &MI,
 
   LowMI.eraseFromParent();
   HighMI.eraseFromParent();
+  MI.eraseFromParent();
+  ++NumCompactForms;
+  return true;
+}
+
+bool AVR32Peephole::foldBitImmediate(MachineInstr &MI,
+                                     const TargetInstrInfo &TII) {
+  unsigned Opcode = MI.getOpcode();
+  std::optional<unsigned> Bit;
+  unsigned CompactOpc = 0;
+  if (Opcode == AVR32::ORLri || Opcode == AVR32::ORHri ||
+      Opcode == AVR32::ANDLri || Opcode == AVR32::ANDHri) {
+    if (MI.getNumOperands() != 2 || !isRegOperand(MI.getOperand(0)) ||
+        !MI.getOperand(1).isImm())
+      return false;
+
+    Bit = getBitSetIndex(Opcode, MI.getOperand(1).getImm());
+    CompactOpc = AVR32::SBRri;
+    if (!Bit) {
+      Bit = getBitClearIndex(Opcode, MI.getOperand(1).getImm());
+      CompactOpc = AVR32::CBRri;
+    }
+    if (!Bit)
+      return false;
+
+    MachineBasicBlock &MBB = *MI.getParent();
+    BuildMI(MBB, MI, MI.getDebugLoc(), TII.get(CompactOpc))
+        .addReg(MI.getOperand(0).getReg())
+        .addImm(*Bit)
+        .setMIFlags(MI.getFlags());
+    MI.eraseFromParent();
+    ++NumCompactForms;
+    return true;
+  }
+
+  if (Opcode != AVR32::ORrr && Opcode != AVR32::ANDrr)
+    return false;
+  if (MI.getNumOperands() != 2 || !isRegOperand(MI.getOperand(0)) ||
+      !isRegOperand(MI.getOperand(1)) || !MI.getOperand(1).isKill())
+    return false;
+  if (MI.getIterator() == MI.getParent()->begin())
+    return false;
+
+  MachineBasicBlock::iterator ImmIt = std::prev(MI.getIterator());
+  MachineInstr &ImmMI = *ImmIt;
+  if (!isMovLowImmOpcode(ImmMI.getOpcode()) || ImmMI.getNumOperands() != 2 ||
+      !isRegOperand(ImmMI.getOperand(0)) || !ImmMI.getOperand(1).isImm())
+    return false;
+
+  Register DstReg = MI.getOperand(0).getReg();
+  Register ImmReg = MI.getOperand(1).getReg();
+  if (DstReg == ImmReg || ImmMI.getOperand(0).getReg() != ImmReg)
+    return false;
+
+  Bit = getBitSetIndex(Opcode, ImmMI.getOperand(1).getImm());
+  CompactOpc = AVR32::SBRri;
+  if (!Bit) {
+    Bit = getBitClearIndex(Opcode, ImmMI.getOperand(1).getImm());
+    CompactOpc = AVR32::CBRri;
+  }
+  if (!Bit)
+    return false;
+
+  MachineBasicBlock &MBB = *MI.getParent();
+  BuildMI(MBB, ImmMI, MI.getDebugLoc(), TII.get(CompactOpc))
+      .addReg(DstReg)
+      .addImm(*Bit)
+      .setMIFlags(MI.getFlags());
+  ImmMI.eraseFromParent();
   MI.eraseFromParent();
   ++NumCompactForms;
   return true;
@@ -381,67 +490,84 @@ bool AVR32Peephole::runOnMachineFunction(MachineFunction &MF) {
       *MF.getSubtarget<AVR32Subtarget>().getInstrInfo();
   bool Changed = false;
 
-  for (MachineBasicBlock &MBB : MF) {
-    for (MachineBasicBlock::iterator I = MBB.begin(), E = MBB.end(); I != E;) {
-      MachineInstr &MI = *I++;
-      switch (MI.getOpcode()) {
-      case AVR32::ADDALrrr:
-        Changed |= foldTwoAddressALU(MI, AVR32::ADDrr, true, TII);
-        break;
-      case AVR32::ANDALrrr:
-        Changed |= foldTwoAddressALU(MI, AVR32::ANDrr, true, TII);
-        break;
-      case AVR32::EORALrrr:
-        Changed |= foldTwoAddressALU(MI, AVR32::EORrr, true, TII);
-        break;
-      case AVR32::MULrrr:
-        Changed |= foldTwoAddressALU(MI, AVR32::MULrr, true, TII);
-        break;
-      case AVR32::MOVri21:
-        Changed |= foldSignedImmediate(MI, AVR32::MOVri8, 8, true, TII);
-        break;
-      case AVR32::CPri21:
-        Changed |= foldSignedImmediate(MI, AVR32::CPri6, 6, false, TII);
-        break;
-      case AVR32::ORALrrr:
-        Changed |= foldMovhOr(MI, TII) ||
-                   foldTwoAddressALU(MI, AVR32::ORrr, true, TII);
-        break;
-      case AVR32::ORrr:
-        Changed |= foldMovhOr(MI, TII);
-        break;
-      case AVR32::CP_Wri21:
-        Changed |= foldSignedImmediate(MI, AVR32::CP_Wri6, 6, false, TII);
-        break;
-      case AVR32::LD_SH_Disp16:
-        Changed |= foldLoadDisp(MI, AVR32::LD_SH_Disp3, 14, 2, TII);
-        break;
-      case AVR32::LD_UB_Disp16:
-        Changed |= foldLoadDisp(MI, AVR32::LD_UB_Disp3, 7, 1, TII);
-        break;
-      case AVR32::LD_UH_Disp16:
-        Changed |= foldLoadDisp(MI, AVR32::LD_UH_Disp3, 14, 2, TII);
-        break;
-      case AVR32::LD_W_Disp16:
-        Changed |= foldLoadDisp(MI, AVR32::LD_W_Disp5, 124, 4, TII);
-        break;
-      case AVR32::ST_B_Disp16:
-        Changed |= foldStoreDisp(MI, AVR32::ST_B_Disp3, 7, 1, TII);
-        break;
-      case AVR32::ST_H_Disp16:
-        Changed |= foldStoreDisp(MI, AVR32::ST_H_Disp3, 14, 2, TII);
-        break;
-      case AVR32::ST_W_Disp16:
-        Changed |= foldStoreDisp(MI, AVR32::ST_W_Disp4, 60, 4, TII);
-        break;
-      case AVR32::SUBALrrr:
-        Changed |= foldTwoAddressALU(MI, AVR32::SUBrr, false, TII);
-        break;
-      default:
-        break;
+  bool LocalChanged;
+  do {
+    LocalChanged = false;
+    for (MachineBasicBlock &MBB : MF) {
+      for (MachineBasicBlock::iterator I = MBB.begin(), E = MBB.end(); I != E;) {
+        MachineInstr &MI = *I++;
+        switch (MI.getOpcode()) {
+        case AVR32::ADDALrrr:
+          LocalChanged |= foldTwoAddressALU(MI, AVR32::ADDrr, true, TII);
+          break;
+        case AVR32::ANDALrrr:
+          LocalChanged |= foldTwoAddressALU(MI, AVR32::ANDrr, true, TII);
+          break;
+        case AVR32::ANDrr:
+          LocalChanged |= foldBitImmediate(MI, TII);
+          break;
+        case AVR32::ANDLri:
+        case AVR32::ANDHri:
+          LocalChanged |= foldBitImmediate(MI, TII);
+          break;
+        case AVR32::EORALrrr:
+          LocalChanged |= foldTwoAddressALU(MI, AVR32::EORrr, true, TII);
+          break;
+        case AVR32::MULrrr:
+          LocalChanged |= foldTwoAddressALU(MI, AVR32::MULrr, true, TII);
+          break;
+        case AVR32::MOVri21:
+          LocalChanged |= foldSignedImmediate(MI, AVR32::MOVri8, 8, true, TII);
+          break;
+        case AVR32::CPri21:
+          LocalChanged |= foldSignedImmediate(MI, AVR32::CPri6, 6, false, TII);
+          break;
+        case AVR32::ORALrrr:
+          LocalChanged |= foldMovhOr(MI, TII) ||
+                          foldTwoAddressALU(MI, AVR32::ORrr, true, TII);
+          break;
+        case AVR32::ORrr:
+          LocalChanged |= foldMovhOr(MI, TII) || foldBitImmediate(MI, TII);
+          break;
+        case AVR32::ORLri:
+        case AVR32::ORHri:
+          LocalChanged |= foldBitImmediate(MI, TII);
+          break;
+        case AVR32::CP_Wri21:
+          LocalChanged |=
+              foldSignedImmediate(MI, AVR32::CP_Wri6, 6, false, TII);
+          break;
+        case AVR32::LD_SH_Disp16:
+          LocalChanged |= foldLoadDisp(MI, AVR32::LD_SH_Disp3, 14, 2, TII);
+          break;
+        case AVR32::LD_UB_Disp16:
+          LocalChanged |= foldLoadDisp(MI, AVR32::LD_UB_Disp3, 7, 1, TII);
+          break;
+        case AVR32::LD_UH_Disp16:
+          LocalChanged |= foldLoadDisp(MI, AVR32::LD_UH_Disp3, 14, 2, TII);
+          break;
+        case AVR32::LD_W_Disp16:
+          LocalChanged |= foldLoadDisp(MI, AVR32::LD_W_Disp5, 124, 4, TII);
+          break;
+        case AVR32::ST_B_Disp16:
+          LocalChanged |= foldStoreDisp(MI, AVR32::ST_B_Disp3, 7, 1, TII);
+          break;
+        case AVR32::ST_H_Disp16:
+          LocalChanged |= foldStoreDisp(MI, AVR32::ST_H_Disp3, 14, 2, TII);
+          break;
+        case AVR32::ST_W_Disp16:
+          LocalChanged |= foldStoreDisp(MI, AVR32::ST_W_Disp4, 60, 4, TII);
+          break;
+        case AVR32::SUBALrrr:
+          LocalChanged |= foldTwoAddressALU(MI, AVR32::SUBrr, false, TII);
+          break;
+        default:
+          break;
+        }
       }
     }
-  }
+    Changed |= LocalChanged;
+  } while (LocalChanged);
 
   while (foldNearBranches(MF, TII))
     Changed = true;

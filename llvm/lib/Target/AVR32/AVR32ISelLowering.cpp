@@ -124,6 +124,25 @@ static AVR32CC::CondCodes intCondCodeToAVR32CC(ISD::CondCode CC) {
   }
 }
 
+static bool commuteCondCodeForCompactBranch(ISD::CondCode &CC) {
+  switch (CC) {
+  default:
+    return false;
+  case ISD::SETGT:
+    CC = ISD::SETLT;
+    return true;
+  case ISD::SETLE:
+    CC = ISD::SETGE;
+    return true;
+  case ISD::SETUGT:
+    CC = ISD::SETULT;
+    return true;
+  case ISD::SETULE:
+    CC = ISD::SETUGE;
+    return true;
+  }
+}
+
 SDValue AVR32TargetLowering::LowerOperation(SDValue Op,
                                             SelectionDAG &DAG) const {
   if (Op.getOpcode() != ISD::BR_CC && Op.getOpcode() != ISD::SELECT &&
@@ -141,6 +160,10 @@ SDValue AVR32TargetLowering::LowerOperation(SDValue Op,
   if (Op.getOpcode() == ISD::SETCC || Op.getOpcode() == ISD::SELECT_CC) {
     unsigned CondOperand = Op.getOpcode() == ISD::SETCC ? 2 : 4;
     ISD::CondCode CC = cast<CondCodeSDNode>(Op.getOperand(CondOperand))->get();
+    SDValue LHS = Op.getOperand(0);
+    SDValue RHS = Op.getOperand(1);
+    if (commuteCondCodeForCompactBranch(CC))
+      std::swap(LHS, RHS);
     AVR32CC::CondCodes TargetCC = intCondCodeToAVR32CC(CC);
     SDLoc DL(Op);
     if (TargetCC == AVR32CC::COND_INVALID) {
@@ -150,12 +173,11 @@ SDValue AVR32TargetLowering::LowerOperation(SDValue Op,
     }
 
     if (Op.getOpcode() == ISD::SELECT_CC)
-      return DAG.getNode(AVR32ISD::SELECT_CC, DL, MVT::i32, Op.getOperand(0),
-                         Op.getOperand(1), Op.getOperand(2), Op.getOperand(3),
+      return DAG.getNode(AVR32ISD::SELECT_CC, DL, MVT::i32, LHS, RHS,
+                         Op.getOperand(2), Op.getOperand(3),
                          DAG.getTargetConstant(TargetCC, DL, MVT::i32));
 
-    return DAG.getNode(AVR32ISD::SET_CC, DL, MVT::i32, Op.getOperand(0),
-                       Op.getOperand(1),
+    return DAG.getNode(AVR32ISD::SET_CC, DL, MVT::i32, LHS, RHS,
                        DAG.getTargetConstant(TargetCC, DL, MVT::i32));
   }
 
@@ -165,6 +187,10 @@ SDValue AVR32TargetLowering::LowerOperation(SDValue Op,
   SDValue RHS = Op.getOperand(3);
   SDValue Dest = Op.getOperand(4);
   SDLoc DL(Op);
+
+  // Keep register-immediate branches in their original order so CPri can match.
+  if (!isa<ConstantSDNode>(RHS) && commuteCondCodeForCompactBranch(CC))
+    std::swap(LHS, RHS);
 
   AVR32CC::CondCodes TargetCC = intCondCodeToAVR32CC(CC);
   if (TargetCC == AVR32CC::COND_INVALID) {

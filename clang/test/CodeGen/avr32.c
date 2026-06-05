@@ -58,6 +58,10 @@ unsigned or_mask(unsigned x) {
   return x | 65536u;
 }
 
+unsigned clear_low_bit(unsigned x) {
+  return x & ~1u;
+}
+
 unsigned xor_mask(unsigned x) {
   return x ^ 65536u;
 }
@@ -259,6 +263,8 @@ __attribute__((optnone, noinline)) int pick(int a, int b) {
 // CHECK: load i32, ptr
 // CHECK: define {{.*}}i32 @or_mask(i32 {{.*}})
 // CHECK: or i32
+// CHECK: define {{.*}}i32 @clear_low_bit(i32 {{.*}})
+// CHECK: and i32
 // CHECK: define {{.*}}i32 @xor_mask(i32 {{.*}})
 // CHECK: xor i32
 // CHECK: define {{.*}}i32 @count_leading(i32 {{.*}})
@@ -395,8 +401,11 @@ __attribute__((optnone, noinline)) int pick(int a, int b) {
 // ASM: ret r12
 
 // ASM-LABEL: or_mask:
-// ASM: mov {{r[0-9]+}}, 65536
-// ASM: or
+// ASM: sbr r12, 16
+// ASM: ret r12
+
+// ASM-LABEL: clear_low_bit:
+// ASM: cbr r12, 0
 // ASM: ret r12
 
 // ASM-LABEL: xor_mask:
@@ -545,7 +554,7 @@ __attribute__((optnone, noinline)) int pick(int a, int b) {
 
 // ASM-LABEL: mmio_address:
 // ASM: mov r12, 68
-// ASM: orh r12, 16384
+// ASM: sbr r12, 30
 // ASM: ret r12
 
 // ASM-LABEL: store_global:
