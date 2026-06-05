@@ -5,6 +5,7 @@ add_llvm_component_library(LLVMAVR32Desc
   AVR32ELFObjectWriter.cpp
   AVR32MCAsmInfo.cpp
   AVR32MCTargetDesc.cpp
+  AVR32TargetStreamer.cpp
 
   LINK_COMPONENTS
   AVR32Info

@@ -102,6 +102,11 @@ def SImm21Shift1AsmOperand : AsmOperandClass {
   let RenderMethod = "addImmOperands";
 }
 
+def LdaExprAsmOperand : AsmOperandClass {
+  let Name = "LdaExpr";
+  let RenderMethod = "addImmOperands";
+}
+
 def SubSPImmAsmOperand : AsmOperandClass {
   let Name = "SubSPImm";
   let RenderMethod = "addImmOperands";
@@ -124,6 +129,11 @@ def SImm15Shift2AsmOperand : AsmOperandClass {
 
 def SImm16Shift2AsmOperand : AsmOperandClass {
   let Name = "SImm16Shift2";
+  let RenderMethod = "addImmOperands";
+}
+
+def SImm16PCRelShift2AsmOperand : AsmOperandClass {
+  let Name = "SImm16PCRelShift2";
   let RenderMethod = "addImmOperands";
 }
 
@@ -184,6 +194,11 @@ def UImm5Shift2AsmOperand : AsmOperandClass {
 
 def UImm7Shift2AsmOperand : AsmOperandClass {
   let Name = "UImm7Shift2";
+  let RenderMethod = "addImmOperands";
+}
+
+def UImm7PCRelShift2AsmOperand : AsmOperandClass {
+  let Name = "UImm7PCRelShift2";
   let RenderMethod = "addImmOperands";
 }
 
@@ -391,6 +406,10 @@ def brtarget11 : Operand<OtherVT> {
   let EncoderMethod = "getPCRel11HOpValue";
 }
 
+def ldaexpr : Operand<i32> {
+  let ParserMatchClass = LdaExprAsmOperand;
+}
+
 def simm12shift1 : Operand<i32>,
                    ImmLeaf<i32, [{ return Imm >= -4096 && Imm <= 4094 &&
                                           Imm % 2 == 0; }]> {
@@ -417,6 +436,14 @@ def simm16shift2 : Operand<i32>,
                                           Imm % 4 == 0; }]> {
   let ParserMatchClass = SImm16Shift2AsmOperand;
   let EncoderMethod = "getShifted2OpValue";
+}
+
+def simm16pcrelshift2 : Operand<i32>,
+                        ImmLeaf<i32, [{ return Imm >= -131072 &&
+                                               Imm <= 131068 &&
+                                               Imm % 4 == 0; }]> {
+  let ParserMatchClass = SImm16PCRelShift2AsmOperand;
+  let EncoderMethod = "getPCRel16WOpValue";
 }
 
 def subspimm : Operand<i32>,
@@ -464,6 +491,13 @@ def uimm7shift2 : Operand<i32>,
                                          Imm % 4 == 0; }]> {
   let ParserMatchClass = UImm7Shift2AsmOperand;
   let EncoderMethod = "getShifted2OpValue";
+}
+
+def uimm7pcrelshift2 : Operand<i32>,
+                       ImmLeaf<i32, [{ return Imm >= 0 && Imm <= 508 &&
+                                              Imm % 4 == 0; }]> {
+  let ParserMatchClass = UImm7PCRelShift2AsmOperand;
+  let EncoderMethod = "getPCRel7WOpValue";
 }
 
 def uimm5 : Operand<i32>, ImmLeaf<i32, [{ return Imm >= 0 && Imm < 32; }]> {
@@ -861,6 +895,21 @@ class CompactLoadBaseDisp7Shift2<bits<5> Op, RegisterClass BaseRC,
   let Inst{3-0} = Rd;
 }
 
+class CompactLoadBasePCRel7Shift2<bits<5> Op, RegisterClass BaseRC,
+                                  string Mnemonic>
+    : AVR32Inst<0, (outs GPR:$Rd), (ins BaseRC:$Rp, uimm7pcrelshift2:$Disp),
+                Mnemonic#"\t$Rd, ${Rp}[$Disp]"> {
+  let mayLoad = 1;
+  let isCodeGenOnly = 1;
+
+  bits<4> Rd;
+  bits<7> Disp;
+
+  let Inst{15-11} = Op;
+  let Inst{10-4} = Disp;
+  let Inst{3-0} = Rd;
+}
+
 class FullStoreDisp16<bits<5> Op, string Mnemonic, RegisterClass SrcRC = GPR>
     : AVR32Inst32<(outs), (ins GPR:$Rp, simm16:$Disp, SrcRC:$Rs),
                   Mnemonic#"\t${Rp}[$Disp], $Rs"> {
@@ -988,6 +1037,18 @@ class FullMemDisp16Shift2<bits<12> Op, string Mnemonic>
   let Inst{31-20} = Op;
   let Inst{19-16} = Rp;
   let Inst{15-0} = Disp;
+}
+
+class FullMemPCRel16Shift2<bits<12> Op, string Mnemonic>
+    : AVR32Inst32<(outs), (ins PCOnly:$Rp, simm16pcrelshift2:$Disp),
+                  Mnemonic#"\t${Rp}[$Disp]"> {
+  bits<4> Rp;
+  bits<16> Disp;
+
+  let Inst{31-20} = Op;
+  let Inst{19-16} = Rp;
+  let Inst{15-0} = Disp;
+  let isCodeGenOnly = 1;
 }
 
 class FullMemDisp11UImm5<bits<12> Op, string Mnemonic>
@@ -2436,7 +2497,10 @@ def LD_D_PreDec : CompactLoadPair<0b10001, 0, "ld.d\t$Rd, --$Rp">;
 def LD_D_Reg : CompactLoadPair<0b10000, 0, "ld.d\t$Rd, $Rp">;
 def LD_D_Disp16 : FullLoadPairDisp16<0b01110, "ld.d">;
 def LD_D_IndexShift : FullLoadPairIndexShift<0b0000001000, "ld.d">;
+def LDA_W : AVR32Pseudo<(outs GPR:$Rd), (ins ldaexpr:$Imm),
+                        "lda.w\t$Rd, $Imm">;
 def LDDPC : CompactLoadBaseDisp7Shift2<0b01001, PCOnly, "lddpc">;
+def LDDPCcp : CompactLoadBasePCRel7Shift2<0b01001, PCOnly, "lddpc">;
 def LDDSP : CompactLoadBaseDisp7Shift2<0b01000, SPOnly, "lddsp">;
 def LDINS_B : FullLoadInsertByteDisp12;
 def LDINS_H : FullLoadInsertHalfDisp12;
@@ -3326,7 +3390,9 @@ def PICOLDM_W_Low_UPD : PicoLoadMultipleLow<0b0000, 1, picoreglistlow,
 def LSLrrr : FullRegRegReg<0b000010010100, "lsl">;
 def LSRrrr : FullRegRegReg<0b000010100100, "lsr">;
 def MAXrrr : FullRegRegReg<0b000011000100, "max">;
+def CALLp : AVR32Pseudo<(outs), (ins ldaexpr:$Disp), "call\t$Disp">;
 def MCALL : FullMemDisp16Shift2<0b111100000001, "mcall">;
+def MCALLcp : FullMemPCRel16Shift2<0b111100000001, "mcall">;
 def MINrrr : FullRegRegReg<0b000011010100, "min">;
 def MFDRi : FullRegDebugReg<0b111001011011, "mfdr">;
 def MFSRi : FullRegSysReg<0b111000011011, "mfsr">;
@@ -3509,7 +3575,7 @@ def POPJC : AVR32Inst<0b1101011100010011, (outs), (ins), "popjc">;
 def PUSHM : CompactRegList8<0b0001, "pushm">;
 def PUSHJC : AVR32Inst<0b1101011100100011, (outs), (ins), "pushjc">;
 def RJMP : CompactRjmp<"rjmp">;
-def : InstAlias<"rjmp\t$Disp", (RJMP PC, simm10pcrelshift1:$Disp), 0>;
+def : InstAlias<"rjmp\t$Disp", (BRALE simm21pcrelshift1:$Disp), 0>;
 let isBarrier = 1, isReturn = 1, isTerminator = 1 in {
 def RETD : AVR32Inst<0b1101011000100011, (outs), (ins), "retd">;
 def RETE : AVR32Inst<0b1101011000000011, (outs), (ins), "rete">;

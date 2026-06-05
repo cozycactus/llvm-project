@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "../MCTargetDesc/AVR32MCTargetDesc.h"
+#include "../MCTargetDesc/AVR32TargetStreamer.h"
 #include "../TargetInfo/AVR32TargetInfo.h"
 #include "llvm/ADT/StringSwitch.h"
 #include "llvm/BinaryFormat/ELF.h"
@@ -126,6 +127,8 @@ public:
            Const->getValue() <= 2097150 && Const->getValue() % 2 == 0;
   }
 
+  bool isLdaExpr() const { return Kind == Immediate; }
+
   bool isSImm12Shift1() const {
     if (Kind != Immediate)
       return false;
@@ -156,6 +159,16 @@ public:
     auto *Const = dyn_cast<MCConstantExpr>(Imm);
     return Const && Const->getValue() >= -131072 &&
            Const->getValue() <= 131068 && Const->getValue() % 4 == 0;
+  }
+
+  bool isSImm16PCRelShift2() const {
+    if (Kind != Immediate)
+      return false;
+    auto *Const = dyn_cast<MCConstantExpr>(Imm);
+    if (!Const)
+      return true;
+    return Const->getValue() >= -131072 && Const->getValue() <= 131068 &&
+           Const->getValue() % 4 == 0;
   }
 
   bool isSubSPImm() const {
@@ -244,6 +257,16 @@ public:
       return false;
     auto *Const = dyn_cast<MCConstantExpr>(Imm);
     return Const && Const->getValue() >= 0 && Const->getValue() <= 508 &&
+           Const->getValue() % 4 == 0;
+  }
+
+  bool isUImm7PCRelShift2() const {
+    if (Kind != Immediate)
+      return false;
+    auto *Const = dyn_cast<MCConstantExpr>(Imm);
+    if (!Const)
+      return true;
+    return Const->getValue() >= 0 && Const->getValue() <= 508 &&
            Const->getValue() % 4 == 0;
   }
 
@@ -527,9 +550,7 @@ class AVR32AsmParser : public MCTargetAsmParser {
   bool parseInstruction(ParseInstructionInfo &Info, StringRef Name,
                         SMLoc NameLoc, OperandVector &Operands) override;
 
-  ParseStatus parseDirective(AsmToken DirectiveID) override {
-    return ParseStatus::NoMatch;
-  }
+  ParseStatus parseDirective(AsmToken DirectiveID) override;
 
 public:
   AVR32AsmParser(const MCSubtargetInfo &STI, MCAsmParser &Parser,
@@ -543,8 +564,13 @@ public:
   AsmLexer &getLexer() const { return Parser.getLexer(); }
 
 private:
+  AVR32TargetStreamer &getAVR32TargetStreamer();
   MCRegister parseRegisterName(StringRef Name) const;
   bool parseImmediateExpression(const MCExpr *&Expr);
+  bool emitCallPseudo(const MCInst &Inst, SMLoc Loc, MCStreamer &Out);
+  bool emitLdaWPseudo(const MCInst &Inst, SMLoc Loc, MCStreamer &Out);
+  bool parseDirectiveLtorg(SMLoc Loc);
+  bool parseLiteralValues(unsigned Size, SMLoc Loc);
   bool parseRegisterOperand(OperandVector &Operands);
   bool parseImmediateOperand(OperandVector &Operands);
   bool parseRegisterCommaRegister(OperandVector &Operands);
@@ -634,6 +660,10 @@ bool AVR32AsmParser::matchAndEmitInstruction(SMLoc Loc, unsigned &Opcode,
   switch (MatchResult) {
   case Match_Success:
     Inst.setLoc(Loc);
+    if (Inst.getOpcode() == AVR32::CALLp)
+      return emitCallPseudo(Inst, Loc, Out);
+    if (Inst.getOpcode() == AVR32::LDA_W)
+      return emitLdaWPseudo(Inst, Loc, Out);
     Out.emitInstruction(Inst, *STI);
     return false;
   case Match_MnemonicFail:
@@ -654,6 +684,96 @@ bool AVR32AsmParser::matchAndEmitInstruction(SMLoc Loc, unsigned &Opcode,
                  "instruction requires a CPU feature not currently enabled");
   default:
     return true;
+  }
+}
+
+AVR32TargetStreamer &AVR32AsmParser::getAVR32TargetStreamer() {
+  MCTargetStreamer *TS = getParser().getStreamer().getTargetStreamer();
+  assert(TS && "missing AVR32 target streamer");
+  return static_cast<AVR32TargetStreamer &>(*TS);
+}
+
+bool AVR32AsmParser::emitCallPseudo(const MCInst &Inst, SMLoc Loc,
+                                    MCStreamer &Out) {
+  const MCOperand &Value = Inst.getOperand(0);
+  const MCExpr *ValueExpr = nullptr;
+  if (Value.isExpr())
+    ValueExpr = Value.getExpr();
+  else if (Value.isImm())
+    ValueExpr = MCConstantExpr::create(Value.getImm(), getContext());
+  else
+    return Error(Loc, "expected immediate");
+
+  const MCExpr *CPLoc =
+      getAVR32TargetStreamer().addCPENTConstantPoolEntry(ValueExpr, Loc);
+
+  MCInst Call;
+  Call.setLoc(Loc);
+  Call.setOpcode(AVR32::MCALLcp);
+  Call.addOperand(MCOperand::createReg(AVR32::PC));
+  Call.addOperand(MCOperand::createExpr(CPLoc));
+  Out.emitInstruction(Call, *STI);
+  return false;
+}
+
+bool AVR32AsmParser::emitLdaWPseudo(const MCInst &Inst, SMLoc Loc,
+                                    MCStreamer &Out) {
+  const MCOperand &Dst = Inst.getOperand(0);
+  const MCOperand &Value = Inst.getOperand(1);
+  const MCExpr *ValueExpr = nullptr;
+  if (Value.isExpr())
+    ValueExpr = Value.getExpr();
+  else if (Value.isImm())
+    ValueExpr = MCConstantExpr::create(Value.getImm(), getContext());
+  else
+    return Error(Loc, "expected immediate");
+
+  const MCExpr *CPLoc =
+      getAVR32TargetStreamer().addCPENTConstantPoolEntry(ValueExpr, Loc);
+
+  MCInst Load;
+  Load.setLoc(Loc);
+  Load.setOpcode(AVR32::LDDPCcp);
+  Load.addOperand(Dst);
+  Load.addOperand(MCOperand::createReg(AVR32::PC));
+  Load.addOperand(MCOperand::createExpr(CPLoc));
+  Out.emitInstruction(Load, *STI);
+  return false;
+}
+
+ParseStatus AVR32AsmParser::parseDirective(AsmToken DirectiveID) {
+  std::string IDVal = DirectiveID.getIdentifier().lower();
+  if (IDVal == ".word") {
+    if (parseLiteralValues(4, DirectiveID.getLoc()))
+      return ParseStatus::Failure;
+    return ParseStatus::Success;
+  }
+  if (IDVal == ".ltorg" || IDVal == ".pool") {
+    if (parseDirectiveLtorg(DirectiveID.getLoc()))
+      return ParseStatus::Failure;
+    return ParseStatus::Success;
+  }
+  return ParseStatus::NoMatch;
+}
+
+bool AVR32AsmParser::parseDirectiveLtorg(SMLoc) {
+  if (parseEOL())
+    return true;
+  getAVR32TargetStreamer().emitCurrentConstantPool();
+  return false;
+}
+
+bool AVR32AsmParser::parseLiteralValues(unsigned Size, SMLoc Loc) {
+  while (true) {
+    const MCExpr *Value = nullptr;
+    if (getParser().parseExpression(Value))
+      return true;
+    getParser().getStreamer().emitValue(Value, Size, Loc);
+
+    if (parseOptionalToken(AsmToken::EndOfStatement))
+      return false;
+    if (!parseOptionalToken(AsmToken::Comma))
+      return Error(getLexer().getLoc(), "expected comma");
   }
 }
 
@@ -882,6 +1002,9 @@ bool AVR32AsmParser::parseInstruction(ParseInstructionInfo &Info,
              Name == "subfqs" || Name == "subfvc" || Name == "subfvs") {
     if (parseRegisterCommaImmediate(Operands))
       return true;
+  } else if (Name == "lda.w") {
+    if (parseRegisterCommaImmediate(Operands))
+      return true;
   } else if (Name == "cp" || Name == "cp.w") {
     if (parseRegisterOperand(Operands))
       return true;
@@ -895,8 +1018,8 @@ bool AVR32AsmParser::parseInstruction(ParseInstructionInfo &Info,
     if (parseOptionalToken(AsmToken::Comma) &&
         parseRegisterOperand(Operands))
       return true;
-  } else if (Name == "acall" || Name == "csrf" || Name == "csrfcz" ||
-             Name == "ssrf") {
+  } else if (Name == "acall" || Name == "call" || Name == "csrf" ||
+             Name == "csrfcz" || Name == "ssrf") {
     if (parseImmediateOperand(Operands))
       return true;
   } else if (Name == "bral" || Name == "brcc" || Name == "brcs" ||
@@ -1102,6 +1225,7 @@ bool AVR32AsmParser::parseImmediateExpression(const MCExpr *&Expr) {
     unsigned Specifier = StringSwitch<unsigned>(Name.lower())
                              .Case("hi", ELF::R_AVR32_HI16)
                              .Case("lo", ELF::R_AVR32_LO16)
+                             .Case("cpent", ELF::R_AVR32_32_CPENT)
                              .Default(ELF::R_AVR32_NONE);
     if (Specifier != ELF::R_AVR32_NONE) {
       getLexer().Lex();

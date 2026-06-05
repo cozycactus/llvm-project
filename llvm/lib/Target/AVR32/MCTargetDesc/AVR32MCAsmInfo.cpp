@@ -23,6 +23,7 @@ AVR32MCAsmInfo::AVR32MCAsmInfo(const MCTargetOptions &Options)
   MinInstAlignment = 2;
 
   CommentString = "#";
+  DollarIsPC = true;
   SupportsDebugInformation = true;
   ExceptionsType = ExceptionHandling::DwarfCFI;
 }
@@ -35,6 +36,9 @@ void AVR32MCAsmInfo::printSpecifierExpr(raw_ostream &OS,
     break;
   case ELF::R_AVR32_LO16:
     OS << "LO(";
+    break;
+  case ELF::R_AVR32_32_CPENT:
+    OS << "CPENT(";
     break;
   default:
     llvm_unreachable("Unsupported AVR32 expression specifier");

@@ -2,14 +2,8 @@
 # RUN:   | FileCheck %s
 
 .text
-  rjmp far
-# CHECK: :[[@LINE-1]]:8: error: fixup value out of range
-  .space 2048
-far:
-  nop
+  rjmp $+2097152
+# CHECK: :[[@LINE-1]]:9: error: fixup value out of range
 
-  rjmp odd
-# CHECK: :[[@LINE-1]]:8: error: fixup value must be 2-byte aligned
-  .byte 0
-odd:
-  nop
+  rjmp $+1
+# CHECK: :[[@LINE-1]]:9: error: fixup value must be 2-byte aligned

@@ -10,6 +10,7 @@
 #include "AVR32MCTargetDesc.h"
 #include "llvm/ADT/StringSwitch.h"
 #include "llvm/MC/MCAsmBackend.h"
+#include "llvm/MC/MCAssembler.h"
 #include "llvm/MC/MCContext.h"
 #include "llvm/MC/MCELFObjectWriter.h"
 #include "llvm/MC/MCFixup.h"
@@ -31,6 +32,16 @@ public:
   std::unique_ptr<MCObjectTargetWriter>
   createObjectTargetWriter() const override {
     return createAVR32ELFObjectWriter(ELF::ELFOSABI_NONE);
+  }
+
+  std::optional<bool> evaluateFixup(const MCFragment &F, MCFixup &Fixup,
+                                    MCValue &, uint64_t &Value) override {
+    if (Fixup.getKind() == static_cast<MCFixupKind>(AVR32::fixup_7w_pcrel) ||
+        Fixup.getKind() == static_cast<MCFixupKind>(AVR32::fixup_16w_pcrel)) {
+      assert(Asm && "missing MCAssembler");
+      Value = (Asm->getFragmentOffset(F) + Fixup.getOffset()) % 4;
+    }
+    return {};
   }
 
   void applyFixup(const MCFragment &F, const MCFixup &Fixup,
@@ -104,6 +115,43 @@ public:
       return;
     }
 
+    if (Fixup.getKind() == static_cast<MCFixupKind>(AVR32::fixup_7w_pcrel)) {
+      int64_t SignedValue = static_cast<int64_t>(Value);
+      if (SignedValue & 3) {
+        getContext().reportError(Fixup.getLoc(),
+                                 "fixup value must be 4-byte aligned");
+        return;
+      }
+      if (SignedValue < 0 || SignedValue > 508) {
+        getContext().reportError(Fixup.getLoc(), "fixup value out of range");
+        return;
+      }
+
+      uint16_t Disp = static_cast<uint16_t>(SignedValue >> 2) & 0x7f;
+      uint16_t Word = support::endian::read16be(Data);
+      Word &= ~0x07f0;
+      Word |= Disp << 4;
+      support::endian::write16be(Data, Word);
+      return;
+    }
+
+    if (Fixup.getKind() == static_cast<MCFixupKind>(AVR32::fixup_16w_pcrel)) {
+      int64_t SignedValue = static_cast<int64_t>(Value);
+      if (SignedValue & 3) {
+        getContext().reportError(Fixup.getLoc(),
+                                 "fixup value must be 4-byte aligned");
+        return;
+      }
+      if (SignedValue < -131072 || SignedValue > 131068) {
+        getContext().reportError(Fixup.getLoc(), "fixup value out of range");
+        return;
+      }
+
+      uint16_t Disp = static_cast<uint16_t>(SignedValue >> 2);
+      support::endian::write16be(Data + 2, Disp);
+      return;
+    }
+
     if (Fixup.getKind() == static_cast<MCFixupKind>(AVR32::fixup_21s)) {
       int64_t SignedValue = static_cast<int64_t>(Value);
       if (!isInt<21>(SignedValue)) {
@@ -154,6 +202,8 @@ public:
         {"fixup_22h_pcrel", 0, 32, 0},
         {"fixup_9h_pcrel", 0, 16, 0},
         {"fixup_11h_pcrel", 0, 16, 0},
+        {"fixup_7w_pcrel", 0, 16, 0},
+        {"fixup_16w_pcrel", 0, 32, 0},
         {"fixup_21s", 0, 32, 0},
         {"fixup_hi16", 0, 16, 0},
         {"fixup_lo16", 0, 16, 0},

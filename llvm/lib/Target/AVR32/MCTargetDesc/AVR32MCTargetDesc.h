@@ -18,13 +18,17 @@ class MCAsmBackend;
 class MCCodeEmitter;
 class MCContext;
 class MCFixup;
+class MCInstPrinter;
 class MCInstrInfo;
 class MCObjectTargetWriter;
 class MCRegisterInfo;
+class MCStreamer;
 class MCSubtargetInfo;
+class MCTargetStreamer;
 class MCTargetOptions;
 class MCValue;
 class Target;
+class formatted_raw_ostream;
 
 MCAsmBackend *createAVR32MCAsmBackend(const Target &T,
                                       const MCSubtargetInfo &STI,
@@ -35,6 +39,13 @@ MCCodeEmitter *createAVR32MCCodeEmitter(const MCInstrInfo &MCII,
                                         MCContext &Ctx);
 
 std::unique_ptr<MCObjectTargetWriter> createAVR32ELFObjectWriter(uint8_t OSABI);
+
+MCTargetStreamer *createAVR32NullTargetStreamer(MCStreamer &S);
+MCTargetStreamer *createAVR32AsmTargetStreamer(MCStreamer &S,
+                                               formatted_raw_ostream &OS,
+                                               MCInstPrinter *InstPrint);
+MCTargetStreamer *createAVR32ObjectTargetStreamer(MCStreamer &S,
+                                                  const MCSubtargetInfo &STI);
 
 } // end namespace llvm
 

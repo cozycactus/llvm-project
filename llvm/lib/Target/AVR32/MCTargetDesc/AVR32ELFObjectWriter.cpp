@@ -25,7 +25,7 @@ public:
                                 /*HasRelocationAddend=*/true) {}
 
 protected:
-  unsigned getRelocType(const MCFixup &Fixup, const MCValue &,
+  unsigned getRelocType(const MCFixup &Fixup, const MCValue &Target,
                         bool IsPCRel) const override {
     switch (Fixup.getKind()) {
     case AVR32::fixup_22h_pcrel:
@@ -45,6 +45,8 @@ protected:
     case FK_Data_2:
       return IsPCRel ? ELF::R_AVR32_16_PCREL : ELF::R_AVR32_16;
     case FK_Data_4:
+      if (!IsPCRel && Target.getSpecifier() == ELF::R_AVR32_32_CPENT)
+        return ELF::R_AVR32_32_CPENT;
       return IsPCRel ? ELF::R_AVR32_32_PCREL : ELF::R_AVR32_32;
     default:
       llvm_unreachable("invalid AVR32 fixup kind");

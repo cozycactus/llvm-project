@@ -75,4 +75,8 @@ LLVMInitializeAVR32TargetMC() {
   TargetRegistry::RegisterMCInstPrinter(T, createAVR32MCInstPrinter);
   TargetRegistry::RegisterMCCodeEmitter(T, createAVR32MCCodeEmitter);
   TargetRegistry::RegisterMCAsmBackend(T, createAVR32MCAsmBackend);
+  TargetRegistry::RegisterObjectTargetStreamer(T,
+                                               createAVR32ObjectTargetStreamer);
+  TargetRegistry::RegisterAsmTargetStreamer(T, createAVR32AsmTargetStreamer);
+  TargetRegistry::RegisterNullTargetStreamer(T, createAVR32NullTargetStreamer);
 }

@@ -18,6 +18,8 @@ enum Fixups {
   fixup_22h_pcrel = FirstTargetFixupKind,
   fixup_9h_pcrel,
   fixup_11h_pcrel,
+  fixup_7w_pcrel,
+  fixup_16w_pcrel,
   fixup_21s,
   fixup_hi16,
   fixup_lo16,

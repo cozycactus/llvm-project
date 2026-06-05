@@ -3,7 +3,8 @@
 
 .data
 .short 0x1234
+.word 0x90abcdef
 .long 0x12345678
 
 # CHECK: Hex dump of section '.data':
-# CHECK-NEXT: 0x00000000 12341234 5678                       .4.4Vx
+# CHECK-NEXT: 0x00000000 123490ab cdef1234 5678              .4.....4Vx

@@ -29,3 +29,15 @@ class AVR32Inst32<dag Outs, dag Ins, string AsmStr, list<dag> Patterns = []>
   let AsmString = AsmStr;
   let Pattern = Patterns;
 }
+
+class AVR32Pseudo<dag Outs, dag Ins, string AsmStr,
+                  list<dag> Patterns = []> : Instruction {
+  let Namespace = "AVR32";
+  let Size = 0;
+  let OutOperandList = Outs;
+  let InOperandList = Ins;
+  let AsmString = AsmStr;
+  let Pattern = Patterns;
+  let isPseudo = 1;
+  let isAsmParserOnly = 1;
+}
