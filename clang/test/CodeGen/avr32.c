@@ -476,27 +476,27 @@ __attribute__((optnone, noinline)) int pick(int a, int b) {
 // ASM: ret r12
 
 // ASM-LABEL: unsigned_div64:
-// ASM: rcall pc[__udivdi3]
+// ASM: rcall __udivdi3
 // ASM: ret r12
 
 // ASM-LABEL: double_sub:
-// ASM: rcall pc[__subdf3]
+// ASM: rcall __subdf3
 // ASM: ret r12
 
 // ASM-LABEL: double_div:
-// ASM: rcall pc[__divdf3]
+// ASM: rcall __divdf3
 // ASM: ret r12
 
 // ASM-LABEL: double_to_uint:
-// ASM: rcall pc[__fixunsdfsi]
+// ASM: rcall __fixunsdfsi
 // ASM: ret r12
 
 // ASM-LABEL: double_lt:
-// ASM: rcall pc[__ltdf2]
+// ASM: rcall __ltdf2
 // ASM: ret r12
 
 // ASM-LABEL: log10_double:
-// ASM: rcall pc[log10]
+// ASM: rcall log10
 // ASM: ret r12
 
 // ASM-LABEL: choose_lt:
@@ -511,7 +511,7 @@ __attribute__((optnone, noinline)) int pick(int a, int b) {
 // ASM: ret r12
 
 // ASM-LABEL: clear_n:
-// ASM: rcall pc[memset]
+// ASM: rcall memset
 // ASM: ret r12
 
 // ASM-LABEL: six_arg_callee:
@@ -521,19 +521,19 @@ __attribute__((optnone, noinline)) int pick(int a, int b) {
 // ASM-LABEL: call_six_args:
 // ASM: sub sp, 4
 // ASM: st.w sp[0], r12
-// ASM: rcall pc[six_arg_extern]
+// ASM: rcall six_arg_extern
 // ASM: sub sp, -4
 // ASM: ret r12
 
 // ASM-LABEL: call_variadic:
 // ASM: sub sp, 4
 // ASM: st.w sp[0], r12
-// ASM: rcall pc[variadic_extern]
+// ASM: rcall variadic_extern
 // ASM: sub sp, -4
 // ASM: ret r12
 
 // ASM-LABEL: call_return_u64:
-// ASM: rcall pc[return_u64]
+// ASM: rcall return_u64
 // ASM: ret r12
 
 // ASM-LABEL: load_ready:
@@ -548,7 +548,7 @@ __attribute__((optnone, noinline)) int pick(int a, int b) {
 // ASM: mov r7, sp
 // ASM: subal {{r[0-9]+}}, sp
 // ASM: mov sp, {{r[0-9]+}}
-// ASM: rcall pc[use_ptr]
+// ASM: rcall use_ptr
 // ASM: mov sp, r7
 // ASM: ret r12
 
@@ -575,7 +575,7 @@ __attribute__((optnone, noinline)) int pick(int a, int b) {
 // O0ASM: sub sp, 4
 // O0ASM: mov r12, 40
 // O0ASM: mov r11, 2
-// O0ASM: rcall pc[add]
+// O0ASM: rcall add
 // O0ASM: sub sp, -4
 // O0ASM: ret r12
 

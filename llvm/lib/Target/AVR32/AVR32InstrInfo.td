@@ -1444,6 +1444,19 @@ class FullPCRel21<string Mnemonic>
   let Inst{15-0} = Disp{15-0};
 }
 
+class FullPCRel21CG<string Mnemonic>
+    : AVR32Inst32<(outs), (ins simm21pcrelshift1:$Disp), Mnemonic#"\t$Disp"> {
+  bits<21> Disp;
+
+  let Inst{31-29} = 0b111;
+  let Inst{28-25} = Disp{20-17};
+  let Inst{24-21} = 0b0101;
+  let Inst{20} = Disp{16};
+  let Inst{19-16} = 0;
+  let Inst{15-0} = Disp{15-0};
+  let isCodeGenOnly = 1;
+}
+
 class FullBranch<bits<4> Cond, string Mnemonic>
     : AVR32Inst32<(outs), (ins simm21pcrelshift1:$Disp),
                   Mnemonic#"\t$Disp"> {
@@ -3290,6 +3303,8 @@ def PREF : FullMemDisp16<0b111100100001, "pref">;
 def RCALLc : CompactPCRel10<0b11, "rcall">;
 let isCall = 1, Defs = [LR] in
 def RCALLe : FullPCRel21<"rcall">;
+let isCall = 1, Defs = [LR] in
+def RCALLeCG : FullPCRel21CG<"rcall">;
 def PMAX_UBrrr : FullRegRegReg<0b001000111000, "pmax.ub">;
 def PMAX_SHrrr : FullRegRegReg<0b001000111001, "pmax.sh">;
 def PMIN_UBrrr : FullRegRegReg<0b001000111010, "pmin.ub">;
@@ -3632,9 +3647,9 @@ let isCodeGenOnly = 1 in
 def FIADDR : AVR32Inst<0, (outs GPR:$Rd), (ins i32imm:$Frame, simm16:$Disp),
                        "# FIADDR">;
 
-def : Pat<(AVR32call (i32 tglobaladdr:$dst)), (RCALLe PC, tglobaladdr:$dst)>;
+def : Pat<(AVR32call (i32 tglobaladdr:$dst)), (RCALLeCG tglobaladdr:$dst)>;
 def : Pat<(AVR32call (i32 texternalsym:$dst)),
-          (RCALLe PC, texternalsym:$dst)>;
+          (RCALLeCG texternalsym:$dst)>;
 def : Pat<(AVR32call GPR:$dst), (ICALLr GPR:$dst)>;
 
 def : Pat<(br bb:$dst), (BRALbb bb:$dst)>;
