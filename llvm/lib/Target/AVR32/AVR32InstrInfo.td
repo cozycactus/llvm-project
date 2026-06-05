@@ -3077,6 +3077,23 @@ def ASRrrr : FullRegRegReg<0b000010000100, "asr">;
 def BFEXTS : FullRegRegBitField<0b101100, "bfexts">;
 def BFEXTU : FullRegRegBitField<0b110000, "bfextu">;
 def BFINS : FullRegRegBitField<0b110100, "bfins">;
+let isCodeGenOnly = 1, Constraints = "$Rd = $Old" in
+def BFINScg : AVR32Inst32<(outs GPR:$Rd),
+                          (ins GPR:$Old, GPR:$Rs, uimm5:$Bp, uimm5:$Width),
+                          "bfins\t$Rd, $Rs, $Bp, $Width"> {
+  bits<4> Rd;
+  bits<4> Rs;
+  bits<5> Bp;
+  bits<5> Width;
+
+  let Inst{31-29} = 0b111;
+  let Inst{28-25} = Rd;
+  let Inst{24-20} = 0b11101;
+  let Inst{19-16} = Rs;
+  let Inst{15-10} = 0b110100;
+  let Inst{9-5} = Bp;
+  let Inst{4-0} = Width;
+}
 def BLDri : FullRegUImm5NoOut<0b111011011011, "bld">;
 def BREVr : CompactReg<0b010111001001, "brev">;
 def BREQc : CompactBranch<0b000, "breq">;

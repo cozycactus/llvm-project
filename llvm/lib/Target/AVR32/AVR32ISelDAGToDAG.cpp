@@ -11,6 +11,7 @@
 #include "llvm/CodeGen/SelectionDAGISel.h"
 #include "llvm/CodeGen/SelectionDAGNodes.h"
 #include "llvm/Support/ErrorHandling.h"
+#include "llvm/Support/MathExtras.h"
 
 using namespace llvm;
 
@@ -41,6 +42,9 @@ public:
       return;
 
     if (selectFrameIndex(Node))
+      return;
+
+    if (selectBitFieldInsert(Node))
       return;
 
     if (selectStackLoadStore(Node))
@@ -121,6 +125,127 @@ public:
     return 0;
   }
 
+  static bool getAndConstant(SDValue Value, SDValue &Other,
+                             uint32_t &Imm) {
+    if (Value.getOpcode() != ISD::AND)
+      return false;
+
+    SDValue LHS = Value.getOperand(0);
+    SDValue RHS = Value.getOperand(1);
+    auto *C = dyn_cast<ConstantSDNode>(RHS);
+    if (!C) {
+      std::swap(LHS, RHS);
+      C = dyn_cast<ConstantSDNode>(RHS);
+    }
+    if (!C)
+      return false;
+
+    Other = LHS;
+    Imm = static_cast<uint32_t>(C->getZExtValue());
+    return true;
+  }
+
+  static bool getShiftLeftConstant(SDValue Value, SDValue &Other,
+                                   unsigned &Shift) {
+    if (Value.getOpcode() != ISD::SHL)
+      return false;
+
+    auto *C = dyn_cast<ConstantSDNode>(Value.getOperand(1));
+    if (!C || C->getZExtValue() >= 32)
+      return false;
+
+    Other = Value.getOperand(0);
+    Shift = C->getZExtValue();
+    return true;
+  }
+
+  static bool getFieldFromClearMask(uint32_t ClearMask, unsigned &BitPos,
+                                    unsigned &Width) {
+    uint32_t FieldMask = ~ClearMask;
+    if (FieldMask == 0 || FieldMask == UINT32_MAX ||
+        !isShiftedMask_32(FieldMask))
+      return false;
+
+    BitPos = llvm::countr_zero(FieldMask);
+    Width = llvm::popcount(FieldMask);
+    return Width > 0 && Width < 32 && BitPos + Width <= 32;
+  }
+
+  bool selectInsertSource(SDValue Value, unsigned BitPos, unsigned Width,
+                          const SDLoc &DL, SDValue &Src) {
+    uint32_t FieldMask = maskTrailingOnes<uint32_t>(Width) << BitPos;
+    uint32_t WidthMask = maskTrailingOnes<uint32_t>(Width);
+    SDValue Other;
+    uint32_t Mask;
+
+    if (auto *C = dyn_cast<ConstantSDNode>(Value)) {
+      uint32_t Imm = static_cast<uint32_t>(C->getZExtValue());
+      if ((Imm & ~FieldMask) == 0) {
+        Src = materializeI32Constant(Imm >> BitPos, DL);
+        return true;
+      }
+    }
+
+    if (getAndConstant(Value, Other, Mask) && Mask == FieldMask) {
+      if (BitPos == 0) {
+        Src = Other;
+        return true;
+      }
+
+      SDValue Shifted;
+      unsigned Shift;
+      if (getShiftLeftConstant(Other, Shifted, Shift) && Shift == BitPos) {
+        Src = Shifted;
+        return true;
+      }
+    }
+
+    SDValue Shifted;
+    unsigned Shift;
+    if (BitPos != 0 && getShiftLeftConstant(Value, Shifted, Shift) &&
+        Shift == BitPos && getAndConstant(Shifted, Other, Mask) &&
+        Mask == WidthMask) {
+      Src = Other;
+      return true;
+    }
+
+    return false;
+  }
+
+  bool trySelectBitFieldInsert(SDNode *Node, SDValue ClearedPart,
+                               SDValue InsertPart) {
+    SDValue Old;
+    uint32_t ClearMask;
+    if (!getAndConstant(ClearedPart, Old, ClearMask))
+      return false;
+
+    unsigned BitPos;
+    unsigned Width;
+    if (!getFieldFromClearMask(ClearMask, BitPos, Width))
+      return false;
+
+    SDValue Src;
+    SDLoc DL(Node);
+    if (!selectInsertSource(InsertPart, BitPos, Width, DL, Src))
+      return false;
+
+    SDValue Bp = CurDAG->getTargetConstant(BitPos, DL, MVT::i32);
+    SDValue W = CurDAG->getTargetConstant(Width, DL, MVT::i32);
+    SDValue Ops[] = {Old, Src, Bp, W};
+    CurDAG->SelectNodeTo(Node, AVR32::BFINScg, MVT::i32, Ops);
+    return true;
+  }
+
+  bool selectBitFieldInsert(SDNode *Node) {
+    if (Node->getOpcode() != ISD::OR || Node->getValueType(0) != MVT::i32)
+      return false;
+
+    return trySelectBitFieldInsert(Node, Node->getOperand(0),
+                                   Node->getOperand(1)) ||
+           trySelectBitFieldInsert(Node, Node->getOperand(1),
+                                   Node->getOperand(0));
+  }
+
   bool selectGlobalAddress(SDValue Addr, SDValue &Base, SDValue &Disp) {
     auto *GA = dyn_cast<GlobalAddressSDNode>(Addr);
     if (!GA)
@@ -162,6 +287,30 @@ public:
     return true;
   }
 
+  SDValue materializeI32Constant(uint32_t Bits, const SDLoc &DL) {
+    int32_t Signed = static_cast<int32_t>(Bits);
+    if (isInt<21>(Signed)) {
+      SDValue Imm = CurDAG->getTargetConstant(Signed, DL, MVT::i32);
+      return SDValue(CurDAG->getMachineNode(AVR32::MOVri21, DL, MVT::i32, Imm),
+                     0);
+    }
+
+    uint32_t Hi = Bits >> 16;
+    uint32_t Lo = Bits & 0xffff;
+    SDValue HiImm = CurDAG->getTargetConstant(Hi, DL, MVT::i32);
+    SDValue HiReg =
+        SDValue(CurDAG->getMachineNode(AVR32::MOVHri, DL, MVT::i32, HiImm), 0);
+
+    if (Lo == 0)
+      return HiReg;
+
+    SDValue LoImm = CurDAG->getTargetConstant(Lo, DL, MVT::i32);
+    SDValue LoReg =
+        SDValue(CurDAG->getMachineNode(AVR32::MOVri21, DL, MVT::i32, LoImm), 0);
+    return SDValue(
+        CurDAG->getMachineNode(AVR32::ORALrrr, DL, MVT::i32, HiReg, LoReg), 0);
+  }
+
   bool selectGlobalAddress(SDNode *Node) {
     if (Node->getOpcode() != ISD::GlobalAddress)
       return false;
@@ -194,28 +343,9 @@ public:
 
     auto *C = cast<ConstantSDNode>(Node);
     SDLoc DL(Node);
-    if (isInt<21>(C->getSExtValue())) {
-      SDValue Imm = CurDAG->getTargetConstant(C->getSExtValue(), DL, MVT::i32);
-      CurDAG->SelectNodeTo(Node, AVR32::MOVri21, MVT::i32, Imm);
-      return true;
-    }
-
-    uint32_t Bits = static_cast<uint32_t>(C->getZExtValue());
-    uint32_t Hi = Bits >> 16;
-    uint32_t Lo = Bits & 0xffff;
-    SDValue HiImm = CurDAG->getTargetConstant(Hi, DL, MVT::i32);
-
-    if (Lo == 0) {
-      CurDAG->SelectNodeTo(Node, AVR32::MOVHri, MVT::i32, HiImm);
-      return true;
-    }
-
-    SDValue HiReg =
-        SDValue(CurDAG->getMachineNode(AVR32::MOVHri, DL, MVT::i32, HiImm), 0);
-    SDValue LoImm = CurDAG->getTargetConstant(Lo, DL, MVT::i32);
-    SDValue LoReg =
-        SDValue(CurDAG->getMachineNode(AVR32::MOVri21, DL, MVT::i32, LoImm), 0);
-    CurDAG->SelectNodeTo(Node, AVR32::ORALrrr, MVT::i32, HiReg, LoReg);
+    SDValue Result =
+        materializeI32Constant(static_cast<uint32_t>(C->getZExtValue()), DL);
+    ReplaceNode(Node, Result.getNode());
     return true;
   }
 

@@ -70,6 +70,18 @@ unsigned bitfield_extract(unsigned x) {
   return (x >> 13) & 7;
 }
 
+unsigned bitfield_insert_low(unsigned old, unsigned value) {
+  return (old & ~63u) | (value & 63u);
+}
+
+unsigned bitfield_insert_mid(unsigned old, unsigned value) {
+  return (old & ~(0xffffu << 8)) | ((value & 0xffffu) << 8);
+}
+
+unsigned bitfield_insert_const(unsigned old) {
+  return (old & 0x00ffffffu) | 0xa5000000u;
+}
+
 int count_leading(unsigned x) {
   return __builtin_clz(x);
 }
@@ -274,6 +286,15 @@ __attribute__((optnone, noinline)) int pick(int a, int b) {
 // CHECK: define {{.*}}i32 @bitfield_extract(i32 {{.*}})
 // CHECK: lshr i32
 // CHECK: and i32
+// CHECK: define {{.*}}i32 @bitfield_insert_low(i32 {{.*}}, i32 {{.*}})
+// CHECK: and i32
+// CHECK: or i32
+// CHECK: define {{.*}}i32 @bitfield_insert_mid(i32 {{.*}}, i32 {{.*}})
+// CHECK: shl i32
+// CHECK: or i32
+// CHECK: define {{.*}}i32 @bitfield_insert_const(i32 {{.*}})
+// CHECK: and i32
+// CHECK: or i32
 // CHECK: define {{.*}}i32 @count_leading(i32 {{.*}})
 // CHECK: call i32 @llvm.ctlz.i32
 // CHECK: define {{.*}}i32 @count_trailing(i32 {{.*}})
@@ -422,6 +443,19 @@ __attribute__((optnone, noinline)) int pick(int a, int b) {
 
 // ASM-LABEL: bitfield_extract:
 // ASM: bfextu r12, r12, 13, 3
+// ASM: ret r12
+
+// ASM-LABEL: bitfield_insert_low:
+// ASM: bfins r12, r11, 0, 6
+// ASM: ret r12
+
+// ASM-LABEL: bitfield_insert_mid:
+// ASM: bfins r12, r11, 8, 16
+// ASM: ret r12
+
+// ASM-LABEL: bitfield_insert_const:
+// ASM: mov {{r[0-9]+}}, 165
+// ASM: bfins r12, {{r[0-9]+}}, 24, 8
 // ASM: ret r12
 
 // ASM-LABEL: count_leading:
