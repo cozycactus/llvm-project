@@ -383,6 +383,14 @@ def brtarget22 : Operand<OtherVT> {
   let EncoderMethod = "getPCRel22HOpValue";
 }
 
+def brtarget9 : Operand<OtherVT> {
+  let EncoderMethod = "getPCRel9HOpValue";
+}
+
+def brtarget11 : Operand<OtherVT> {
+  let EncoderMethod = "getPCRel11HOpValue";
+}
+
 def simm12shift1 : Operand<i32>,
                    ImmLeaf<i32, [{ return Imm >= -4096 && Imm <= 4094 &&
                                           Imm % 2 == 0; }]> {
@@ -1374,6 +1382,17 @@ class CompactRjmp<string Mnemonic>
   let Inst{1-0} = Disp{9-8};
 }
 
+class CompactRjmpCG<string Mnemonic>
+    : AVR32Inst<0, (outs), (ins brtarget11:$Disp), Mnemonic#"\t$Disp"> {
+  bits<10> Disp;
+
+  let Inst{15-12} = 0b1100;
+  let Inst{11-4} = Disp{7-0};
+  let Inst{3-2} = 0b10;
+  let Inst{1-0} = Disp{9-8};
+  let isCodeGenOnly = 1;
+}
+
 class CompactBranch<bits<3> Cond, string Mnemonic>
     : AVR32Inst<0, (outs), (ins simm8shift1:$Disp), Mnemonic#"\t$Disp"> {
   bits<8> Disp;
@@ -1382,6 +1401,17 @@ class CompactBranch<bits<3> Cond, string Mnemonic>
   let Inst{11-4} = Disp;
   let Inst{3} = 0;
   let Inst{2-0} = Cond;
+}
+
+class CompactBranchCG<bits<3> Cond, string Mnemonic>
+    : AVR32Inst<0, (outs), (ins brtarget9:$Disp), Mnemonic#"\t$Disp"> {
+  bits<8> Disp;
+
+  let Inst{15-12} = 0b1100;
+  let Inst{11-4} = Disp;
+  let Inst{3} = 0;
+  let Inst{2-0} = Cond;
+  let isCodeGenOnly = 1;
 }
 
 def ACALLi : AVR32Inst<0, (outs), (ins acalldisp:$Disp), "acall\t$Disp"> {
@@ -2994,6 +3024,17 @@ def BRLSbb : FullBranchCG<0b1000, "brls">;
 def BRGTbb : FullBranchCG<0b1001, "brgt">;
 def BRLEbb : FullBranchCG<0b1010, "brle">;
 def BRHIbb : FullBranchCG<0b1011, "brhi">;
+}
+
+let isBranch = 1, isTerminator = 1, isBarrier = 1 in
+def RJMPbb : CompactRjmpCG<"rjmp">;
+let isBranch = 1, isTerminator = 1 in {
+def BREQcbb : CompactBranchCG<0b000, "breq">;
+def BRNEcbb : CompactBranchCG<0b001, "brne">;
+def BRCCcbb : CompactBranchCG<0b010, "brcc">;
+def BRCScbb : CompactBranchCG<0b011, "brcs">;
+def BRGEcbb : CompactBranchCG<0b100, "brge">;
+def BRLTcbb : CompactBranchCG<0b101, "brlt">;
 }
 
 def BSTri : FullRegUImm5NoOut<0b111011111011, "bst">;

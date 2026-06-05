@@ -133,6 +133,20 @@ public:
     return 0;
   }
 
+  unsigned getPCRel9HOpValue(const MCInst &MI, unsigned OpNo,
+                             SmallVectorImpl<MCFixup> &Fixups,
+                             const MCSubtargetInfo &STI) const {
+    const MCOperand &MO = MI.getOperand(OpNo);
+    if (MO.isImm())
+      return static_cast<unsigned>(MO.getImm()) >> 1;
+
+    assert(MO.isExpr() && "expected expression operand");
+    Fixups.push_back(MCFixup::create(
+        0, MO.getExpr(), static_cast<MCFixupKind>(AVR32::fixup_9h_pcrel),
+        /*PCRel=*/true));
+    return 0;
+  }
+
   unsigned getPCRel11HOpValue(const MCInst &MI, unsigned OpNo,
                               SmallVectorImpl<MCFixup> &Fixups,
                               const MCSubtargetInfo &STI) const {

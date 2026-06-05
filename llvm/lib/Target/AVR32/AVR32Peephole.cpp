@@ -9,6 +9,7 @@
 #include "AVR32.h"
 #include "AVR32InstrInfo.h"
 #include "AVR32Subtarget.h"
+#include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/CodeGen/MachineFunctionPass.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
@@ -48,6 +49,7 @@ private:
   bool foldStoreDisp(MachineInstr &MI, unsigned CompactOpc, unsigned MaxDisp,
                      unsigned Align, const TargetInstrInfo &TII);
   bool foldMovhOr(MachineInstr &MI, const TargetInstrInfo &TII);
+  bool foldNearBranches(MachineFunction &MF, const TargetInstrInfo &TII);
 };
 
 } // end anonymous namespace
@@ -84,6 +86,31 @@ static bool isMovLowImm(const MachineInstr &MI) {
 static bool isMovhImm(const MachineInstr &MI) {
   return MI.getOpcode() == AVR32::MOVHri && MI.getNumOperands() == 2 &&
          isRegOperand(MI.getOperand(0)) && MI.getOperand(1).isImm();
+}
+
+static unsigned getInstSize(const MachineInstr &MI) {
+  if (MI.isDebugInstr())
+    return 0;
+  return MI.getDesc().getSize();
+}
+
+static std::optional<unsigned> getCompactBranchOpcode(unsigned Opcode) {
+  switch (Opcode) {
+  case AVR32::BREQbb:
+    return AVR32::BREQcbb;
+  case AVR32::BRNEbb:
+    return AVR32::BRNEcbb;
+  case AVR32::BRCCbb:
+    return AVR32::BRCCcbb;
+  case AVR32::BRCSbb:
+    return AVR32::BRCScbb;
+  case AVR32::BRGEbb:
+    return AVR32::BRGEcbb;
+  case AVR32::BRLTbb:
+    return AVR32::BRLTcbb;
+  default:
+    return std::nullopt;
+  }
 }
 
 bool AVR32Peephole::foldTwoAddressALU(MachineInstr &MI, unsigned CompactOpc,
@@ -174,6 +201,62 @@ bool AVR32Peephole::foldMovhOr(MachineInstr &MI,
   MI.eraseFromParent();
   ++NumCompactForms;
   return true;
+}
+
+bool AVR32Peephole::foldNearBranches(MachineFunction &MF,
+                                     const TargetInstrInfo &TII) {
+  DenseMap<const MachineBasicBlock *, uint64_t> BlockOffsets;
+  DenseMap<const MachineInstr *, uint64_t> InstrOffsets;
+  uint64_t Offset = 0;
+  for (const MachineBasicBlock &MBB : MF) {
+    BlockOffsets[&MBB] = Offset;
+    for (const MachineInstr &MI : MBB) {
+      InstrOffsets[&MI] = Offset;
+      Offset += getInstSize(MI);
+    }
+  }
+
+  bool Changed = false;
+  for (MachineBasicBlock &MBB : MF) {
+    for (MachineBasicBlock::iterator I = MBB.begin(), E = MBB.end(); I != E;) {
+      MachineInstr &MI = *I++;
+      unsigned CompactOpc = 0;
+      int64_t MinDisp = 0;
+      int64_t MaxDisp = 0;
+
+      if (MI.getOpcode() == AVR32::BRALbb) {
+        CompactOpc = AVR32::RJMPbb;
+        MinDisp = -1000;
+        MaxDisp = 998;
+      } else if (std::optional<unsigned> Opc =
+                     getCompactBranchOpcode(MI.getOpcode())) {
+        CompactOpc = *Opc;
+        MinDisp = -248;
+        MaxDisp = 246;
+      } else {
+        continue;
+      }
+
+      if (MI.getNumOperands() != 1 || !MI.getOperand(0).isMBB())
+        continue;
+
+      const MachineBasicBlock *Target = MI.getOperand(0).getMBB();
+      int64_t BranchOffset = static_cast<int64_t>(InstrOffsets.lookup(&MI));
+      int64_t TargetOffset = static_cast<int64_t>(BlockOffsets.lookup(Target));
+      int64_t Disp = TargetOffset - BranchOffset;
+      if (Disp < MinDisp || Disp > MaxDisp || (Disp & 1))
+        continue;
+
+      BuildMI(MBB, MI, MI.getDebugLoc(), TII.get(CompactOpc))
+          .addMBB(MI.getOperand(0).getMBB())
+          .setMIFlags(MI.getFlags());
+      MI.eraseFromParent();
+      ++NumCompactForms;
+      Changed = true;
+    }
+  }
+
+  return Changed;
 }
 
 bool AVR32Peephole::foldLoadDisp(MachineInstr &MI, unsigned CompactOpc,
@@ -325,6 +408,9 @@ bool AVR32Peephole::runOnMachineFunction(MachineFunction &MF) {
       }
     }
   }
+
+  while (foldNearBranches(MF, TII))
+    Changed = true;
 
   return Changed;
 }

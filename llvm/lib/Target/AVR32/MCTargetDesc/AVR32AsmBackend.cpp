@@ -62,6 +62,27 @@ public:
       return;
     }
 
+    if (Fixup.getKind() == static_cast<MCFixupKind>(AVR32::fixup_9h_pcrel)) {
+      int64_t SignedValue = static_cast<int64_t>(Value);
+      if (SignedValue & 1) {
+        getContext().reportError(Fixup.getLoc(),
+                                 "fixup value must be 2-byte aligned");
+        return;
+      }
+      if (!isInt<9>(SignedValue)) {
+        getContext().reportError(Fixup.getLoc(), "fixup value out of range");
+        return;
+      }
+
+      int64_t Encoded = SignedValue >> 1;
+      uint16_t Disp = static_cast<uint16_t>(Encoded) & 0xff;
+      uint16_t Word = support::endian::read16be(Data);
+      Word &= ~0x0ff0;
+      Word |= Disp << 4;
+      support::endian::write16be(Data, Word);
+      return;
+    }
+
     if (Fixup.getKind() == static_cast<MCFixupKind>(AVR32::fixup_11h_pcrel)) {
       int64_t SignedValue = static_cast<int64_t>(Value);
       if (SignedValue & 1) {
@@ -131,6 +152,7 @@ public:
   MCFixupKindInfo getFixupKindInfo(MCFixupKind Kind) const override {
     static const MCFixupKindInfo Infos[AVR32::NumTargetFixupKinds] = {
         {"fixup_22h_pcrel", 0, 32, 0},
+        {"fixup_9h_pcrel", 0, 16, 0},
         {"fixup_11h_pcrel", 0, 16, 0},
         {"fixup_21s", 0, 32, 0},
         {"fixup_hi16", 0, 16, 0},

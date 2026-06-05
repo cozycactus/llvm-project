@@ -30,6 +30,8 @@ protected:
     switch (Fixup.getKind()) {
     case AVR32::fixup_22h_pcrel:
       return ELF::R_AVR32_22H_PCREL;
+    case AVR32::fixup_9h_pcrel:
+      return ELF::R_AVR32_9H_PCREL;
     case AVR32::fixup_11h_pcrel:
       return ELF::R_AVR32_11H_PCREL;
     case AVR32::fixup_21s:
