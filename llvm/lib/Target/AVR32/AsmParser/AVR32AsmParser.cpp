@@ -608,6 +608,7 @@ private:
   bool parseMemoryDispOrIndexOperand(OperandVector &Operands);
   bool parseMemoryDispOrPostIncOperand(OperandVector &Operands);
   bool parseMemoryDispOperand(OperandVector &Operands);
+  bool parsePCRelOperand(OperandVector &Operands);
   bool parseMemoryDispCommaImmediate(OperandVector &Operands);
   bool parseRegisterCommaImmediate(OperandVector &Operands);
   bool parseRegisterCommaImmediateOptionalCOH(OperandVector &Operands);
@@ -1008,7 +1009,7 @@ bool AVR32AsmParser::parseInstruction(ParseInstructionInfo &Info,
     if (parseMemoryDispOperand(Operands))
       return true;
   } else if (Name == "rcall" || Name == "rjmp") {
-    if (parseMemoryDispOperand(Operands))
+    if (parsePCRelOperand(Operands))
       return true;
   } else if (Name == "pref") {
     if (parseMemoryDispOperand(Operands))
@@ -2339,6 +2340,15 @@ bool AVR32AsmParser::parseMemoryDispOperand(OperandVector &Operands) {
   Operands.push_back(AVR32Operand::createToken("]", getLexer().getLoc()));
   getLexer().Lex();
   return false;
+}
+
+bool AVR32AsmParser::parsePCRelOperand(OperandVector &Operands) {
+  if (getLexer().is(AsmToken::Identifier) &&
+      parseRegisterName(getLexer().getTok().getString()) == AVR32::PC &&
+      getLexer().peekTok().is(AsmToken::LBrac))
+    return parseMemoryDispOperand(Operands);
+
+  return parseImmediateOperand(Operands);
 }
 
 bool AVR32AsmParser::parseMemoryDispCommaImmediate(OperandVector &Operands) {

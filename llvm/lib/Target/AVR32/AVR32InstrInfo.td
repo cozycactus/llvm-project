@@ -3478,6 +3478,7 @@ let isCall = 1, Defs = [LR] in
 def RCALLe : FullPCRel21<"rcall">;
 let isCall = 1, Defs = [LR] in
 def RCALLeCG : FullPCRel21CG<"rcall">;
+def : InstAlias<"rcall\t$Disp", (RCALLe PC, simm21pcrelshift1:$Disp), 0>;
 def PMAX_UBrrr : FullRegRegReg<0b001000111000, "pmax.ub">;
 def PMAX_SHrrr : FullRegRegReg<0b001000111001, "pmax.sh">;
 def PMIN_UBrrr : FullRegRegReg<0b001000111010, "pmin.ub">;
@@ -3508,6 +3509,7 @@ def POPJC : AVR32Inst<0b1101011100010011, (outs), (ins), "popjc">;
 def PUSHM : CompactRegList8<0b0001, "pushm">;
 def PUSHJC : AVR32Inst<0b1101011100100011, (outs), (ins), "pushjc">;
 def RJMP : CompactRjmp<"rjmp">;
+def : InstAlias<"rjmp\t$Disp", (RJMP PC, simm10pcrelshift1:$Disp), 0>;
 let isBarrier = 1, isReturn = 1, isTerminator = 1 in {
 def RETD : AVR32Inst<0b1101011000100011, (outs), (ins), "retd">;
 def RETE : AVR32Inst<0b1101011000000011, (outs), (ins), "rete">;
