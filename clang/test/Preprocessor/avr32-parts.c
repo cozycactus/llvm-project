@@ -15,6 +15,7 @@
 // UC3A: #define __AVR32_UC__ 2
 // UC3A: #define __AVR32__ 1
 // UC3A: #define __ELF__ 1
+// UC3A: #define __REGISTER_PREFIX__
 // UC3A: #define __WINT_TYPE__ unsigned int
 // UC3A: #define __avr32__ 1
 

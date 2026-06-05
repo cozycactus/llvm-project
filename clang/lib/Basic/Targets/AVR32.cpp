@@ -80,6 +80,7 @@ void AVR32TargetInfo::getTargetDefines(const LangOptions &Opts,
   Builder.defineMacro("__AVR32__");
   Builder.defineMacro("__avr32__");
   Builder.defineMacro("__AVR32_ELF__");
+  Builder.defineMacro("__REGISTER_PREFIX__", "");
 
   if (IsUC) {
     Builder.defineMacro("__AVR32_AVR32A__");
