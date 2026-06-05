@@ -3182,6 +3182,22 @@ def CASTS_Br : CompactReg<0b010111000110, "casts.b">;
 def CASTS_Hr : CompactReg<0b010111001000, "casts.h">;
 def CASTU_Br : CompactReg<0b010111000101, "castu.b">;
 def CASTU_Hr : CompactReg<0b010111000111, "castu.h">;
+let isCodeGenOnly = 1, Constraints = "$Rd = $Old" in {
+def CASTU_Bcg : AVR32Inst<0, (outs GPR:$Rd), (ins GPR:$Old),
+                          "castu.b\t$Rd"> {
+  bits<4> Rd;
+
+  let Inst{15-4} = 0b010111000101;
+  let Inst{3-0} = Rd;
+}
+def CASTU_Hcg : AVR32Inst<0, (outs GPR:$Rd), (ins GPR:$Old),
+                          "castu.h\t$Rd"> {
+  bits<4> Rd;
+
+  let Inst{15-4} = 0b010111000111;
+  let Inst{3-0} = Rd;
+}
+}
 def CLZrr : FullRegReg<0b0001001000000000, "clz">;
 def COMr : CompactReg<0b010111001101, "com">;
 def COP : CoprocessorOp<"cop">;

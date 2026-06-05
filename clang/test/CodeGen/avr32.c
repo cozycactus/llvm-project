@@ -50,6 +50,10 @@ int load_byte(void) {
   return bytes[3];
 }
 
+int load_two_bytes(void) {
+  return bytes[2] + bytes[3];
+}
+
 int load_table(unsigned x) {
   return values[x & 3];
 }
@@ -64,6 +68,14 @@ unsigned clear_low_bit(unsigned x) {
 
 unsigned xor_mask(unsigned x) {
   return x ^ 65536u;
+}
+
+unsigned mask_byte(unsigned x) {
+  return x & 255u;
+}
+
+unsigned mask_half(unsigned x) {
+  return x & 65535u;
 }
 
 unsigned bitfield_extract(unsigned x) {
@@ -398,7 +410,7 @@ __attribute__((optnone, noinline)) int pick(int a, int b) {
 // ASM: lsr
 // ASM: lsl
 // ASM: or
-// ASM: andh r12, 0
+// ASM: castu.h r12
 // ASM: ret r12
 
 // ASM-LABEL: eq:
@@ -417,8 +429,15 @@ __attribute__((optnone, noinline)) int pick(int a, int b) {
 // ASM-LABEL: load_byte:
 // ASM: mov [[BYTE_BASE:r[0-9]+]], LO(bytes)
 // ASM: orh [[BYTE_BASE]], HI(bytes)
-// ASM: mov {{r[0-9]+}}, 3
-// ASM: ld.ub r12, {{r[0-9]+}}[{{r[0-9]+}} << 0]
+// ASM: ld.ub r12, [[BYTE_BASE]][3]
+// ASM: ret r12
+
+// ASM-LABEL: load_two_bytes:
+// ASM: mov [[BYTES_BASE:r[0-9]+]], LO(bytes)
+// ASM: orh [[BYTES_BASE]], HI(bytes)
+// ASM: ld.ub [[BYTE0:r[0-9]+]], [[BYTES_BASE]][2]
+// ASM: ld.ub [[BYTE1:r[0-9]+]], [[BYTES_BASE]][3]
+// ASM: add{{.*}} r12, [[BYTE1]]
 // ASM: ret r12
 
 // ASM-LABEL: load_table:
@@ -438,6 +457,14 @@ __attribute__((optnone, noinline)) int pick(int a, int b) {
 
 // ASM-LABEL: xor_mask:
 // ASM: eorh r12, 1
+// ASM: ret r12
+
+// ASM-LABEL: mask_byte:
+// ASM: castu.b r12
+// ASM: ret r12
+
+// ASM-LABEL: mask_half:
+// ASM: castu.h r12
 // ASM: ret r12
 
 // ASM-LABEL: bitfield_extract:

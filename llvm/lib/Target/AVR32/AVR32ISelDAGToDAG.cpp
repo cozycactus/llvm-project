@@ -12,6 +12,7 @@
 #include "llvm/CodeGen/SelectionDAGNodes.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/MathExtras.h"
+#include <limits>
 
 using namespace llvm;
 
@@ -39,6 +40,9 @@ public:
       return;
 
     if (selectConstant(Node))
+      return;
+
+    if (selectUnsignedCastMask(Node))
       return;
 
     if (selectBitFieldInsert(Node))
@@ -290,7 +294,14 @@ public:
       return false;
 
     SDLoc DL(Addr);
-    Base = materializeGlobalAddress(GA, DL);
+    int64_t Offset = GA->getOffset();
+    if (isInt<16>(Offset)) {
+      Base = materializeGlobalAddress(GA, DL, /*Offset=*/0);
+      Disp = CurDAG->getTargetConstant(Offset, DL, MVT::i32);
+      return true;
+    }
+
+    Base = materializeGlobalAddress(GA, DL, Offset);
     Disp = CurDAG->getTargetConstant(0, DL, MVT::i32);
     return true;
   }
@@ -311,12 +322,17 @@ public:
 
     uint64_t ShiftAmt = 0;
     Index = LHS;
+    if (isa<ConstantSDNode>(Index))
+      return false;
+
     if (LHS.getOpcode() == ISD::SHL) {
       auto *ShiftC = dyn_cast<ConstantSDNode>(LHS.getOperand(1));
       if (!ShiftC || ShiftC->getZExtValue() > 3)
         return false;
       ShiftAmt = ShiftC->getZExtValue();
       Index = LHS.getOperand(0);
+      if (isa<ConstantSDNode>(Index))
+        return false;
     }
 
     SDLoc DL(Addr);
@@ -360,12 +376,16 @@ public:
     return true;
   }
 
-  SDValue materializeGlobalAddress(const GlobalAddressSDNode *GA,
-                                   const SDLoc &DL) {
+  SDValue materializeGlobalAddress(
+      const GlobalAddressSDNode *GA, const SDLoc &DL,
+      int64_t Offset = std::numeric_limits<int64_t>::min()) {
+    if (Offset == std::numeric_limits<int64_t>::min())
+      Offset = GA->getOffset();
+
     SDValue Hi = CurDAG->getTargetGlobalAddress(
-        GA->getGlobal(), DL, MVT::i32, GA->getOffset(), AVR32II::MO_ABS_HI);
+        GA->getGlobal(), DL, MVT::i32, Offset, AVR32II::MO_ABS_HI);
     SDValue Lo = CurDAG->getTargetGlobalAddress(
-        GA->getGlobal(), DL, MVT::i32, GA->getOffset(), AVR32II::MO_ABS_LO);
+        GA->getGlobal(), DL, MVT::i32, Offset, AVR32II::MO_ABS_LO);
 
     SDValue HiReg =
         SDValue(CurDAG->getMachineNode(AVR32::MOVHri, DL, MVT::i32, Hi), 0);
@@ -453,6 +473,34 @@ public:
     SDLoc DL(Node);
     SDValue HalfImm = CurDAG->getTargetConstant(Half, DL, MVT::i32);
     CurDAG->SelectNodeTo(Node, MachineOpcode, MVT::i32, Src, HalfImm);
+    return true;
+  }
+
+  bool selectUnsignedCastMask(SDNode *Node) {
+    if (Node->getOpcode() != ISD::AND || Node->getValueType(0) != MVT::i32)
+      return false;
+
+    SDValue Src;
+    auto *C = dyn_cast<ConstantSDNode>(Node->getOperand(1));
+    if (C) {
+      Src = Node->getOperand(0);
+    } else {
+      C = dyn_cast<ConstantSDNode>(Node->getOperand(0));
+      if (!C)
+        return false;
+      Src = Node->getOperand(1);
+    }
+
+    uint64_t Mask = C->getZExtValue();
+    unsigned MachineOpcode = 0;
+    if (Mask == 0xff)
+      MachineOpcode = AVR32::CASTU_Bcg;
+    else if (Mask == 0xffff)
+      MachineOpcode = AVR32::CASTU_Hcg;
+    else
+      return false;
+
+    CurDAG->SelectNodeTo(Node, MachineOpcode, MVT::i32, Src);
     return true;
   }
 
