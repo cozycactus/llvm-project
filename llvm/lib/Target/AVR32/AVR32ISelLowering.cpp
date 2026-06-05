@@ -405,6 +405,9 @@ AVR32TargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
   Ops.push_back(Callee);
   for (const auto &[Reg, Value] : RegsToPass)
     Ops.push_back(DAG.getRegister(Reg, Value.getValueType()));
+  const TargetRegisterInfo *TRI = DAG.getSubtarget().getRegisterInfo();
+  Ops.push_back(DAG.getRegisterMask(
+      TRI->getCallPreservedMask(DAG.getMachineFunction(), CLI.CallConv)));
   if (Glue)
     Ops.push_back(Glue);
 

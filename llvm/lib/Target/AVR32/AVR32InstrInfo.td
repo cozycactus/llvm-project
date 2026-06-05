@@ -629,6 +629,16 @@ def incjospimm : Operand<i32>,
   let EncoderMethod = "getIncJOSPImmOpValue";
 }
 
+def bfext_width : SDNodeXForm<imm, [{
+  return CurDAG->getTargetConstant(N->getAPIntValue().popcount(), SDLoc(N),
+                                   MVT::i32);
+}]>;
+
+def bfext_mask : PatLeaf<(i32 imm), [{
+  uint64_t Imm = N->getZExtValue();
+  return Imm != 0 && Imm != UINT64_C(0xffffffff) && isMask_32(Imm);
+}], bfext_width>;
+
 def halfpart : Operand<i32>, ImmLeaf<i32, [{ return Imm == 0 || Imm == 1; }]> {
   let ParserMatchClass = HalfPartAsmOperand;
   let PrintMethod = "printHalfPart";
@@ -673,6 +683,8 @@ class CompactRegRegNoOut<bits<5> Op, string Mnemonic>
 class CompactStorePostInc<bits<5> Op, string Mnemonic>
     : AVR32Inst<0, (outs), (ins GPR:$Rp, GPR:$Rs),
                 Mnemonic#"\t${Rp}++, $Rs"> {
+  let mayStore = 1;
+
   bits<4> Rp;
   bits<4> Rs;
 
@@ -685,6 +697,8 @@ class CompactStorePostInc<bits<5> Op, string Mnemonic>
 class CompactStorePreDec<bits<5> Op, string Mnemonic>
     : AVR32Inst<0, (outs), (ins GPR:$Rp, GPR:$Rs),
                 Mnemonic#"\t--$Rp, $Rs"> {
+  let mayStore = 1;
+
   bits<4> Rp;
   bits<4> Rs;
 
@@ -697,6 +711,8 @@ class CompactStorePreDec<bits<5> Op, string Mnemonic>
 class CompactStoreDisp3<string Mnemonic>
     : AVR32Inst<0, (outs), (ins GPR:$Rp, uimm3:$Disp, GPR:$Rs),
                 Mnemonic#"\t${Rp}[$Disp], $Rs"> {
+  let mayStore = 1;
+
   bits<4> Rp;
   bits<3> Disp;
   bits<4> Rs;
@@ -711,6 +727,8 @@ class CompactStoreDisp3<string Mnemonic>
 class CompactStoreDisp3Shift1<string Mnemonic>
     : AVR32Inst<0, (outs), (ins GPR:$Rp, uimm3shift1:$Disp, GPR:$Rs),
                 Mnemonic#"\t${Rp}[$Disp], $Rs"> {
+  let mayStore = 1;
+
   bits<4> Rp;
   bits<3> Disp;
   bits<4> Rs;
@@ -725,6 +743,8 @@ class CompactStoreDisp3Shift1<string Mnemonic>
 class CompactStoreDisp4Shift2<string Mnemonic>
     : AVR32Inst<0, (outs), (ins GPR:$Rp, uimm4shift2:$Disp, GPR:$Rs),
                 Mnemonic#"\t${Rp}[$Disp], $Rs"> {
+  let mayStore = 1;
+
   bits<4> Rp;
   bits<4> Disp;
   bits<4> Rs;
@@ -739,6 +759,8 @@ class CompactStoreDisp4Shift2<string Mnemonic>
 class CompactLoadPostInc<bits<5> Op, string Mnemonic>
     : AVR32Inst<0, (outs GPR:$Rd), (ins GPR:$Rp),
                 Mnemonic#"\t$Rd, ${Rp}++"> {
+  let mayLoad = 1;
+
   bits<4> Rd;
   bits<4> Rp;
 
@@ -751,6 +773,8 @@ class CompactLoadPostInc<bits<5> Op, string Mnemonic>
 class CompactLoadPreDec<bits<5> Op, string Mnemonic>
     : AVR32Inst<0, (outs GPR:$Rd), (ins GPR:$Rp),
                 Mnemonic#"\t$Rd, --$Rp"> {
+  let mayLoad = 1;
+
   bits<4> Rd;
   bits<4> Rp;
 
@@ -763,6 +787,8 @@ class CompactLoadPreDec<bits<5> Op, string Mnemonic>
 class CompactLoadDisp5Shift2<string Mnemonic>
     : AVR32Inst<0, (outs GPR:$Rd), (ins GPR:$Rp, uimm5shift2:$Disp),
                 Mnemonic#"\t$Rd, ${Rp}[$Disp]"> {
+  let mayLoad = 1;
+
   bits<4> Rd;
   bits<4> Rp;
   bits<5> Disp;
@@ -776,6 +802,8 @@ class CompactLoadDisp5Shift2<string Mnemonic>
 class CompactLoadDisp3<string Mnemonic>
     : AVR32Inst<0, (outs GPR:$Rd), (ins GPR:$Rp, uimm3:$Disp),
                 Mnemonic#"\t$Rd, ${Rp}[$Disp]"> {
+  let mayLoad = 1;
+
   bits<4> Rd;
   bits<4> Rp;
   bits<3> Disp;
@@ -790,6 +818,8 @@ class CompactLoadDisp3<string Mnemonic>
 class CompactLoadDisp3Shift1<string Mnemonic>
     : AVR32Inst<0, (outs GPR:$Rd), (ins GPR:$Rp, uimm3shift1:$Disp),
                 Mnemonic#"\t$Rd, ${Rp}[$Disp]"> {
+  let mayLoad = 1;
+
   bits<4> Rd;
   bits<4> Rp;
   bits<3> Disp;
@@ -804,6 +834,8 @@ class CompactLoadDisp3Shift1<string Mnemonic>
 class CompactLoadDisp3Shift1Sub<bits<2> Sub, string Mnemonic>
     : AVR32Inst<0, (outs GPR:$Rd), (ins GPR:$Rp, uimm3shift1:$Disp),
                 Mnemonic#"\t$Rd, ${Rp}[$Disp]"> {
+  let mayLoad = 1;
+
   bits<4> Rd;
   bits<4> Rp;
   bits<3> Disp;
@@ -819,6 +851,8 @@ class CompactLoadBaseDisp7Shift2<bits<5> Op, RegisterClass BaseRC,
                                  string Mnemonic>
     : AVR32Inst<0, (outs GPR:$Rd), (ins BaseRC:$Rp, uimm7shift2:$Disp),
                 Mnemonic#"\t$Rd, ${Rp}[$Disp]"> {
+  let mayLoad = 1;
+
   bits<4> Rd;
   bits<7> Disp;
 
@@ -830,6 +864,8 @@ class CompactLoadBaseDisp7Shift2<bits<5> Op, RegisterClass BaseRC,
 class FullStoreDisp16<bits<5> Op, string Mnemonic, RegisterClass SrcRC = GPR>
     : AVR32Inst32<(outs), (ins GPR:$Rp, simm16:$Disp, SrcRC:$Rs),
                   Mnemonic#"\t${Rp}[$Disp], $Rs"> {
+  let mayStore = 1;
+
   bits<4> Rp;
   bits<16> Disp;
   bits<4> Rs;
@@ -844,6 +880,8 @@ class FullStoreDisp16<bits<5> Op, string Mnemonic, RegisterClass SrcRC = GPR>
 class FullStoreIndexShift<bits<10> Op, string Mnemonic, RegisterClass SrcRC = GPR>
     : AVR32Inst32<(outs), (ins GPR:$Rb, GPR:$Ri, uimm2:$Shift, SrcRC:$Rs),
                   Mnemonic#"\t${Rb}[$Ri << $Shift], $Rs"> {
+  let mayStore = 1;
+
   bits<4> Rb;
   bits<4> Ri;
   bits<2> Shift;
@@ -861,6 +899,8 @@ class FullStoreIndexShift<bits<10> Op, string Mnemonic, RegisterClass SrcRC = GP
 class FullLoadDisp16<bits<5> Op, string Mnemonic>
     : AVR32Inst32<(outs GPR:$Rd), (ins GPR:$Rp, simm16:$Disp),
                   Mnemonic#"\t$Rd, ${Rp}[$Disp]"> {
+  let mayLoad = 1;
+
   bits<4> Rd;
   bits<4> Rp;
   bits<16> Disp;
@@ -875,6 +915,8 @@ class FullLoadDisp16<bits<5> Op, string Mnemonic>
 class FullLoadIndexShift<bits<10> Op, string Mnemonic>
     : AVR32Inst32<(outs GPR:$Rd), (ins GPR:$Rb, GPR:$Ri, uimm2:$Shift),
                   Mnemonic#"\t$Rd, ${Rb}[$Ri << $Shift]"> {
+  let mayLoad = 1;
+
   bits<4> Rd;
   bits<4> Rb;
   bits<4> Ri;
@@ -893,6 +935,8 @@ class FullLoadIndexPart<string Mnemonic>
     : AVR32Inst32<(outs GPR:$Rd), (ins GPR:$Rb, GPR:$Ri, bytepart:$Part,
                                        fixedshift2:$Shift),
                   Mnemonic#"\t$Rd, ${Rb}[${Ri}:$Part << $Shift]"> {
+  let mayLoad = 1;
+
   bits<4> Rd;
   bits<4> Rb;
   bits<4> Ri;
@@ -910,6 +954,8 @@ class FullLoadIndexPart<string Mnemonic>
 class FullLoadPairDisp16<bits<5> Op, string Mnemonic>
     : AVR32Inst32<(outs GPREven:$Rd), (ins GPR:$Rp, simm16:$Disp),
                   Mnemonic#"\t$Rd, ${Rp}[$Disp]"> {
+  let mayLoad = 1;
+
   bits<4> Rd;
   bits<4> Rp;
   bits<16> Disp;
@@ -960,6 +1006,8 @@ class FullMemDisp11UImm5<bits<12> Op, string Mnemonic>
 class FullLoadPairIndexShift<bits<10> Op, string Mnemonic>
     : AVR32Inst32<(outs GPREven:$Rd), (ins GPR:$Rb, GPR:$Ri, uimm2:$Shift),
                   Mnemonic#"\t$Rd, ${Rb}[$Ri << $Shift]"> {
+  let mayLoad = 1;
+
   bits<4> Rd;
   bits<4> Rb;
   bits<4> Ri;
@@ -978,6 +1026,8 @@ class FullLoadPairIndexShift<bits<10> Op, string Mnemonic>
 class FullLoadInsertByteDisp12
     : AVR32Inst32<(outs GPR:$Rd), (ins bytepart:$Part, GPR:$Rp, simm12:$Disp),
                   "ldins.b\t${Rd}:$Part, ${Rp}[$Disp]"> {
+  let mayLoad = 1;
+
   bits<4> Rd;
   bits<2> Part;
   bits<4> Rp;
@@ -996,6 +1046,8 @@ class FullLoadInsertHalfDisp12
     : AVR32Inst32<(outs GPR:$Rd),
                   (ins halfpart:$Part, GPR:$Rp, simm12shift1:$Disp),
                   "ldins.h\t${Rd}:$Part, ${Rp}[$Disp]"> {
+  let mayLoad = 1;
+
   bits<4> Rd;
   bits<1> Part;
   bits<4> Rp;
@@ -1013,6 +1065,8 @@ class FullLoadInsertHalfDisp12
 class FullLoadCondDisp9Shift2<bits<4> Cond, string Mnemonic>
     : AVR32Inst32<(outs GPR:$Rd), (ins GPR:$Rp, uimm9shift2:$Disp),
                   Mnemonic#"\t$Rd, ${Rp}[$Disp]"> {
+  let mayLoad = 1;
+
   bits<4> Rd;
   bits<4> Rp;
   bits<9> Disp;
@@ -1041,6 +1095,8 @@ class FullMemBit<bits<12> Prefix, string Mnemonic>
 class FullLoadCondDisp9<bits<4> Cond, string Mnemonic>
     : AVR32Inst32<(outs GPR:$Rd), (ins GPR:$Rp, uimm9:$Disp),
                   Mnemonic#"\t$Rd, ${Rp}[$Disp]"> {
+  let mayLoad = 1;
+
   bits<4> Rd;
   bits<4> Rp;
   bits<9> Disp;
@@ -1057,6 +1113,8 @@ class FullLoadCondDisp9<bits<4> Cond, string Mnemonic>
 class FullLoadCondDisp9Sub<bits<4> Cond, bits<3> Sub, string Mnemonic>
     : AVR32Inst32<(outs GPR:$Rd), (ins GPR:$Rp, uimm9:$Disp),
                   Mnemonic#"\t$Rd, ${Rp}[$Disp]"> {
+  let mayLoad = 1;
+
   bits<4> Rd;
   bits<4> Rp;
   bits<9> Disp;
@@ -1073,6 +1131,8 @@ class FullLoadCondDisp9Sub<bits<4> Cond, bits<3> Sub, string Mnemonic>
 class FullLoadCondDisp9Shift1<bits<4> Cond, string Mnemonic>
     : AVR32Inst32<(outs GPR:$Rd), (ins GPR:$Rp, uimm9shift1:$Disp),
                   Mnemonic#"\t$Rd, ${Rp}[$Disp]"> {
+  let mayLoad = 1;
+
   bits<4> Rd;
   bits<4> Rp;
   bits<9> Disp;
@@ -1089,6 +1149,8 @@ class FullLoadCondDisp9Shift1<bits<4> Cond, string Mnemonic>
 class FullLoadCondDisp9Shift1Sub<bits<4> Cond, bits<3> Sub, string Mnemonic>
     : AVR32Inst32<(outs GPR:$Rd), (ins GPR:$Rp, uimm9shift1:$Disp),
                   Mnemonic#"\t$Rd, ${Rp}[$Disp]"> {
+  let mayLoad = 1;
+
   bits<4> Rd;
   bits<4> Rp;
   bits<9> Disp;
@@ -1106,6 +1168,8 @@ class FullStoreHalfwordPairDisp8
     : AVR32Inst32<(outs), (ins GPR:$Rp, uimm8shift2:$Disp, GPR:$Rx,
                                halfpart:$XPart, GPR:$Ry, halfpart:$YPart),
                   "sthh.w\t${Rp}[$Disp], ${Rx}:$XPart, ${Ry}:$YPart"> {
+  let mayStore = 1;
+
   bits<4> Rp;
   bits<8> Disp;
   bits<4> Rx;
@@ -1128,6 +1192,8 @@ class FullStoreHalfwordPairIndexShift
     : AVR32Inst32<(outs), (ins GPR:$Rb, GPR:$Ri, uimm2:$Shift, GPR:$Rx,
                                halfpart:$XPart, GPR:$Ry, halfpart:$YPart),
                   "sthh.w\t${Rb}[$Ri << $Shift], ${Rx}:$XPart, ${Ry}:$YPart"> {
+  let mayStore = 1;
+
   bits<4> Rb;
   bits<4> Ri;
   bits<2> Shift;
@@ -1152,6 +1218,8 @@ class FullStoreHalfwordPairIndexShift
 class FullStoreSwapDisp12<bits<4> Prefix, string Mnemonic, Operand DispOp>
     : AVR32Inst32<(outs), (ins GPR:$Rp, DispOp:$Disp, GPR:$Rs),
                   Mnemonic#"\t${Rp}[$Disp], $Rs"> {
+  let mayStore = 1;
+
   bits<4> Rp;
   bits<12> Disp;
   bits<4> Rs;
@@ -1167,6 +1235,8 @@ class FullStoreSwapDisp12<bits<4> Prefix, string Mnemonic, Operand DispOp>
 class FullLoadSwapDisp12<bits<4> Prefix, string Mnemonic, Operand DispOp>
     : AVR32Inst32<(outs GPR:$Rd), (ins GPR:$Rp, DispOp:$Disp),
                   Mnemonic#"\t$Rd, ${Rp}[$Disp]"> {
+  let mayLoad = 1;
+
   bits<4> Rd;
   bits<4> Rp;
   bits<12> Disp;
@@ -1182,6 +1252,8 @@ class FullLoadSwapDisp12<bits<4> Prefix, string Mnemonic, Operand DispOp>
 class FullStorePairDisp16<bits<5> Op, string Mnemonic>
     : AVR32Inst32<(outs), (ins GPR:$Rp, simm16:$Disp, GPREven:$Rs),
                   Mnemonic#"\t${Rp}[$Disp], $Rs"> {
+  let mayStore = 1;
+
   bits<4> Rp;
   bits<16> Disp;
   bits<4> Rs;
@@ -1197,6 +1269,8 @@ class FullStorePairDisp16<bits<5> Op, string Mnemonic>
 class FullStoreCondDisp9<bits<4> Cond, string Mnemonic>
     : AVR32Inst32<(outs), (ins GPR:$Rp, uimm9:$Disp, GPR:$Rs),
                   Mnemonic#"\t${Rp}[$Disp], $Rs"> {
+  let mayStore = 1;
+
   bits<4> Rp;
   bits<9> Disp;
   bits<4> Rs;
@@ -1213,6 +1287,8 @@ class FullStoreCondDisp9<bits<4> Cond, string Mnemonic>
 class FullStoreCondDisp9Shift1<bits<4> Cond, string Mnemonic>
     : AVR32Inst32<(outs), (ins GPR:$Rp, uimm9shift1:$Disp, GPR:$Rs),
                   Mnemonic#"\t${Rp}[$Disp], $Rs"> {
+  let mayStore = 1;
+
   bits<4> Rp;
   bits<9> Disp;
   bits<4> Rs;
@@ -1229,6 +1305,8 @@ class FullStoreCondDisp9Shift1<bits<4> Cond, string Mnemonic>
 class FullStoreCondDisp9Shift2<bits<4> Cond, string Mnemonic>
     : AVR32Inst32<(outs), (ins GPR:$Rp, uimm9shift2:$Disp, GPR:$Rs),
                   Mnemonic#"\t${Rp}[$Disp], $Rs"> {
+  let mayStore = 1;
+
   bits<4> Rp;
   bits<9> Disp;
   bits<4> Rs;
@@ -1244,6 +1322,8 @@ class FullStoreCondDisp9Shift2<bits<4> Cond, string Mnemonic>
 
 class CompactStorePair<bits<5> Op, bits<1> LastBit, string AsmStr>
     : AVR32Inst<0, (outs), (ins GPR:$Rp, GPREven:$Rs), AsmStr> {
+  let mayStore = 1;
+
   bits<4> Rp;
   bits<4> Rs;
 
@@ -1256,6 +1336,8 @@ class CompactStorePair<bits<5> Op, bits<1> LastBit, string AsmStr>
 
 class CompactLoadPair<bits<5> Op, bits<1> LastBit, string AsmStr>
     : AVR32Inst<0, (outs GPREven:$Rd), (ins GPR:$Rp), AsmStr> {
+  let mayLoad = 1;
+
   bits<4> Rd;
   bits<4> Rp;
 
@@ -1330,6 +1412,8 @@ class CompactSPSubImm<string Mnemonic>
 class CompactSPStoreDisp7Shift2
     : AVR32Inst<0, (outs), (ins SPOnly:$Rp, uimm7shift2:$Disp, GPR:$Rs),
                 "stdsp\t${Rp}[$Disp], $Rs"> {
+  let mayStore = 1;
+
   bits<7> Disp;
   bits<4> Rs;
 
@@ -3329,6 +3413,8 @@ def PSUBXS_SHrrr : FullRegRegReg<0b001000000111, "psubxs.sh">;
 def PUNPCKUB_H : FullRegRegHalf<0b00100100100, "punpckub.h">;
 def PUNPCKSB_H : FullRegRegHalf<0b00100100101, "punpcksb.h">;
 def POPM : CompactRegList8<0b0010, "popm">;
+let isBarrier = 1, isCodeGenOnly = 1, isReturn = 1, isTerminator = 1 in
+def POPM_RET : CompactRegList8<0b0010, "popm">;
 def POPJC : AVR32Inst<0b1101011100010011, (outs), (ins), "popjc">;
 def PUSHM : CompactRegList8<0b0001, "pushm">;
 def PUSHJC : AVR32Inst<0b1101011100100011, (outs), (ins), "pushjc">;
@@ -3657,6 +3743,8 @@ def : Pat<(br bb:$dst), (BRALbb bb:$dst)>;
 def : Pat<(shl GPR:$LHS, GPR:$RHS), (LSLrrr GPR:$LHS, GPR:$RHS)>;
 def : Pat<(srl GPR:$LHS, GPR:$RHS), (LSRrrr GPR:$LHS, GPR:$RHS)>;
 def : Pat<(sra GPR:$LHS, GPR:$RHS), (ASRrrr GPR:$LHS, GPR:$RHS)>;
+def : Pat<(and (srl GPR:$Src, uimm5:$Bp), bfext_mask:$Width),
+          (BFEXTU GPR:$Src, uimm5:$Bp, bfext_mask:$Width)>;
 def : Pat<(mul GPR:$LHS, GPR:$RHS), (MULrrr GPR:$LHS, GPR:$RHS)>;
 def : Pat<(sdiv GPR:$LHS, GPR:$RHS), (DIVSrrr GPR:$LHS, GPR:$RHS)>;
 def : Pat<(udiv GPR:$LHS, GPR:$RHS), (DIVUrrr GPR:$LHS, GPR:$RHS)>;

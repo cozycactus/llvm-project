@@ -12,6 +12,7 @@
 #include "llvm/CodeGen/MachineFrameInfo.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
+#include "llvm/CodeGen/MachineRegisterInfo.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/MathExtras.h"
 
@@ -21,6 +22,22 @@ using namespace llvm;
 #include "AVR32GenInstrInfo.inc"
 #define GET_REGINFO_ENUM
 #include "AVR32GenRegisterInfo.inc"
+
+static unsigned getPushmMask(const MachineFunction &MF) {
+  const MachineFrameInfo &MFI = MF.getFrameInfo();
+  const MachineRegisterInfo &MRI = MF.getRegInfo();
+  unsigned Mask = 0;
+  if (MRI.isPhysRegModified(AVR32::R0) || MRI.isPhysRegModified(AVR32::R1) ||
+      MRI.isPhysRegModified(AVR32::R2) || MRI.isPhysRegModified(AVR32::R3))
+    Mask |= 1 << 0;
+  if (MRI.isPhysRegModified(AVR32::R4) || MRI.isPhysRegModified(AVR32::R5) ||
+      MRI.isPhysRegModified(AVR32::R6) || MRI.isPhysRegModified(AVR32::R7) ||
+      MFI.hasVarSizedObjects())
+    Mask |= 1 << 1;
+  if (MFI.hasCalls())
+    Mask |= 1 << 6;
+  return Mask;
+}
 
 AVR32FrameLowering::AVR32FrameLowering(const AVR32Subtarget &STI)
     : TargetFrameLowering(TargetFrameLowering::StackGrowsDown, Align(4), 0,
@@ -34,7 +51,8 @@ void AVR32FrameLowering::emitPrologue(MachineFunction &MF,
                                       MachineBasicBlock &MBB) const {
   uint64_t StackSize = MF.getFrameInfo().getStackSize();
   bool HasFP = hasFP(MF);
-  if (StackSize == 0 && !HasFP)
+  unsigned PushmMask = getPushmMask(MF);
+  if (StackSize == 0 && !HasFP && PushmMask == 0)
     return;
 
   if (StackSize % 4 != 0 || StackSize > 508)
@@ -45,9 +63,15 @@ void AVR32FrameLowering::emitPrologue(MachineFunction &MF,
   MachineBasicBlock::iterator MBBI = MBB.begin();
   DebugLoc DL = MBBI != MBB.end() ? MBBI->getDebugLoc() : DebugLoc();
 
+  if (PushmMask != 0)
+    BuildMI(MBB, MBBI, DL, TII.get(AVR32::PUSHM))
+        .addImm(PushmMask)
+        .setMIFlag(MachineInstr::FrameSetup);
+
   if (StackSize != 0)
     BuildMI(MBB, MBBI, DL, TII.get(AVR32::SUBSPri8), AVR32::SP)
-        .addImm(StackSize);
+        .addImm(StackSize)
+        .setMIFlag(MachineInstr::FrameSetup);
 
   if (HasFP)
     BuildMI(MBB, MBBI, DL, TII.get(AVR32::MOVrr), AVR32::R7)
@@ -58,7 +82,8 @@ void AVR32FrameLowering::emitEpilogue(MachineFunction &MF,
                                       MachineBasicBlock &MBB) const {
   uint64_t StackSize = MF.getFrameInfo().getStackSize();
   bool HasFP = hasFP(MF);
-  if (StackSize == 0 && !HasFP)
+  unsigned PushmMask = getPushmMask(MF);
+  if (StackSize == 0 && !HasFP && PushmMask == 0)
     return;
 
   if (StackSize % 4 != 0 || StackSize > 512)
@@ -75,7 +100,22 @@ void AVR32FrameLowering::emitEpilogue(MachineFunction &MF,
 
   if (StackSize != 0)
     BuildMI(MBB, MBBI, DL, TII.get(AVR32::SUBSPri8), AVR32::SP)
-        .addImm(-static_cast<int64_t>(StackSize));
+        .addImm(-static_cast<int64_t>(StackSize))
+        .setMIFlag(MachineInstr::FrameDestroy);
+
+  if (PushmMask != 0) {
+    if (MBBI != MBB.end() && MBBI->getOpcode() == AVR32::RETR12) {
+      unsigned RetMask = (PushmMask & ~(1 << 6)) | (1 << 7);
+      BuildMI(MBB, MBBI, DL, TII.get(AVR32::POPM_RET))
+          .addImm(RetMask)
+          .setMIFlag(MachineInstr::FrameDestroy);
+      MBBI->eraseFromParent();
+    } else {
+      BuildMI(MBB, MBBI, DL, TII.get(AVR32::POPM))
+          .addImm(PushmMask)
+          .setMIFlag(MachineInstr::FrameDestroy);
+    }
+  }
 }
 
 MachineBasicBlock::iterator AVR32FrameLowering::eliminateCallFramePseudoInstr(

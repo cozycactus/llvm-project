@@ -66,6 +66,10 @@ unsigned xor_mask(unsigned x) {
   return x ^ 65536u;
 }
 
+unsigned bitfield_extract(unsigned x) {
+  return (x >> 13) & 7;
+}
+
 int count_leading(unsigned x) {
   return __builtin_clz(x);
 }
@@ -267,6 +271,9 @@ __attribute__((optnone, noinline)) int pick(int a, int b) {
 // CHECK: and i32
 // CHECK: define {{.*}}i32 @xor_mask(i32 {{.*}})
 // CHECK: xor i32
+// CHECK: define {{.*}}i32 @bitfield_extract(i32 {{.*}})
+// CHECK: lshr i32
+// CHECK: and i32
 // CHECK: define {{.*}}i32 @count_leading(i32 {{.*}})
 // CHECK: call i32 @llvm.ctlz.i32
 // CHECK: define {{.*}}i32 @count_trailing(i32 {{.*}})
@@ -350,13 +357,13 @@ __attribute__((optnone, noinline)) int pick(int a, int b) {
 // ASM: mov {{r[0-9]+}}, r12
 // ASM: mov r12, r11
 // ASM: icall {{r[0-9]+}}
-// ASM: ret r12
+// ASM: popm pc
 
 // ASM-LABEL: call_indirect_u8:
 // ASM: mov {{r[0-9]+}}, r12
 // ASM: mov r12, r11
 // ASM: icall {{r[0-9]+}}
-// ASM: ret r12
+// ASM: popm pc
 
 // ASM-LABEL: get_sr:
 // ASM: mfsr r12, 0
@@ -413,8 +420,13 @@ __attribute__((optnone, noinline)) int pick(int a, int b) {
 // ASM: eor
 // ASM: ret r12
 
-// ASM-LABEL: count_leading:
+// ASM-LABEL: bitfield_extract:
+// ASM: bfextu r12, r12, 13, 3
 // ASM: ret r12
+
+// ASM-LABEL: count_leading:
+// ASM: pushm r0-r3
+// ASM: popm r0-r3, pc
 
 // ASM-LABEL: count_trailing:
 // ASM: ret r12
@@ -435,10 +447,12 @@ __attribute__((optnone, noinline)) int pick(int a, int b) {
 // ASM: ret r12
 
 // ASM-LABEL: shift_left64:
-// ASM: ret r12
+// ASM: pushm r0-r3
+// ASM: popm r0-r3, pc
 
 // ASM-LABEL: shift_right64:
-// ASM: ret r12
+// ASM: pushm r0-r3
+// ASM: popm r0-r3, pc
 
 // ASM-LABEL: shift_arith64:
 // ASM: ret r12
@@ -477,27 +491,27 @@ __attribute__((optnone, noinline)) int pick(int a, int b) {
 
 // ASM-LABEL: unsigned_div64:
 // ASM: rcall __udivdi3
-// ASM: ret r12
+// ASM: popm pc
 
 // ASM-LABEL: double_sub:
 // ASM: rcall __subdf3
-// ASM: ret r12
+// ASM: popm pc
 
 // ASM-LABEL: double_div:
 // ASM: rcall __divdf3
-// ASM: ret r12
+// ASM: popm pc
 
 // ASM-LABEL: double_to_uint:
 // ASM: rcall __fixunsdfsi
-// ASM: ret r12
+// ASM: popm pc
 
 // ASM-LABEL: double_lt:
 // ASM: rcall __ltdf2
-// ASM: ret r12
+// ASM: popm pc
 
 // ASM-LABEL: log10_double:
 // ASM: rcall log10
-// ASM: ret r12
+// ASM: popm pc
 
 // ASM-LABEL: choose_lt:
 // ASM: mov {{r[0-9]+}}, 7
@@ -512,7 +526,7 @@ __attribute__((optnone, noinline)) int pick(int a, int b) {
 
 // ASM-LABEL: clear_n:
 // ASM: rcall memset
-// ASM: ret r12
+// ASM: popm pc
 
 // ASM-LABEL: six_arg_callee:
 // ASM: ld.w {{r[0-9]+}}, sp[0]
@@ -523,18 +537,18 @@ __attribute__((optnone, noinline)) int pick(int a, int b) {
 // ASM: st.w sp[0], r12
 // ASM: rcall six_arg_extern
 // ASM: sub sp, -4
-// ASM: ret r12
+// ASM: popm pc
 
 // ASM-LABEL: call_variadic:
 // ASM: sub sp, 4
 // ASM: st.w sp[0], r12
 // ASM: rcall variadic_extern
 // ASM: sub sp, -4
-// ASM: ret r12
+// ASM: popm pc
 
 // ASM-LABEL: call_return_u64:
 // ASM: rcall return_u64
-// ASM: ret r12
+// ASM: popm pc
 
 // ASM-LABEL: load_ready:
 // ASM: ld.ub r12
@@ -550,7 +564,7 @@ __attribute__((optnone, noinline)) int pick(int a, int b) {
 // ASM: mov sp, {{r[0-9]+}}
 // ASM: rcall use_ptr
 // ASM: mov sp, r7
-// ASM: ret r12
+// ASM: popm r4-r7, pc
 
 // ASM-LABEL: mmio_address:
 // ASM: mov r12, 68
@@ -577,7 +591,7 @@ __attribute__((optnone, noinline)) int pick(int a, int b) {
 // O0ASM: mov r11, 2
 // O0ASM: rcall add
 // O0ASM: sub sp, -4
-// O0ASM: ret r12
+// O0ASM: popm pc
 
 // O0ASM-LABEL: pick:
 // O0ASM: cp {{r[0-9]+}}, {{r[0-9]+}}

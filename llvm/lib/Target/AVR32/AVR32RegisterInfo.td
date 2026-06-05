@@ -20,14 +20,18 @@ def LR : AVR32Reg<14, "lr", ["LR", "r14", "R14"]>, DwarfRegNum<[14]>;
 def PC : AVR32Reg<15, "pc", ["PC", "r15", "R15"]>, DwarfRegNum<[15]>;
 
 def GPR : RegisterClass<"AVR32", [i32], 32,
-                         (add (sequence "R%u", 0, 12), SP, LR, PC)>;
+                         (add (sequence "R%u", 8, 12),
+                              (sequence "R%u", 0, 7), SP, LR, PC)>;
 
 def GPRNoSP : RegisterClass<"AVR32", [i32], 32,
-                             (add (sequence "R%u", 0, 12), LR, PC)>;
+                             (add (sequence "R%u", 8, 12),
+                                  (sequence "R%u", 0, 7), LR, PC)>;
 
 def GPREven : RegisterClass<"AVR32", [i32], 32,
-                            (add R0, R2, R4, R6, R8, R10, R12, LR)>;
+                            (add R8, R10, R12, R0, R2, R4, R6, LR)>;
 
 def SPOnly : RegisterClass<"AVR32", [i32], 32, (add SP)>;
 
 def PCOnly : RegisterClass<"AVR32", [i32], 32, (add PC)>;
+
+def CSR_Normal : CalleeSavedRegs<(add (sequence "R%u", 0, 7))>;

@@ -117,6 +117,8 @@ void AVR32AsmPrinter::emitInstruction(const MachineInstr *MI) {
       Inst.addOperand(MCOperand::createImm(MO.getImm()));
     else if (MO.isGlobal() || MO.isSymbol() || MO.isMBB())
       Inst.addOperand(MCOperand::createExpr(lowerSymbolOperand(MO)));
+    else if (MO.isRegMask())
+      continue;
     else
       report_fatal_error("AVR32 asm printer cannot lower this operand yet");
   }
