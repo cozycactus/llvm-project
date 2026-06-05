@@ -6283,6 +6283,9 @@ static void handleInterruptAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   case llvm::Triple::avr:
     S.AVR().handleInterruptAttr(D, AL);
     break;
+  case llvm::Triple::avr32:
+    S.AVR().handleAVR32InterruptAttr(D, AL);
+    break;
   case llvm::Triple::riscv32:
   case llvm::Triple::riscv64:
     S.RISCV().handleInterruptAttr(D, AL);

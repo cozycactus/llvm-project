@@ -524,6 +524,9 @@ std::unique_ptr<TargetCodeGenInfo>
 createAVRTargetCodeGenInfo(CodeGenModule &CGM, unsigned NPR, unsigned NRR);
 
 std::unique_ptr<TargetCodeGenInfo>
+createAVR32TargetCodeGenInfo(CodeGenModule &CGM);
+
+std::unique_ptr<TargetCodeGenInfo>
 createBPFTargetCodeGenInfo(CodeGenModule &CGM);
 
 std::unique_ptr<TargetCodeGenInfo>

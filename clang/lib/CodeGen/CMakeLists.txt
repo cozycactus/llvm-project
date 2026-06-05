@@ -136,6 +136,7 @@ add_clang_library(clangCodeGen
   Targets/ARC.cpp
   Targets/ARM.cpp
   Targets/AVR.cpp
+  Targets/AVR32.cpp
   Targets/BPF.cpp
   Targets/CSKY.cpp
   Targets/DirectX.cpp

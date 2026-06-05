@@ -40,6 +40,8 @@ def AVR32setcc : SDNode<"AVR32ISD::SET_CC", SDT_AVR32SetCC>;
 def AVR32selectcc : SDNode<"AVR32ISD::SELECT_CC", SDT_AVR32SelectCC>;
 def AVR32retflag : SDNode<"AVR32ISD::RET_FLAG", SDTNone,
                           [SDNPHasChain, SDNPOptInGlue, SDNPVariadic]>;
+def AVR32retintrflag : SDNode<"AVR32ISD::RET_INTR_FLAG", SDTNone,
+                              [SDNPHasChain, SDNPOptInGlue, SDNPVariadic]>;
 
 def AVR32_COND_EQ : PatLeaf<(i32 0)>;
 def AVR32_COND_NE : PatLeaf<(i32 1)>;
@@ -3578,7 +3580,8 @@ def RJMP : CompactRjmp<"rjmp">;
 def : InstAlias<"rjmp\t$Disp", (BRALE simm21pcrelshift1:$Disp), 0>;
 let isBarrier = 1, isReturn = 1, isTerminator = 1 in {
 def RETD : AVR32Inst<0b1101011000100011, (outs), (ins), "retd">;
-def RETE : AVR32Inst<0b1101011000000011, (outs), (ins), "rete">;
+def RETE : AVR32Inst<0b1101011000000011, (outs), (ins), "rete",
+                     [(AVR32retintrflag)]>;
 }
 def RETALr : RetCond<0b1111, "retal">;
 def RETEQr : RetCond<0b0000, "reteq">;

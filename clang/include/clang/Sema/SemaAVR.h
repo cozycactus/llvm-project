@@ -24,6 +24,7 @@ public:
   SemaAVR(Sema &S);
 
   void handleInterruptAttr(Decl *D, const ParsedAttr &AL);
+  void handleAVR32InterruptAttr(Decl *D, const ParsedAttr &AL);
   void handleSignalAttr(Decl *D, const ParsedAttr &AL);
 };
 

@@ -3063,6 +3063,20 @@ does not insert a SEI instruction.
   }];
 }
 
+def AVR32InterruptDocs : Documentation {
+  let Category = DocCatFunction;
+  let Heading = "interrupt (AVR32)";
+  let Content = [{
+Clang supports the GNU style ``__attribute__((interrupt))`` attribute on
+AVR32 targets. This attribute may be attached to a function definition and
+instructs the backend to generate appropriate function exit code so that it can
+be used directly as an interrupt service routine.
+
+Interrupt handler functions defined with this attribute return using the
+``rete`` instruction.
+  }];
+}
+
 def AVRSignalDocs : Documentation {
   let Category = DocCatFunction;
   let Content = [{

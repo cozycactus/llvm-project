@@ -484,6 +484,13 @@ SDValue AVR32TargetLowering::LowerReturn(
     const SmallVectorImpl<ISD::OutputArg> &Outs,
     const SmallVectorImpl<SDValue> &OutVals, const SDLoc &DL,
     SelectionDAG &DAG) const {
+  if (DAG.getMachineFunction().getFunction().hasFnAttribute("interrupt")) {
+    if (!Outs.empty())
+      diagnoseUnsupported(DAG, DL,
+                          "AVR32 interrupt functions must return void");
+    return DAG.getNode(AVR32ISD::RET_INTR_FLAG, DL, MVT::Other, Chain);
+  }
+
   SDValue Glue;
   SmallVector<SDValue, 4> RetOps(1, Chain);
   ArrayRef<MCPhysReg> RetRegs = getIntArgRegs();

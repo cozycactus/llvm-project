@@ -45,6 +45,31 @@ void SemaAVR::handleInterruptAttr(Decl *D, const ParsedAttr &AL) {
   handleSimpleAttribute<AVRInterruptAttr>(*this, D, AL);
 }
 
+void SemaAVR::handleAVR32InterruptAttr(Decl *D, const ParsedAttr &AL) {
+  if (!isFuncOrMethodForAttrSubject(D)) {
+    Diag(D->getLocation(), diag::warn_attribute_wrong_decl_type)
+        << AL << AL.isRegularKeywordAttribute() << ExpectedFunction;
+    return;
+  }
+
+  if (!AL.checkExactlyNumArgs(SemaRef, 0))
+    return;
+
+  // AVR32 interrupt handlers must have no parameter and be void type.
+  if (hasFunctionProto(D) && getFunctionOrMethodNumParams(D) != 0) {
+    Diag(D->getLocation(), diag::warn_interrupt_signal_attribute_invalid)
+        << /*AVR32*/ 4 << /*interrupt*/ 0 << 0;
+    return;
+  }
+  if (!getFunctionOrMethodResultType(D)->isVoidType()) {
+    Diag(D->getLocation(), diag::warn_interrupt_signal_attribute_invalid)
+        << /*AVR32*/ 4 << /*interrupt*/ 0 << 1;
+    return;
+  }
+
+  handleSimpleAttribute<AVR32InterruptAttr>(*this, D, AL);
+}
+
 void SemaAVR::handleSignalAttr(Decl *D, const ParsedAttr &AL) {
   if (!isFuncOrMethodForAttrSubject(D)) {
     Diag(D->getLocation(), diag::warn_attribute_wrong_decl_type)
