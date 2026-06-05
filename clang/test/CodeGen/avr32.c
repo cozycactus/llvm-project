@@ -529,19 +529,19 @@ __attribute__((optnone, noinline)) int pick(int a, int b) {
 // ASM: popm pc
 
 // ASM-LABEL: six_arg_callee:
-// ASM: ld.w {{r[0-9]+}}, sp[0]
+// ASM: lddsp {{r[0-9]+}}, sp[0]
 // ASM: ret r12
 
 // ASM-LABEL: call_six_args:
 // ASM: sub sp, 4
-// ASM: st.w sp[0], r12
+// ASM: stdsp sp[0], r12
 // ASM: rcall six_arg_extern
 // ASM: sub sp, -4
 // ASM: popm pc
 
 // ASM-LABEL: call_variadic:
 // ASM: sub sp, 4
-// ASM: st.w sp[0], r12
+// ASM: stdsp sp[0], r12
 // ASM: rcall variadic_extern
 // ASM: sub sp, -4
 // ASM: popm pc
@@ -579,10 +579,10 @@ __attribute__((optnone, noinline)) int pick(int a, int b) {
 
 // O0ASM-LABEL: add:
 // O0ASM: sub sp, 8
-// O0ASM: st.w sp[4], r12
-// O0ASM: st.w sp[0], r11
-// O0ASM: ld.w {{r[0-9]+}}, sp[4]
-// O0ASM: ld.w {{r[0-9]+}}, sp[0]
+// O0ASM: stdsp sp[4], r12
+// O0ASM: stdsp sp[0], r11
+// O0ASM: lddsp {{r[0-9]+}}, sp[4]
+// O0ASM: lddsp {{r[0-9]+}}, sp[0]
 // O0ASM: ret r12
 
 // O0ASM-LABEL: main:

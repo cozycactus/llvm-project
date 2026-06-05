@@ -22,6 +22,8 @@ using namespace llvm;
 
 #define GET_INSTRINFO_ENUM
 #include "AVR32GenInstrInfo.inc"
+#define GET_REGINFO_ENUM
+#include "AVR32GenRegisterInfo.inc"
 
 STATISTIC(NumCompactForms, "Number of compact instruction forms selected");
 
@@ -49,6 +51,8 @@ private:
                     unsigned Align, const TargetInstrInfo &TII);
   bool foldStoreDisp(MachineInstr &MI, unsigned CompactOpc, unsigned MaxDisp,
                      unsigned Align, const TargetInstrInfo &TII);
+  bool foldSPLoadDisp(MachineInstr &MI, const TargetInstrInfo &TII);
+  bool foldSPStoreDisp(MachineInstr &MI, const TargetInstrInfo &TII);
   bool foldMovhOr(MachineInstr &MI, const TargetInstrInfo &TII);
   bool foldBitImmediate(MachineInstr &MI, const TargetInstrInfo &TII);
   bool foldNearBranches(MachineFunction &MF, const TargetInstrInfo &TII);
@@ -457,6 +461,59 @@ bool AVR32Peephole::foldStoreDisp(MachineInstr &MI, unsigned CompactOpc,
   return true;
 }
 
+bool AVR32Peephole::foldSPLoadDisp(MachineInstr &MI,
+                                   const TargetInstrInfo &TII) {
+  if (MI.getNumOperands() != 3)
+    return false;
+
+  const MachineOperand &Dst = MI.getOperand(0);
+  const MachineOperand &Base = MI.getOperand(1);
+  const MachineOperand &Disp = MI.getOperand(2);
+  if (!isRegOperand(Dst) || !isRegOperand(Base) || Base.getReg() != AVR32::SP ||
+      !Disp.isImm() || !isCompactDisp(Disp.getImm(), 508, 4))
+    return false;
+
+  MachineBasicBlock &MBB = *MI.getParent();
+  MachineFunction &MF = *MBB.getParent();
+  MachineInstrBuilder MIB =
+      BuildMI(MBB, MI, MI.getDebugLoc(), TII.get(AVR32::LDDSP), Dst.getReg())
+          .addReg(AVR32::SP, getKillRegState(Base.isKill()))
+          .addImm(Disp.getImm());
+  MIB.setMIFlags(MI.getFlags());
+  MIB->copyImplicitOps(MF, MI);
+  MIB.setMemRefs(MI.memoperands());
+  MI.eraseFromParent();
+  ++NumCompactForms;
+  return true;
+}
+
+bool AVR32Peephole::foldSPStoreDisp(MachineInstr &MI,
+                                    const TargetInstrInfo &TII) {
+  if (MI.getNumOperands() != 3)
+    return false;
+
+  const MachineOperand &Base = MI.getOperand(0);
+  const MachineOperand &Disp = MI.getOperand(1);
+  const MachineOperand &Src = MI.getOperand(2);
+  if (!isRegOperand(Base) || Base.getReg() != AVR32::SP || !Disp.isImm() ||
+      !isRegOperand(Src) || !isCompactDisp(Disp.getImm(), 508, 4))
+    return false;
+
+  MachineBasicBlock &MBB = *MI.getParent();
+  MachineFunction &MF = *MBB.getParent();
+  MachineInstrBuilder MIB =
+      BuildMI(MBB, MI, MI.getDebugLoc(), TII.get(AVR32::STDSP))
+          .addReg(AVR32::SP, getKillRegState(Base.isKill()))
+          .addImm(Disp.getImm())
+          .addReg(Src.getReg(), getKillRegState(Src.isKill()));
+  MIB.setMIFlags(MI.getFlags());
+  MIB->copyImplicitOps(MF, MI);
+  MIB.setMemRefs(MI.memoperands());
+  MI.eraseFromParent();
+  ++NumCompactForms;
+  return true;
+}
+
 bool AVR32Peephole::foldSignedImmediate(MachineInstr &MI, unsigned CompactOpc,
                                         unsigned Bits, bool HasDef,
                                         const TargetInstrInfo &TII) {
@@ -547,7 +604,8 @@ bool AVR32Peephole::runOnMachineFunction(MachineFunction &MF) {
           LocalChanged |= foldLoadDisp(MI, AVR32::LD_UH_Disp3, 14, 2, TII);
           break;
         case AVR32::LD_W_Disp16:
-          LocalChanged |= foldLoadDisp(MI, AVR32::LD_W_Disp5, 124, 4, TII);
+          LocalChanged |= foldSPLoadDisp(MI, TII) ||
+                          foldLoadDisp(MI, AVR32::LD_W_Disp5, 124, 4, TII);
           break;
         case AVR32::ST_B_Disp16:
           LocalChanged |= foldStoreDisp(MI, AVR32::ST_B_Disp3, 7, 1, TII);
@@ -556,7 +614,8 @@ bool AVR32Peephole::runOnMachineFunction(MachineFunction &MF) {
           LocalChanged |= foldStoreDisp(MI, AVR32::ST_H_Disp3, 14, 2, TII);
           break;
         case AVR32::ST_W_Disp16:
-          LocalChanged |= foldStoreDisp(MI, AVR32::ST_W_Disp4, 60, 4, TII);
+          LocalChanged |= foldSPStoreDisp(MI, TII) ||
+                          foldStoreDisp(MI, AVR32::ST_W_Disp4, 60, 4, TII);
           break;
         case AVR32::SUBALrrr:
           LocalChanged |= foldTwoAddressALU(MI, AVR32::SUBrr, false, TII);
