@@ -37,6 +37,10 @@ public:
     return Feature == "avr32";
   }
 
+  bool isValidCPUName(StringRef Name) const override;
+  void fillValidCPUList(SmallVectorImpl<StringRef> &Values) const override;
+  bool setCPU(const std::string &Name) override;
+
   ArrayRef<const char *> getGCCRegNames() const override;
   ArrayRef<TargetInfo::GCCRegAlias> getGCCRegAliases() const override;
 
@@ -54,6 +58,12 @@ public:
   BuiltinVaListKind getBuiltinVaListKind() const override {
     return TargetInfo::CharPtrBuiltinVaList;
   }
+
+protected:
+  std::string CPU;
+  const char *DefineName = nullptr;
+  bool IsUC = false;
+  bool HasNoMul = false;
 };
 
 } // namespace targets

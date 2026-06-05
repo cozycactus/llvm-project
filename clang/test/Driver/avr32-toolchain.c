@@ -28,3 +28,13 @@
 // RUN:   -c %s 2>&1 | FileCheck --check-prefix=CPU %s
 // CPU-NOT: warning: argument unused during compilation
 // CPU: "-target-cpu" "uc3a3256"
+
+// RUN: %clang -### --target=avr32 -mmcu=uc3a3revd -mpart=uc3a3128 \
+// RUN:   -masm-addr-pseudos -c %s 2>&1 | FileCheck --check-prefix=PART %s
+// PART-NOT: warning: argument unused during compilation
+// PART: "-target-cpu" "uc3a3128"
+
+// RUN: %clang -### --target=avr32 -mmcu=uc3a3revd \
+// RUN:   -c %s 2>&1 | FileCheck --check-prefix=MMCU %s
+// MMCU-NOT: warning: argument unused during compilation
+// MMCU: "-target-cpu" "uc3a3revd"

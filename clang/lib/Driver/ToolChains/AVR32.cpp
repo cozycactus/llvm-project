@@ -172,8 +172,9 @@ void AVR32ToolChain::AddClangSystemIncludeArgs(const ArgList &DriverArgs,
 void AVR32ToolChain::addClangTargetOptions(
     const ArgList &DriverArgs, ArgStringList &CC1Args,
     Action::OffloadKind DeviceOffloadKind) const {
-  if (const Arg *A = DriverArgs.getLastArg(options::OPT_mpart_EQ))
-    A->claim();
+  DriverArgs.ClaimAllArgs(options::OPT_mpart_EQ);
+  DriverArgs.ClaimAllArgs(options::OPT_mmcu_EQ);
+  DriverArgs.ClaimAllArgs(options::OPT_masm_addr_pseudos);
   DriverArgs.ClaimAllArgs(options::OPT_rodata_writable);
 }
 
@@ -248,6 +249,8 @@ void AVR32::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   }
 
   Args.ClaimAllArgs(options::OPT_rodata_writable);
+  Args.ClaimAllArgs(options::OPT_mpart_EQ);
+  Args.ClaimAllArgs(options::OPT_mmcu_EQ);
 
   C.addCommand(std::make_unique<Command>(
       JA, *this, ResponseFileSupport::AtFileCurCP(), Args.MakeArgString(Linker),
