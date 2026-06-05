@@ -376,24 +376,21 @@ __attribute__((optnone, noinline)) int pick(int a, int b) {
 // ASM: ret r12
 
 // ASM-LABEL: addr:
-// ASM: mov {{r[0-9]+}}, LO(bytes)
-// ASM: movh {{r[0-9]+}}, HI(bytes)
-// ASM: oral r12
+// ASM: mov [[BYTES_ADDR:r[0-9]+]], LO(bytes)
+// ASM: orh [[BYTES_ADDR]], HI(bytes)
 // ASM: ret r12
 
 // ASM-LABEL: load_byte:
-// ASM: mov {{r[0-9]+}}, LO(bytes)
-// ASM: movh {{r[0-9]+}}, HI(bytes)
-// ASM: or
+// ASM: mov [[BYTE_BASE:r[0-9]+]], LO(bytes)
+// ASM: orh [[BYTE_BASE]], HI(bytes)
 // ASM: mov {{r[0-9]+}}, 3
 // ASM: ld.ub r12, {{r[0-9]+}}[{{r[0-9]+}} << 0]
 // ASM: ret r12
 
 // ASM-LABEL: load_table:
 // ASM: and
-// ASM: mov {{r[0-9]+}}, LO(values)
-// ASM: movh {{r[0-9]+}}, HI(values)
-// ASM: or
+// ASM: mov [[VALUES_BASE:r[0-9]+]], LO(values)
+// ASM: orh [[VALUES_BASE]], HI(values)
 // ASM: ld.w r12, {{r[0-9]+}}[{{r[0-9]+}} << 2]
 // ASM: ret r12
 
@@ -552,9 +549,8 @@ __attribute__((optnone, noinline)) int pick(int a, int b) {
 // ASM: ret r12
 
 // ASM-LABEL: store_global:
-// ASM: mov {{r[0-9]+}}, LO(sink)
-// ASM: movh {{r[0-9]+}}, HI(sink)
-// ASM: or
+// ASM: mov [[SINK_BASE:r[0-9]+]], LO(sink)
+// ASM: orh [[SINK_BASE]], HI(sink)
 // ASM: st.w {{r[0-9]+}}[0], r12
 // ASM: ret r12
 

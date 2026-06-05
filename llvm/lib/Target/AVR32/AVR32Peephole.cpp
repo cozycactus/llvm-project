@@ -78,14 +78,47 @@ static bool isMovLowImmOpcode(unsigned Opcode) {
   return Opcode == AVR32::MOVri8 || Opcode == AVR32::MOVri21;
 }
 
-static bool isMovLowImm(const MachineInstr &MI) {
-  return isMovLowImmOpcode(MI.getOpcode()) && MI.getNumOperands() == 2 &&
-         isRegOperand(MI.getOperand(0)) && MI.getOperand(1).isImm();
+static bool isLowMaterializationOperand(const MachineOperand &MO) {
+  if (MO.isImm())
+    return true;
+  return (MO.isGlobal() || MO.isSymbol()) &&
+         MO.getTargetFlags() == AVR32II::MO_ABS_LO;
 }
 
-static bool isMovhImm(const MachineInstr &MI) {
+static bool isHighMaterializationOperand(const MachineOperand &MO) {
+  if (MO.isImm())
+    return true;
+  return (MO.isGlobal() || MO.isSymbol()) &&
+         MO.getTargetFlags() == AVR32II::MO_ABS_HI;
+}
+
+static bool isMatchingHiLoPair(const MachineOperand &Low,
+                               const MachineOperand &High) {
+  if (Low.isImm() && High.isImm())
+    return true;
+  if (Low.isImm() || High.isImm())
+    return false;
+  if (Low.getTargetFlags() != AVR32II::MO_ABS_LO ||
+      High.getTargetFlags() != AVR32II::MO_ABS_HI ||
+      Low.getOffset() != High.getOffset())
+    return false;
+  if (Low.isGlobal() && High.isGlobal())
+    return Low.getGlobal() == High.getGlobal();
+  if (Low.isSymbol() && High.isSymbol())
+    return StringRef(Low.getSymbolName()) == High.getSymbolName();
+  return false;
+}
+
+static bool isMovLowMaterialization(const MachineInstr &MI) {
+  return isMovLowImmOpcode(MI.getOpcode()) && MI.getNumOperands() == 2 &&
+         isRegOperand(MI.getOperand(0)) &&
+         isLowMaterializationOperand(MI.getOperand(1));
+}
+
+static bool isMovhMaterialization(const MachineInstr &MI) {
   return MI.getOpcode() == AVR32::MOVHri && MI.getNumOperands() == 2 &&
-         isRegOperand(MI.getOperand(0)) && MI.getOperand(1).isImm();
+         isRegOperand(MI.getOperand(0)) &&
+         isHighMaterializationOperand(MI.getOperand(1));
 }
 
 static unsigned getInstSize(const MachineInstr &MI) {
@@ -158,7 +191,8 @@ bool AVR32Peephole::foldMovhOr(MachineInstr &MI,
   MachineBasicBlock::iterator LowIt = std::prev(HighIt);
   MachineInstr &LowMI = *LowIt;
   MachineInstr &HighMI = *HighIt;
-  if (!isMovLowImm(LowMI) || !isMovhImm(HighMI))
+  if (!isMovLowMaterialization(LowMI) || !isMovhMaterialization(HighMI) ||
+      !isMatchingHiLoPair(LowMI.getOperand(1), HighMI.getOperand(1)))
     return false;
 
   Register DstReg;
@@ -190,10 +224,10 @@ bool AVR32Peephole::foldMovhOr(MachineInstr &MI,
 
   MachineBasicBlock &MBB = *MI.getParent();
   BuildMI(MBB, LowMI, LowMI.getDebugLoc(), TII.get(LowMI.getOpcode()), DstReg)
-      .addImm(LowMI.getOperand(1).getImm())
+      .add(LowMI.getOperand(1))
       .setMIFlags(LowMI.getFlags());
   BuildMI(MBB, LowMI, HighMI.getDebugLoc(), TII.get(AVR32::ORHri), DstReg)
-      .addImm(HighMI.getOperand(1).getImm())
+      .add(HighMI.getOperand(1))
       .setMIFlags(HighMI.getFlags());
 
   LowMI.eraseFromParent();
