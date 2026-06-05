@@ -96,8 +96,10 @@ RelExpr AVR32::getRelExpr(RelType type, const Symbol &s,
   case R_AVR32_16_PCREL:
   case R_AVR32_32_PCREL:
   case R_AVR32_22H_PCREL:
+  case R_AVR32_16B_PCREL:
   case R_AVR32_11H_PCREL:
   case R_AVR32_9H_PCREL:
+  case R_AVR32_9UW_PCREL:
   case R_AVR32_CPCALL:
   case R_AVR32_16_CP:
   case R_AVR32_9W_CP:
@@ -136,6 +138,8 @@ int64_t AVR32::getImplicitAddend(const uint8_t *buf, RelType type) const {
     uint32_t word = read32be(buf);
     return decodeS21(word) << 1;
   }
+  case R_AVR32_16B_PCREL:
+    return SignExtend64<16>(read32be(buf) & 0xffff);
   case R_AVR32_11H_PCREL: {
     uint16_t word = read16be(buf);
     uint16_t enc = ((word >> 4) & 0xff) | ((word & 0x3) << 8);
@@ -145,6 +149,8 @@ int64_t AVR32::getImplicitAddend(const uint8_t *buf, RelType type) const {
     uint16_t word = read16be(buf);
     return SignExtend64<8>((word & 0x0ff0) >> 4) << 1;
   }
+  case R_AVR32_9UW_PCREL:
+    return ((read16be(buf) & 0x07f0) >> 4) << 2;
   case R_AVR32_HI16:
     return (read32be(buf) & 0xffff) << 16;
   case R_AVR32_LO16:
@@ -220,6 +226,12 @@ void AVR32::relocate(uint8_t *loc, const Relocation &rel, uint64_t val) const {
     write32be(loc, word | encodeS21(disp));
     break;
   }
+  case R_AVR32_16B_PCREL: {
+    checkInt(ctx, loc, val, 16, rel);
+    uint32_t word = read32be(loc) & ~0xffff;
+    write32be(loc, word | (val & 0xffff));
+    break;
+  }
   case R_AVR32_11H_PCREL: {
     int64_t pcrel = getAlignedPCRel(rel, val, 2);
     checkAlignment(ctx, loc, pcrel, 2, rel);
@@ -238,6 +250,15 @@ void AVR32::relocate(uint8_t *loc, const Relocation &rel, uint64_t val) const {
     uint16_t word = read16be(loc) & ~0x0ff0;
     uint16_t enc = static_cast<uint16_t>(disp);
     write16be(loc, word | ((enc & 0xff) << 4));
+    break;
+  }
+  case R_AVR32_9UW_PCREL: {
+    int64_t pcrel = getAlignedPCRel(rel, val, 4);
+    checkAlignment(ctx, loc, pcrel, 4, rel);
+    int64_t disp = pcrel >> 2;
+    checkUInt(ctx, loc, disp, 7, rel);
+    uint16_t word = read16be(loc) & ~0x07f0;
+    write16be(loc, word | ((static_cast<uint16_t>(disp) & 0x7f) << 4));
     break;
   }
   case R_AVR32_CPCALL: {

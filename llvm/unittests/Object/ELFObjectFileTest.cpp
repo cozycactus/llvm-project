@@ -267,7 +267,9 @@ TEST(ELFObjectFileTest, AVR32RelocationResolver) {
   EXPECT_TRUE(Supports(ELF::R_AVR32_16_PCREL));
   EXPECT_TRUE(Supports(ELF::R_AVR32_32_PCREL));
   EXPECT_TRUE(Supports(ELF::R_AVR32_22H_PCREL));
+  EXPECT_TRUE(Supports(ELF::R_AVR32_16B_PCREL));
   EXPECT_TRUE(Supports(ELF::R_AVR32_11H_PCREL));
+  EXPECT_TRUE(Supports(ELF::R_AVR32_9UW_PCREL));
   EXPECT_FALSE(Supports(ELF::R_AVR32_21S));
 
   EXPECT_EQ(0x1234u,
@@ -283,8 +285,12 @@ TEST(ELFObjectFileTest, AVR32RelocationResolver) {
             Resolver(ELF::R_AVR32_32_PCREL, 0x1008, 0x100c, 0, 4));
   EXPECT_EQ(0xe0a00002u,
             Resolver(ELF::R_AVR32_22H_PCREL, 0x1008, 0x100c, 0xe0a00000, 0));
+  EXPECT_EQ(0xfee80010u,
+            Resolver(ELF::R_AVR32_16B_PCREL, 0x1000, 0x1010, 0xfee80000, 0));
   EXPECT_EQ(0xc028u,
             Resolver(ELF::R_AVR32_11H_PCREL, 0x2000, 0x2004, 0xc008, 0));
+  EXPECT_EQ(0x4831u,
+            Resolver(ELF::R_AVR32_9UW_PCREL, 0x1006, 0x1010, 0x4801, 0));
 }
 
 TEST(ELFObjectFileTest, MachineTestForHEXAGON) {

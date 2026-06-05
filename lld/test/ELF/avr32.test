@@ -147,6 +147,14 @@
 # NOOP: Hex dump of section '.text':
 # NOOP-NEXT: 0x{{[0-9a-f]+}} cafebabe 00000004
 
+# RUN: yaml2obj --docnum=17 %s -o %t.more-pcrel.o
+# RUN: ld.lld %t.more-pcrel.o -o %t.more-pcrel
+# RUN: llvm-readobj --hex-dump=.text %t.more-pcrel \
+# RUN:   | FileCheck %s --check-prefix=MORE-PCREL
+
+# MORE-PCREL: Hex dump of section '.text':
+# MORE-PCREL-NEXT: 0x{{[0-9a-f]+}} 00000010 d7030030 00000000 00000000
+
 --- !ELF
 FileHeader:
   Class:   ELFCLASS32
@@ -633,4 +641,35 @@ Symbols:
   - Name: target
     Section: .text
     Value: 0
+    Binding: STB_GLOBAL
+
+--- !ELF
+FileHeader:
+  Class:   ELFCLASS32
+  Data:    ELFDATA2MSB
+  Type:    ET_REL
+  Machine: EM_AVR32
+Sections:
+  - Name: .text
+    Type: SHT_PROGBITS
+    Flags: [ SHF_ALLOC, SHF_EXECINSTR ]
+    Content: "00000000d70300000000000000000000"
+  - Name: .rela.text
+    Type: SHT_RELA
+    Info: .text
+    Relocations:
+      - Offset: 0
+        Symbol: target
+        Type: R_AVR32_16B_PCREL
+      - Offset: 6
+        Symbol: target
+        Type: R_AVR32_9UW_PCREL
+Symbols:
+  - Name: _start
+    Section: .text
+    Value: 0
+    Binding: STB_GLOBAL
+  - Name: target
+    Section: .text
+    Value: 16
     Binding: STB_GLOBAL
