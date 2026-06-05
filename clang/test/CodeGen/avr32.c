@@ -459,10 +459,12 @@ __attribute__((optnone, noinline)) int pick(int a, int b) {
 // ASM: ret r12
 
 // ASM-LABEL: count_leading:
-// ASM: pushm r0-r3
-// ASM: popm r0-r3, pc
+// ASM: clz r12, r12
+// ASM: ret r12
 
 // ASM-LABEL: count_trailing:
+// ASM: brev r12
+// ASM: clz r12, r12
 // ASM: ret r12
 
 // ASM-LABEL: count_population:

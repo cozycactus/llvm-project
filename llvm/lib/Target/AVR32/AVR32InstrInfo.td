@@ -3096,6 +3096,14 @@ def BFINScg : AVR32Inst32<(outs GPR:$Rd),
 }
 def BLDri : FullRegUImm5NoOut<0b111011011011, "bld">;
 def BREVr : CompactReg<0b010111001001, "brev">;
+let isCodeGenOnly = 1, Constraints = "$Rd = $Old" in
+def BREVcg : AVR32Inst<0, (outs GPR:$Rd), (ins GPR:$Old),
+                       "brev\t$Rd"> {
+  bits<4> Rd;
+
+  let Inst{15-4} = 0b010111001001;
+  let Inst{3-0} = Rd;
+}
 def BREQc : CompactBranch<0b000, "breq">;
 def BRNEc : CompactBranch<0b001, "brne">;
 def BRCCc : CompactBranch<0b010, "brcc">;
@@ -3762,6 +3770,10 @@ def : Pat<(srl GPR:$LHS, GPR:$RHS), (LSRrrr GPR:$LHS, GPR:$RHS)>;
 def : Pat<(sra GPR:$LHS, GPR:$RHS), (ASRrrr GPR:$LHS, GPR:$RHS)>;
 def : Pat<(and (srl GPR:$Src, uimm5:$Bp), bfext_mask:$Width),
           (BFEXTU GPR:$Src, uimm5:$Bp, bfext_mask:$Width)>;
+def : Pat<(ctlz GPR:$Src), (CLZrr GPR:$Src)>;
+def : Pat<(ctlz_zero_poison GPR:$Src), (CLZrr GPR:$Src)>;
+def : Pat<(cttz GPR:$Src), (CLZrr (BREVcg GPR:$Src))>;
+def : Pat<(cttz_zero_poison GPR:$Src), (CLZrr (BREVcg GPR:$Src))>;
 def : Pat<(mul GPR:$LHS, GPR:$RHS), (MULrrr GPR:$LHS, GPR:$RHS)>;
 def : Pat<(sdiv GPR:$LHS, GPR:$RHS), (DIVSrrr GPR:$LHS, GPR:$RHS)>;
 def : Pat<(udiv GPR:$LHS, GPR:$RHS), (DIVUrrr GPR:$LHS, GPR:$RHS)>;
