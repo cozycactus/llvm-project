@@ -398,7 +398,7 @@ __attribute__((optnone, noinline)) int pick(int a, int b) {
 // ASM: lsr
 // ASM: lsl
 // ASM: or
-// ASM: andal
+// ASM: andh r12, 0
 // ASM: ret r12
 
 // ASM-LABEL: eq:
@@ -437,8 +437,7 @@ __attribute__((optnone, noinline)) int pick(int a, int b) {
 // ASM: ret r12
 
 // ASM-LABEL: xor_mask:
-// ASM: mov {{r[0-9]+}}, 65536
-// ASM: eor
+// ASM: eorh r12, 1
 // ASM: ret r12
 
 // ASM-LABEL: bitfield_extract:

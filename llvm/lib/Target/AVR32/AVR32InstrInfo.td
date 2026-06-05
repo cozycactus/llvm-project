@@ -2876,6 +2876,17 @@ class FullRegUImm16<bits<12> Op, string Mnemonic>
   let Inst{15-0} = Imm;
 }
 
+class FullRegUImm16CG<bits<12> Op, string Mnemonic>
+    : AVR32Inst32<(outs GPR:$Rd), (ins GPR:$Old, uimm16:$Imm),
+                  Mnemonic#"\t$Rd, $Imm"> {
+  bits<4> Rd;
+  bits<16> Imm;
+
+  let Inst{31-20} = Op;
+  let Inst{19-16} = Rd;
+  let Inst{15-0} = Imm;
+}
+
 class FullRegUImm16Suffix<bits<12> Op, string Mnemonic, string Suffix>
     : AVR32Inst32<(outs GPR:$Rd), (ins uimm16:$Imm),
                   Mnemonic#"\t$Rd, $Imm"#Suffix> {
@@ -3052,6 +3063,10 @@ def ANDHri : FullRegUImm16<0b111001000001, "andh">;
 def ANDHri_COH : FullRegUImm16Suffix<0b111001100001, "andh", ", coh">;
 def ANDLri : FullRegUImm16<0b111000000001, "andl">;
 def ANDLri_COH : FullRegUImm16Suffix<0b111000100001, "andl", ", coh">;
+let isCodeGenOnly = 1, Constraints = "$Rd = $Old" in {
+def ANDHcg : FullRegUImm16CG<0b111001000001, "andh">;
+def ANDLcg : FullRegUImm16CG<0b111000000001, "andl">;
+}
 def ANDALrrr : CondRRR<0b1111, 0b0010, "andal",
                        [(set GPR:$Rd, (and GPR:$Rx, GPR:$Ry))]>;
 def ANDEQrrr : CondRRR<0b0000, 0b0010, "andeq">;
@@ -3208,6 +3223,10 @@ def DIVSrrr : FullRegRegReg<0b000011000000, "divs">;
 def DIVUrrr : FullRegRegReg<0b000011010000, "divu">;
 def EORHri : FullRegUImm16<0b111011100001, "eorh">;
 def EORLri : FullRegUImm16<0b111011000001, "eorl">;
+let isCodeGenOnly = 1, Constraints = "$Rd = $Old" in {
+def EORHcg : FullRegUImm16CG<0b111011100001, "eorh">;
+def EORLcg : FullRegUImm16CG<0b111011000001, "eorl">;
+}
 def EORALrrr : CondRRR<0b1111, 0b0100, "eoral",
                        [(set GPR:$Rd, (xor GPR:$Rx, GPR:$Ry))]>;
 def EOREQrrr : CondRRR<0b0000, 0b0100, "eoreq">;
@@ -3359,6 +3378,10 @@ def MTSRi : FullSysRegReg<0b111000111011, "mtsr">;
 def NEGr : CompactReg<0b010111000011, "neg">;
 def ORHri : FullRegUImm16<0b111010100001, "orh">;
 def ORLri : FullRegUImm16<0b111010000001, "orl">;
+let isCodeGenOnly = 1, Constraints = "$Rd = $Old" in {
+def ORHcg : FullRegUImm16CG<0b111010100001, "orh">;
+def ORLcg : FullRegUImm16CG<0b111010000001, "orl">;
+}
 def ORALrrr : CondRRR<0b1111, 0b0011, "oral",
                       [(set GPR:$Rd, (or GPR:$Rx, GPR:$Ry))]>;
 def OREQrrr : CondRRR<0b0000, 0b0011, "oreq">;

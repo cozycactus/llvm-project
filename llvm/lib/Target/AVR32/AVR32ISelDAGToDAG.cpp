@@ -41,10 +41,13 @@ public:
     if (selectConstant(Node))
       return;
 
+    if (selectBitFieldInsert(Node))
+      return;
+
     if (selectFrameIndex(Node))
       return;
 
-    if (selectBitFieldInsert(Node))
+    if (selectHalfwordImmediateOp(Node))
       return;
 
     if (selectStackLoadStore(Node))
@@ -381,6 +384,75 @@ public:
     SDValue Result =
         materializeI32Constant(static_cast<uint32_t>(C->getZExtValue()), DL);
     ReplaceNode(Node, Result.getNode());
+    return true;
+  }
+
+  bool selectHalfwordImmediateOp(SDNode *Node) {
+    if (Node->getValueType(0) != MVT::i32)
+      return false;
+
+    unsigned Opcode = Node->getOpcode();
+    if (Opcode != ISD::AND && Opcode != ISD::OR && Opcode != ISD::XOR)
+      return false;
+
+    SDValue Src = Node->getOperand(0);
+    SDValue ImmOp = Node->getOperand(1);
+    auto *C = dyn_cast<ConstantSDNode>(ImmOp);
+    if (!C) {
+      std::swap(Src, ImmOp);
+      C = dyn_cast<ConstantSDNode>(ImmOp);
+    }
+    if (!C)
+      return false;
+
+    uint32_t Imm = static_cast<uint32_t>(C->getZExtValue());
+    uint16_t Lo = static_cast<uint16_t>(Imm);
+    uint16_t Hi = static_cast<uint16_t>(Imm >> 16);
+    unsigned MachineOpcode = 0;
+    uint16_t Half = 0;
+
+    switch (Opcode) {
+    default:
+      return false;
+    case ISD::AND:
+      if (has_single_bit<uint32_t>(~Imm))
+        return false;
+      if (Lo == 0xffff && Hi != 0xffff) {
+        MachineOpcode = AVR32::ANDHcg;
+        Half = Hi;
+      } else if (Hi == 0xffff && Lo != 0xffff) {
+        MachineOpcode = AVR32::ANDLcg;
+        Half = Lo;
+      }
+      break;
+    case ISD::OR:
+      if (has_single_bit<uint32_t>(Imm))
+        return false;
+      if (Lo == 0 && Hi != 0) {
+        MachineOpcode = AVR32::ORHcg;
+        Half = Hi;
+      } else if (Hi == 0 && Lo != 0) {
+        MachineOpcode = AVR32::ORLcg;
+        Half = Lo;
+      }
+      break;
+    case ISD::XOR:
+      if (Lo == 0 && Hi != 0) {
+        MachineOpcode = AVR32::EORHcg;
+        Half = Hi;
+      } else if (Hi == 0 && Lo != 0) {
+        MachineOpcode = AVR32::EORLcg;
+        Half = Lo;
+      }
+      break;
+    }
+
+    if (!MachineOpcode)
+      return false;
+
+    SDLoc DL(Node);
+    SDValue HalfImm = CurDAG->getTargetConstant(Half, DL, MVT::i32);
+    CurDAG->SelectNodeTo(Node, MachineOpcode, MVT::i32, Src, HalfImm);
     return true;
   }
 
