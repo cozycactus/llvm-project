@@ -415,10 +415,8 @@ __attribute__((optnone, noinline)) int pick(int a, int b) {
 
 // ASM-LABEL: eq:
 // ASM: cp r12, r11
-// ASM: mov {{r[0-9]+}}, 1
-// ASM: br{{eq|ne}} .LBB
-// ASM: mov {{r[0-9]+}}, 0
-// ASM: andal r12
+// ASM: mov r12, 0
+// ASM: moveq r12, 1
 // ASM: ret r12
 
 // ASM-LABEL: addr:

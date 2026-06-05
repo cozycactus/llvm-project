@@ -2988,6 +2988,19 @@ class CondRegImm8<bits<12> Prefix, bits<4> Cond, string Mnemonic>
 class MovCondRI<bits<4> Cond, string Mnemonic>
     : CondRegImm8<0b111110011011, Cond, Mnemonic>;
 
+class MovCondRICG<bits<4> Cond, string Mnemonic>
+    : AVR32Inst32<(outs GPR:$Rd), (ins GPR:$Old, simm8:$Imm),
+                  Mnemonic#"\t$Rd, $Imm"> {
+  bits<4> Rd;
+  bits<8> Imm;
+
+  let Inst{31-20} = 0b111110011011;
+  let Inst{19-16} = Rd;
+  let Inst{15-12} = 0;
+  let Inst{11-8} = Cond;
+  let Inst{7-0} = Imm;
+}
+
 class SubCondRI<bits<4> Cond, string Mnemonic>
     : CondRegImm8<0b111101111011, Cond, Mnemonic>;
 
@@ -3335,6 +3348,18 @@ def MOVHIri : MovCondRI<0b1011, "movhi">;
 def MOVVSri : MovCondRI<0b1100, "movvs">;
 def MOVVCri : MovCondRI<0b1101, "movvc">;
 def MOVQSri : MovCondRI<0b1110, "movqs">;
+let isCodeGenOnly = 1, Constraints = "$Rd = $Old" in {
+def MOVEQriCG : MovCondRICG<0b0000, "moveq">;
+def MOVNEriCG : MovCondRICG<0b0001, "movne">;
+def MOVCCriCG : MovCondRICG<0b0010, "movcc">;
+def MOVCSriCG : MovCondRICG<0b0011, "movcs">;
+def MOVGEriCG : MovCondRICG<0b0100, "movge">;
+def MOVLTriCG : MovCondRICG<0b0101, "movlt">;
+def MOVLSriCG : MovCondRICG<0b1000, "movls">;
+def MOVGTriCG : MovCondRICG<0b1001, "movgt">;
+def MOVLEriCG : MovCondRICG<0b1010, "movle">;
+def MOVHIriCG : MovCondRICG<0b1011, "movhi">;
+}
 def MOVALrr : MovRR<0b1111, "moval">;
 def MOVEQrr : MovRR<0b0000, "moveq">;
 def MOVNErr : MovRR<0b0001, "movne">;

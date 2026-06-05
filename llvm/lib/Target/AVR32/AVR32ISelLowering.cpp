@@ -55,6 +55,8 @@ AVR32TargetLowering::AVR32TargetLowering(const TargetMachine &TM,
   setOperationAction(ISD::SHL_PARTS, MVT::i32, Expand);
   setOperationAction(ISD::SRA_PARTS, MVT::i32, Expand);
   setOperationAction(ISD::SRL_PARTS, MVT::i32, Expand);
+  setBooleanContents(ZeroOrOneBooleanContent);
+  setBooleanVectorContents(ZeroOrOneBooleanContent);
   setMinimumJumpTableEntries(UINT_MAX);
   computeRegisterProperties(STI.getRegisterInfo());
   setStackPointerRegisterToSaveRestore(AVR32::SP);
@@ -231,6 +233,33 @@ static unsigned getBranchOpcodeForCC(AVR32CC::CondCodes CC) {
   }
 }
 
+static unsigned getMoveImmOpcodeForCC(AVR32CC::CondCodes CC) {
+  switch (CC) {
+  default:
+    return 0;
+  case AVR32CC::COND_EQ:
+    return AVR32::MOVEQriCG;
+  case AVR32CC::COND_NE:
+    return AVR32::MOVNEriCG;
+  case AVR32CC::COND_CC:
+    return AVR32::MOVCCriCG;
+  case AVR32CC::COND_CS:
+    return AVR32::MOVCSriCG;
+  case AVR32CC::COND_GE:
+    return AVR32::MOVGEriCG;
+  case AVR32CC::COND_LT:
+    return AVR32::MOVLTriCG;
+  case AVR32CC::COND_LS:
+    return AVR32::MOVLSriCG;
+  case AVR32CC::COND_GT:
+    return AVR32::MOVGTriCG;
+  case AVR32CC::COND_LE:
+    return AVR32::MOVLEriCG;
+  case AVR32CC::COND_HI:
+    return AVR32::MOVHIriCG;
+  }
+}
+
 MachineBasicBlock *AVR32TargetLowering::EmitInstrWithCustomInserter(
     MachineInstr &MI, MachineBasicBlock *BB) const {
   assert((MI.getOpcode() == AVR32::SETCCrr ||
@@ -247,6 +276,20 @@ MachineBasicBlock *AVR32TargetLowering::EmitInstrWithCustomInserter(
   Register RHS = MI.getOperand(2).getReg();
   unsigned CondOperand = MI.getOpcode() == AVR32::SETCCrr ? 3 : 5;
   auto CC = static_cast<AVR32CC::CondCodes>(MI.getOperand(CondOperand).getImm());
+
+  if (MI.getOpcode() == AVR32::SETCCrr) {
+    unsigned MovOpc = getMoveImmOpcodeForCC(CC);
+    if (!MovOpc)
+      report_fatal_error("AVR32 condition code is not implemented yet");
+
+    Register FalseReg = MRI.createVirtualRegister(&AVR32::GPRRegClass);
+    BuildMI(*BB, MI, DL, TII.get(AVR32::CPrr)).addReg(LHS).addReg(RHS);
+    BuildMI(*BB, MI, DL, TII.get(AVR32::MOVri21), FalseReg).addImm(0);
+    BuildMI(*BB, MI, DL, TII.get(MovOpc), Dst).addReg(FalseReg).addImm(1);
+    MI.eraseFromParent();
+    return BB;
+  }
+
   unsigned BranchOpc = getBranchOpcodeForCC(CC);
   if (!BranchOpc)
     report_fatal_error("AVR32 condition code is not implemented yet");
@@ -269,17 +312,8 @@ MachineBasicBlock *AVR32TargetLowering::EmitInstrWithCustomInserter(
   BuildMI(BB, DL, TII.get(BranchOpc)).addMBB(TrueBB);
   BuildMI(BB, DL, TII.get(AVR32::BRALbb)).addMBB(FalseBB);
 
-  Register TrueReg;
-  Register FalseReg;
-  if (MI.getOpcode() == AVR32::SETCCrr) {
-    TrueReg = MRI.createVirtualRegister(&AVR32::GPRRegClass);
-    FalseReg = MRI.createVirtualRegister(&AVR32::GPRRegClass);
-    BuildMI(TrueBB, DL, TII.get(AVR32::MOVri21), TrueReg).addImm(1);
-    BuildMI(FalseBB, DL, TII.get(AVR32::MOVri21), FalseReg).addImm(0);
-  } else {
-    TrueReg = MI.getOperand(3).getReg();
-    FalseReg = MI.getOperand(4).getReg();
-  }
+  Register TrueReg = MI.getOperand(3).getReg();
+  Register FalseReg = MI.getOperand(4).getReg();
 
   BuildMI(TrueBB, DL, TII.get(AVR32::BRALbb)).addMBB(SinkBB);
   TrueBB->addSuccessor(SinkBB);
