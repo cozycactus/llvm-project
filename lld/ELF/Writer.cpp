@@ -2419,8 +2419,14 @@ Writer<ELFT>::createPhdrs(Partition &part) {
 
     bool sameLMARegion =
         load && !sec->lmaExpr && sec->lmaRegion == load->firstSec->lmaRegion;
+    // Output addresses are not assigned yet. A section with an explicit
+    // address expression may be discontiguous from the previous PT_LOAD, so do
+    // not fold it into an existing segment.
+    bool hasExplicitAddr =
+        load && sec->addrExpr && load->lastSec != ctx.out.programHeaders.get();
     if (load && sec != relroEnd &&
         sec->memRegion == load->firstSec->memRegion &&
+        !hasExplicitAddr &&
         (sameLMARegion || load->lastSec == ctx.out.programHeaders.get()) &&
         (ctx.script->hasSectionsCommand || sec->type == SHT_NOBITS ||
          load->lastSec->type != SHT_NOBITS)) {

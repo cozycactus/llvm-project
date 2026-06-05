@@ -41,6 +41,30 @@ SECTIONS
   .data   : { *(.data) }
 }
 
+#--- t3
+## Check that GNU memory region attributes 'i' and 'l' are accepted.
+
+# RUN: ld.lld -o %t3 -T %ts/t3 %t.o
+# RUN: llvm-readelf -S %t3 | FileCheck %s --check-prefix=TEST3
+
+# TEST3:      Name     Type      Address
+# TEST3:      .text    PROGBITS  0000000000005000
+# TEST3-NEXT: .rodata  PROGBITS  0000000000005008
+# TEST3-NEXT: .data    PROGBITS  0000000000006000
+
+MEMORY
+{
+  FLASH   (rxai!w) : org = 0x5000, l = 1K
+  CPUSRAM (wxa!ri) : org = 0x6000, l = 1K
+}
+
+SECTIONS
+{
+  .text   : { *(.text) } >FLASH
+  .rodata : { *(.rodata) } >FLASH
+  .data   : { *(.data) } >CPUSRAM
+}
+
 #--- t2
 ## Check that memory region attributes 'r', 'w', and 'x' are supported both in
 ## positive and negative forms.

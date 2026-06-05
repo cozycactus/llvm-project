@@ -443,6 +443,7 @@ struct Config {
   ELFKind ekind = ELFNoneKind;
   uint16_t emachine = llvm::ELF::EM_NONE;
   std::optional<uint64_t> imageBase;
+  std::optional<uint64_t> avr32StackSize;
   uint64_t commonPageSize;
   uint64_t maxPageSize;
   uint64_t mipsGotSize;

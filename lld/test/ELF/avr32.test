@@ -4,6 +4,14 @@
 # RUN: echo 'OUTPUT_FORMAT(elf32-avr32)' > %t.script
 # RUN: ld.lld %t.script %t.o -o %t.script.out
 # RUN: llvm-readobj --file-headers %t.script.out | FileCheck %s --check-prefix=HEADER
+# RUN: echo 'OUTPUT_FORMAT(elf32-avr32) SECTIONS { . = _stack_size; .text : { *(.text) } }' > %t.stack.script
+# RUN: ld.lld %t.stack.script %t.o -o %t.stack.default
+# RUN: llvm-readelf -s %t.stack.default | FileCheck %s --check-prefix=STACK-DEFAULT
+# RUN: ld.lld --stack=0x2345 %t.stack.script %t.o -o %t.stack.override
+# RUN: llvm-readelf -s %t.stack.override | FileCheck %s --check-prefix=STACK-OVERRIDE
+# RUN: echo 'OUTPUT_FORMAT(elf32-avr32) MEMORY { FLASH (rxai!w) : ORIGIN = 0x80000000, LENGTH = 256K CPUSRAM (wxa!ri) : ORIGIN = 0x4, LENGTH = 0xfffc } SECTIONS { .text : { *(.text) } >FLASH .stack ORIGIN(CPUSRAM) + LENGTH(CPUSRAM) - _stack_size : { _stack = .; . = _stack_size; _estack = .; } >CPUSRAM }' > %t.stack-mem.script
+# RUN: ld.lld %t.stack-mem.script %t.o -o %t.stack-mem
+# RUN: llvm-readelf -S -s %t.stack-mem | FileCheck %s --check-prefix=STACK-MEM
 
 # HEADER:      Format: elf32-avr32
 # HEADER-NEXT: Arch: avr32
@@ -12,6 +20,12 @@
 # HEADER-NEXT:   DataEncoding: BigEndian (0x2)
 # HEADER:        Type: Executable (0x2)
 # HEADER-NEXT:   Machine: EM_AVR32 (0xB9)
+# STACK-DEFAULT: 00001000     0 NOTYPE  GLOBAL DEFAULT   ABS _stack_size
+# STACK-OVERRIDE: 00002345     0 NOTYPE  GLOBAL DEFAULT   ABS _stack_size
+# STACK-MEM: .stack            NOBITS          0000f000 {{[0-9a-f]+}} 001000 00  WA
+# STACK-MEM-DAG: 00001000     0 NOTYPE  GLOBAL DEFAULT   ABS _stack_size
+# STACK-MEM-DAG: 0000f000     0 NOTYPE  GLOBAL DEFAULT     {{[0-9]+}} _stack
+# STACK-MEM-DAG: 00010000     0 NOTYPE  GLOBAL DEFAULT     {{[0-9]+}} _estack
 
 # RUN: yaml2obj --docnum=2 %s -o %t.abs.o
 # RUN: ld.lld %t.abs.o -o %t.abs
@@ -48,7 +62,7 @@
 # RUN: not ld.lld %t.unsupported.o -o /dev/null 2>&1 \
 # RUN:   | FileCheck %s --check-prefix=BADRELOC
 
-# BADRELOC: error: {{.*}}unknown relocation (13) against symbol target
+# BADRELOC: error: {{.*}}unknown relocation (10) against symbol target
 
 # RUN: yaml2obj --docnum=7 %s -o %t.unaligned.o
 # RUN: not ld.lld %t.unaligned.o -o /dev/null 2>&1 \
@@ -106,6 +120,30 @@
 
 # BRANCH-REL: Hex dump of section '.text':
 # BRANCH-REL-NEXT: 0x{{[0-9a-f]+}} e08f0005 c038d703
+
+# RUN: yaml2obj --docnum=14 %s -o %t.ext-abs.o
+# RUN: ld.lld %t.ext-abs.o -o %t.ext-abs
+# RUN: llvm-readobj --hex-dump=.text %t.ext-abs \
+# RUN:   | FileCheck %s --check-prefix=EXT-ABS
+
+# EXT-ABS: Hex dump of section '.text':
+# EXT-ABS-NEXT: 0x{{[0-9a-f]+}} 00102345 abcd1234 abcd5678 12345678
+
+# RUN: yaml2obj --docnum=15 %s -o %t.cp.o
+# RUN: ld.lld %t.cp.o -o %t.cp
+# RUN: llvm-readobj --hex-dump=.text %t.cp \
+# RUN:   | FileCheck %s --check-prefix=CP
+
+# CP: Hex dump of section '.text':
+# CP-NEXT: 0x{{[0-9a-f]+}} d7030000 00040000 000a0020 0020d703
+
+# RUN: yaml2obj --docnum=16 %s -o %t.noop.o
+# RUN: ld.lld %t.noop.o -o %t.noop
+# RUN: llvm-readobj --hex-dump=.text %t.noop \
+# RUN:   | FileCheck %s --check-prefix=NOOP
+
+# NOOP: Hex dump of section '.text':
+# NOOP-NEXT: 0x{{[0-9a-f]+}} cafebabe 00000004
 
 --- !ELF
 FileHeader:
@@ -253,7 +291,7 @@ Sections:
     Relocations:
       - Offset: 0
         Symbol: target
-        Type: R_AVR32_21S
+        Type: R_AVR32_GOT32
 Symbols:
   - Name: _start
     Section: .text
@@ -482,4 +520,115 @@ Symbols:
   - Name: target
     Section: .text
     Value: 6
+    Binding: STB_GLOBAL
+
+--- !ELF
+FileHeader:
+  Class:   ELFCLASS32
+  Data:    ELFDATA2MSB
+  Type:    ET_REL
+  Machine: EM_AVR32
+Sections:
+  - Name: .text
+    Type: SHT_PROGBITS
+    Flags: [ SHF_ALLOC, SHF_EXECINSTR ]
+    Content: "00000000abcd0000abcd000000000000"
+  - Name: .rela.text
+    Type: SHT_RELA
+    Info: .text
+    Relocations:
+      - Offset: 0
+        Symbol: abs21
+        Type: R_AVR32_21S
+      - Offset: 4
+        Symbol: abs32
+        Type: R_AVR32_HI16
+      - Offset: 8
+        Symbol: abs32
+        Type: R_AVR32_LO16
+      - Offset: 12
+        Symbol: abs32
+        Type: R_AVR32_32_CPENT
+Symbols:
+  - Name: _start
+    Section: .text
+    Value: 0
+    Binding: STB_GLOBAL
+  - Name: abs21
+    Index: SHN_ABS
+    Value: 0x12345
+    Binding: STB_GLOBAL
+  - Name: abs32
+    Index: SHN_ABS
+    Value: 0x12345678
+    Binding: STB_GLOBAL
+
+--- !ELF
+FileHeader:
+  Class:   ELFCLASS32
+  Data:    ELFDATA2MSB
+  Type:    ET_REL
+  Machine: EM_AVR32
+Sections:
+  - Name: .text
+    Type: SHT_PROGBITS
+    Flags: [ SHF_ALLOC, SHF_EXECINSTR ]
+    Content: "d703000000000000000000000000d703"
+  - Name: .rela.text
+    Type: SHT_RELA
+    Info: .text
+    Relocations:
+      - Offset: 2
+        Symbol: target
+        Type: R_AVR32_CPCALL
+      - Offset: 6
+        Symbol: target
+        Type: R_AVR32_16_CP
+      - Offset: 10
+        Symbol: target
+        Type: R_AVR32_9W_CP
+      - Offset: 12
+        Symbol: target
+        Type: R_AVR32_9H_PCREL
+Symbols:
+  - Name: _start
+    Section: .text
+    Value: 0
+    Binding: STB_GLOBAL
+  - Name: target
+    Section: .text
+    Value: 16
+    Binding: STB_GLOBAL
+
+--- !ELF
+FileHeader:
+  Class:   ELFCLASS32
+  Data:    ELFDATA2MSB
+  Type:    ET_REL
+  Machine: EM_AVR32
+Sections:
+  - Name: .text
+    Type: SHT_PROGBITS
+    Flags: [ SHF_ALLOC, SHF_EXECINSTR ]
+    Content: "cafebabe00000004"
+  - Name: .rela.text
+    Type: SHT_RELA
+    Info: .text
+    Relocations:
+      - Offset: 0
+        Symbol: target
+        Type: R_AVR32_ALIGN
+        Addend: 1
+      - Offset: 4
+        Symbol: target
+        Type: R_AVR32_DIFF32
+        Addend: 4
+Symbols:
+  - Name: _start
+    Section: .text
+    Value: 0
+    Binding: STB_GLOBAL
+  - Name: target
+    Section: .text
+    Value: 0
     Binding: STB_GLOBAL

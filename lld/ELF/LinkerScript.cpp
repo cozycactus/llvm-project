@@ -194,8 +194,22 @@ void LinkerScript::expandOutputSection(uint64_t size) {
   expandMemoryRegions(regionSize);
 }
 
+static bool hasByteCommand(const OutputSection &sec) {
+  return llvm::any_of(sec.commands, [](SectionCommand *cmd) {
+    return ByteCommand::classof(cmd);
+  });
+}
+
 void LinkerScript::setDot(Expr e, const Twine &loc, bool inSec) {
-  uint64_t val = e().getValue();
+  ExprValue expr = e();
+  uint64_t val = expr.getValue();
+  // In assignment-only reserved sections, GNU ld treats an absolute dot value
+  // below the section VMA as an offset from the start of the section.
+  if (inSec && expr.sec == nullptr && !expr.forceAbsolute && val < dot &&
+      state->outSec && !state->outSec->memoryRegionName.empty() &&
+      !state->outSec->hasInputSections && !hasByteCommand(*state->outSec))
+    val += state->outSec->addr;
+
   // If val is smaller and we are in an output section, record the error and
   // report it if this is the last assignAddresses iteration. dot may be smaller
   // if there is another assignAddresses iteration.
@@ -1396,6 +1410,16 @@ void LinkerScript::adjustOutputSections() {
     if (isEmpty) {
       sec->flags =
           flags & ((sec->nonAlloc ? 0 : (uint64_t)SHF_ALLOC) | SHF_WRITE);
+      if (!sec->memoryRegionName.empty() && !sec->nonAlloc) {
+        // A MEMORY region assignment makes a reserved empty section part of
+        // the image even if no input section contributes flags.
+        sec->flags |= SHF_ALLOC;
+        if (MemoryRegion *m = memoryRegions.lookup(sec->memoryRegionName))
+          if ((m->flags | m->negInvFlags) & SHF_WRITE)
+            sec->flags |= SHF_WRITE;
+        if (!sec->typeIsSet && !hasByteCommand(*sec))
+          sec->type = SHT_NOBITS;
+      }
       sec->sortRank = getSectionRank(ctx, *sec);
     }
 

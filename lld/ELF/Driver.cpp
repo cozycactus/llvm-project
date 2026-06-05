@@ -79,6 +79,9 @@ using namespace lld::elf;
 
 static void setConfigs(Ctx &ctx, opt::InputArgList &args);
 static void readConfigs(Ctx &ctx, opt::InputArgList &args);
+static void addAVR32StackSize(Ctx &ctx);
+
+static constexpr uint64_t defaultAVR32StackSize = 0x1000;
 
 ELFSyncStream elf::Log(Ctx &ctx) { return {ctx, DiagLevel::Log}; }
 ELFSyncStream elf::Msg(Ctx &ctx) { return {ctx, DiagLevel::Msg}; }
@@ -358,6 +361,9 @@ static void initLLVM() {
 // Some command line options or some combinations of them are not allowed.
 // This function checks for such errors.
 static void checkOptions(Ctx &ctx) {
+  if (ctx.arg.avr32StackSize && ctx.arg.emachine != EM_AVR32)
+    ErrAlways(ctx) << "--stack is only supported for AVR32";
+
   // The MIPS ABI as of 2016 does not support the GNU-style symbol lookup
   // table which is a relatively new feature.
   if (ctx.arg.emachine == EM_MIPS && ctx.arg.gnuHash)
@@ -728,6 +734,7 @@ void LinkerDriver::linkerMain(ArrayRef<const char *> argsArr) {
     if (errCount(ctx))
       return;
 
+    addAVR32StackSize(ctx);
     invokeELFT(link, args);
   }
 
@@ -1288,6 +1295,21 @@ getOldNewOptionsExtra(Ctx &ctx, opt::InputArgList &args, unsigned id) {
   return {oldDir, newDir, extraDir};
 }
 
+static std::optional<uint64_t> getAVR32StackSize(Ctx &ctx,
+                                                 opt::InputArgList &args) {
+  opt::Arg *arg = args.getLastArg(OPT_stack);
+  if (!arg)
+    return std::nullopt;
+
+  uint64_t size;
+  if (to_integer(StringRef(arg->getValue()), size, 0))
+    return size;
+
+  ErrAlways(ctx) << args.getArgString(arg->getIndex())
+                 << ": number expected, but got '" << arg->getValue() << "'";
+  return 0;
+}
+
 // Parse the symbol ordering file and warn for any duplicate entries.
 static SmallVector<StringRef, 0> getSymbolOrderingFile(Ctx &ctx,
                                                        MemoryBufferRef mb) {
@@ -1559,6 +1581,7 @@ static void readConfigs(Ctx &ctx, opt::InputArgList &args) {
   ctx.arg.sortSection = getSortSection(ctx, args);
   ctx.arg.splitStackAdjustSize =
       args::getInteger(args, OPT_split_stack_adjust_size, 16384);
+  ctx.arg.avr32StackSize = getAVR32StackSize(ctx, args);
   ctx.arg.zSectionHeader =
       getZFlag(args, "sectionheader", "nosectionheader", true);
   ctx.arg.strip = getStrip(ctx, args); // needs zSectionHeader
@@ -2207,6 +2230,18 @@ void LinkerDriver::createFiles(opt::InputArgList &args) {
     readLinkerScript(ctx, *defaultScript);
   if (files.empty() && !hasInput && errCount(ctx) == 0)
     ErrAlways(ctx) << "no input files";
+}
+
+static void addAVR32StackSize(Ctx &ctx) {
+  if (ctx.arg.emachine != EM_AVR32)
+    return;
+
+  uint64_t size = ctx.arg.avr32StackSize.value_or(defaultAVR32StackSize);
+  auto *cmd = make<SymbolAssignment>(
+      ctx.saver.save("_stack_size"), [size] { return ExprValue(size); },
+      ctx.scriptSymOrderCounter++, ctx.arg.avr32StackSize ? "--stack" : "");
+  cmd->commandString = (Twine("_stack_size = ") + Twine(size)).str();
+  ctx.script->sectionCommands.insert(ctx.script->sectionCommands.begin(), cmd);
 }
 
 // If -m <machine_type> was not given, infer it from object files.

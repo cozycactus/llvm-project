@@ -1887,7 +1887,9 @@ void ScriptParser::readMemoryAttributes(uint32_t &flags, uint32_t &invFlags,
       flags |= SHF_ALLOC;
     else if (c == 'r')
       invFlags |= SHF_WRITE;
-    else
+    else if (c == 'i' || c == 'l') {
+      // GNU ld accepts initialized/loadable attributes.
+    } else
       setError("invalid memory region attribute");
   }
 

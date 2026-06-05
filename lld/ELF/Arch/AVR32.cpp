@@ -38,6 +38,25 @@ public:
 };
 } // namespace
 
+static uint32_t encodeS21(int64_t val) {
+  uint32_t enc = static_cast<uint32_t>(val);
+  return (enc & 0xffff) | ((enc & 0x10000) << 4) |
+         ((enc & 0x1e0000) << 8);
+}
+
+static int64_t decodeS21(uint32_t word) {
+  uint32_t enc =
+      (word & 0xffff) | ((word >> 4) & 0x10000) | ((word >> 8) & 0x1e0000);
+  return SignExtend64<21>(enc);
+}
+
+static int64_t getAlignedPCRel(const Relocation &rel, uint64_t val,
+                               uint32_t alignment) {
+  // AVR32 branch and constant-pool relocations subtract the PC after clearing
+  // the low bits implied by the relocation's right shift.
+  return SignExtend64(val + (rel.offset & (alignment - 1)), 32);
+}
+
 static uint32_t getEFlags(InputFile *file) {
   return cast<ObjFile<ELF32BE>>(file)->getObj().getHeader().e_flags;
 }
@@ -60,16 +79,28 @@ RelExpr AVR32::getRelExpr(RelType type, const Symbol &s,
                           const uint8_t *loc) const {
   switch (type) {
   case R_AVR32_NONE:
+  case R_AVR32_ALIGN:
+  case R_AVR32_DIFF8:
+  case R_AVR32_DIFF16:
+  case R_AVR32_DIFF32:
     return R_NONE;
   case R_AVR32_8:
   case R_AVR32_16:
   case R_AVR32_32:
+  case R_AVR32_21S:
+  case R_AVR32_HI16:
+  case R_AVR32_LO16:
+  case R_AVR32_32_CPENT:
     return R_ABS;
   case R_AVR32_8_PCREL:
   case R_AVR32_16_PCREL:
   case R_AVR32_32_PCREL:
   case R_AVR32_22H_PCREL:
   case R_AVR32_11H_PCREL:
+  case R_AVR32_9H_PCREL:
+  case R_AVR32_CPCALL:
+  case R_AVR32_16_CP:
+  case R_AVR32_9W_CP:
     return R_PC;
   default:
     Err(ctx) << getErrorLoc(ctx, loc) << "unknown relocation (" << type.v
@@ -81,30 +112,49 @@ RelExpr AVR32::getRelExpr(RelType type, const Symbol &s,
 int64_t AVR32::getImplicitAddend(const uint8_t *buf, RelType type) const {
   switch (type) {
   case R_AVR32_NONE:
+  case R_AVR32_ALIGN:
   case R_AVR32_GLOB_DAT:
   case R_AVR32_JMP_SLOT:
     return 0;
   case R_AVR32_8:
   case R_AVR32_8_PCREL:
+  case R_AVR32_DIFF8:
     return SignExtend64<8>(*buf);
   case R_AVR32_16:
   case R_AVR32_16_PCREL:
+  case R_AVR32_DIFF16:
     return SignExtend64<16>(read16be(buf));
   case R_AVR32_32:
   case R_AVR32_32_PCREL:
+  case R_AVR32_DIFF32:
+  case R_AVR32_32_CPENT:
   case R_AVR32_RELATIVE:
     return SignExtend64<32>(read32be(buf));
+  case R_AVR32_21S:
+    return decodeS21(read32be(buf));
   case R_AVR32_22H_PCREL: {
     uint32_t word = read32be(buf);
-    uint32_t enc = (word & 0xffff) | ((word >> 4) & 0x10000) |
-                   ((word >> 8) & 0x1e0000);
-    return SignExtend64<21>(enc) << 1;
+    return decodeS21(word) << 1;
   }
   case R_AVR32_11H_PCREL: {
     uint16_t word = read16be(buf);
     uint16_t enc = ((word >> 4) & 0xff) | ((word & 0x3) << 8);
     return SignExtend64<10>(enc) << 1;
   }
+  case R_AVR32_9H_PCREL: {
+    uint16_t word = read16be(buf);
+    return SignExtend64<8>((word & 0x0ff0) >> 4) << 1;
+  }
+  case R_AVR32_HI16:
+    return (read32be(buf) & 0xffff) << 16;
+  case R_AVR32_LO16:
+    return read32be(buf) & 0xffff;
+  case R_AVR32_CPCALL:
+    return SignExtend64<16>(read32be(buf) & 0xffff) << 2;
+  case R_AVR32_16_CP:
+    return SignExtend64<16>(read32be(buf) & 0xffff);
+  case R_AVR32_9W_CP:
+    return ((read16be(buf) & 0x07f0) >> 4) << 2;
   default:
     return TargetInfo::getImplicitAddend(buf, type);
   }
@@ -113,6 +163,10 @@ int64_t AVR32::getImplicitAddend(const uint8_t *buf, RelType type) const {
 void AVR32::relocate(uint8_t *loc, const Relocation &rel, uint64_t val) const {
   switch (rel.type) {
   case R_AVR32_NONE:
+  case R_AVR32_ALIGN:
+  case R_AVR32_DIFF8:
+  case R_AVR32_DIFF16:
+  case R_AVR32_DIFF32:
     break;
   case R_AVR32_8:
     checkIntUInt(ctx, loc, val, 8, rel);
@@ -124,6 +178,25 @@ void AVR32::relocate(uint8_t *loc, const Relocation &rel, uint64_t val) const {
     break;
   case R_AVR32_32:
     checkIntUInt(ctx, loc, val, 32, rel);
+    write32be(loc, val);
+    break;
+  case R_AVR32_21S: {
+    checkInt(ctx, loc, val, 21, rel);
+    uint32_t word = read32be(loc) & ~0x1e10ffff;
+    write32be(loc, word | encodeS21(SignExtend64(val, 32)));
+    break;
+  }
+  case R_AVR32_HI16: {
+    uint32_t word = read32be(loc) & ~0xffff;
+    write32be(loc, word | ((val >> 16) & 0xffff));
+    break;
+  }
+  case R_AVR32_LO16: {
+    uint32_t word = read32be(loc) & ~0xffff;
+    write32be(loc, word | (val & 0xffff));
+    break;
+  }
+  case R_AVR32_32_CPENT:
     write32be(loc, val);
     break;
   case R_AVR32_8_PCREL:
@@ -139,22 +212,56 @@ void AVR32::relocate(uint8_t *loc, const Relocation &rel, uint64_t val) const {
     write32be(loc, val);
     break;
   case R_AVR32_22H_PCREL: {
-    checkAlignment(ctx, loc, val, 2, rel);
-    int64_t disp = SignExtend64(val, 32) >> 1;
+    int64_t pcrel = getAlignedPCRel(rel, val, 2);
+    checkAlignment(ctx, loc, pcrel, 2, rel);
+    int64_t disp = pcrel >> 1;
     checkInt(ctx, loc, disp, 21, rel);
     uint32_t word = read32be(loc) & ~0x1e10ffff;
-    uint32_t enc = static_cast<uint32_t>(disp);
-    write32be(loc, word | (enc & 0xffff) | ((enc & 0x10000) << 4) |
-                       ((enc & 0x1e0000) << 8));
+    write32be(loc, word | encodeS21(disp));
     break;
   }
   case R_AVR32_11H_PCREL: {
-    checkAlignment(ctx, loc, val, 2, rel);
-    int64_t disp = SignExtend64(val, 32) >> 1;
+    int64_t pcrel = getAlignedPCRel(rel, val, 2);
+    checkAlignment(ctx, loc, pcrel, 2, rel);
+    int64_t disp = pcrel >> 1;
     checkInt(ctx, loc, disp, 10, rel);
     uint16_t word = read16be(loc) & ~0x0ff3;
     uint16_t enc = static_cast<uint16_t>(disp);
     write16be(loc, word | ((enc & 0xff) << 4) | ((enc & 0x300) >> 8));
+    break;
+  }
+  case R_AVR32_9H_PCREL: {
+    int64_t pcrel = getAlignedPCRel(rel, val, 2);
+    checkAlignment(ctx, loc, pcrel, 2, rel);
+    int64_t disp = pcrel >> 1;
+    checkInt(ctx, loc, disp, 8, rel);
+    uint16_t word = read16be(loc) & ~0x0ff0;
+    uint16_t enc = static_cast<uint16_t>(disp);
+    write16be(loc, word | ((enc & 0xff) << 4));
+    break;
+  }
+  case R_AVR32_CPCALL: {
+    int64_t pcrel = getAlignedPCRel(rel, val, 4);
+    checkAlignment(ctx, loc, pcrel, 4, rel);
+    int64_t disp = pcrel >> 2;
+    checkInt(ctx, loc, disp, 16, rel);
+    uint32_t word = read32be(loc) & ~0xffff;
+    write32be(loc, word | (disp & 0xffff));
+    break;
+  }
+  case R_AVR32_16_CP: {
+    checkInt(ctx, loc, val, 16, rel);
+    uint32_t word = read32be(loc) & ~0xffff;
+    write32be(loc, word | (val & 0xffff));
+    break;
+  }
+  case R_AVR32_9W_CP: {
+    int64_t pcrel = getAlignedPCRel(rel, val, 4);
+    checkAlignment(ctx, loc, pcrel, 4, rel);
+    int64_t disp = pcrel >> 2;
+    checkUInt(ctx, loc, disp, 7, rel);
+    uint16_t word = read16be(loc) & ~0x07f0;
+    write16be(loc, word | ((static_cast<uint16_t>(disp) & 0x7f) << 4));
     break;
   }
   default:

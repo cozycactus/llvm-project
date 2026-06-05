@@ -93,6 +93,9 @@ defm split_stack_adjust_size
          "non-split-stack function">,
       MetaVarName<"<value>">;
 
+defm stack: Eq<"stack", "Set the AVR32 stack size">,
+  MetaVarName<"<size>">;
+
 def O: JoinedOrSeparate<["-"], "O">, HelpText<"Optimize output file size">;
 
 def cmse_implib: FF<"cmse-implib">,
@@ -821,6 +824,7 @@ def: FF<"no-add-needed">;
 def: F<"no-copy-dt-needed-entries">;
 def: F<"no-ctors-in-init-array">;
 def: F<"no-keep-memory">;
+def: FF<"direct-data">;
 def: Separate<["--", "-"], "rpath-link">;
 def: J<"rpath-link=">;
 def: F<"secure-plt">;
