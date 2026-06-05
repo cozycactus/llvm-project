@@ -171,6 +171,12 @@ public:
            Const->getValue() % 4 == 0;
   }
 
+  bool isSImm16PCRel() const {
+    if (Kind != Immediate)
+      return false;
+    return !isa<MCConstantExpr>(Imm);
+  }
+
   bool isSubSPImm() const {
     if (Kind != Immediate)
       return false;
@@ -568,6 +574,7 @@ private:
   MCRegister parseRegisterName(StringRef Name) const;
   bool parseImmediateExpression(const MCExpr *&Expr);
   bool emitCallPseudo(const MCInst &Inst, SMLoc Loc, MCStreamer &Out);
+  bool emitLddpcPseudo(const MCInst &Inst, SMLoc Loc, MCStreamer &Out);
   bool emitLdaWPseudo(const MCInst &Inst, SMLoc Loc, MCStreamer &Out);
   bool parseDirectiveLtorg(SMLoc Loc);
   bool parseLiteralValues(unsigned Size, SMLoc Loc);
@@ -662,6 +669,8 @@ bool AVR32AsmParser::matchAndEmitInstruction(SMLoc Loc, unsigned &Opcode,
     Inst.setLoc(Loc);
     if (Inst.getOpcode() == AVR32::CALLp)
       return emitCallPseudo(Inst, Loc, Out);
+    if (Inst.getOpcode() == AVR32::LDDPCp)
+      return emitLddpcPseudo(Inst, Loc, Out);
     if (Inst.getOpcode() == AVR32::LDA_W)
       return emitLdaWPseudo(Inst, Loc, Out);
     Out.emitInstruction(Inst, *STI);
@@ -713,6 +722,18 @@ bool AVR32AsmParser::emitCallPseudo(const MCInst &Inst, SMLoc Loc,
   Call.addOperand(MCOperand::createReg(AVR32::PC));
   Call.addOperand(MCOperand::createExpr(CPLoc));
   Out.emitInstruction(Call, *STI);
+  return false;
+}
+
+bool AVR32AsmParser::emitLddpcPseudo(const MCInst &Inst, SMLoc Loc,
+                                     MCStreamer &Out) {
+  MCInst Load;
+  Load.setLoc(Loc);
+  Load.setOpcode(AVR32::LDDPC_PCREL16);
+  Load.addOperand(Inst.getOperand(0));
+  Load.addOperand(Inst.getOperand(1));
+  Load.addOperand(Inst.getOperand(2));
+  Out.emitInstruction(Load, *STI);
   return false;
 }
 

@@ -152,6 +152,19 @@ public:
       return;
     }
 
+    if (Fixup.getKind() == static_cast<MCFixupKind>(AVR32::fixup_16b_pcrel)) {
+      int64_t SignedValue = static_cast<int64_t>(Value);
+      if (!isInt<16>(SignedValue)) {
+        getContext().reportError(Fixup.getLoc(), "fixup value out of range");
+        return;
+      }
+
+      uint32_t Word = support::endian::read32be(Data) & ~0xffff;
+      Word |= static_cast<uint16_t>(SignedValue);
+      support::endian::write32be(Data, Word);
+      return;
+    }
+
     if (Fixup.getKind() == static_cast<MCFixupKind>(AVR32::fixup_21s)) {
       int64_t SignedValue = static_cast<int64_t>(Value);
       if (!isInt<21>(SignedValue)) {
@@ -204,6 +217,7 @@ public:
         {"fixup_11h_pcrel", 0, 16, 0},
         {"fixup_7w_pcrel", 0, 16, 0},
         {"fixup_16w_pcrel", 0, 32, 0},
+        {"fixup_16b_pcrel", 0, 32, 0},
         {"fixup_21s", 0, 32, 0},
         {"fixup_hi16", 0, 16, 0},
         {"fixup_lo16", 0, 16, 0},

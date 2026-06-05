@@ -139,6 +139,11 @@ def SImm16PCRelShift2AsmOperand : AsmOperandClass {
   let RenderMethod = "addImmOperands";
 }
 
+def SImm16PCRelAsmOperand : AsmOperandClass {
+  let Name = "SImm16PCRel";
+  let RenderMethod = "addImmOperands";
+}
+
 def HalfPartAsmOperand : AsmOperandClass {
   let Name = "HalfPart";
   let RenderMethod = "addImmOperands";
@@ -446,6 +451,11 @@ def simm16pcrelshift2 : Operand<i32>,
                                                Imm % 4 == 0; }]> {
   let ParserMatchClass = SImm16PCRelShift2AsmOperand;
   let EncoderMethod = "getPCRel16WOpValue";
+}
+
+def simm16pcrel : Operand<i32> {
+  let ParserMatchClass = SImm16PCRelAsmOperand;
+  let EncoderMethod = "getPCRel16BOpValue";
 }
 
 def subspimm : Operand<i32>,
@@ -963,6 +973,23 @@ class FullLoadDisp16<bits<5> Op, string Mnemonic>
   let Inst{15-0} = Disp;
 }
 
+class FullLoadPCRel16<bits<5> Op, string Mnemonic>
+    : AVR32Inst32<(outs GPR:$Rd), (ins PCOnly:$Rp, simm16pcrel:$Disp),
+                  Mnemonic#"\t$Rd, ${Rp}[$Disp]"> {
+  let mayLoad = 1;
+  let isCodeGenOnly = 1;
+
+  bits<4> Rd;
+  bits<4> Rp;
+  bits<16> Disp;
+
+  let Inst{31-29} = 0b111;
+  let Inst{28-25} = Rp;
+  let Inst{24-20} = Op;
+  let Inst{19-16} = Rd;
+  let Inst{15-0} = Disp;
+}
+
 class FullLoadIndexShift<bits<10> Op, string Mnemonic>
     : AVR32Inst32<(outs GPR:$Rd), (ins GPR:$Rb, GPR:$Ri, uimm2:$Shift),
                   Mnemonic#"\t$Rd, ${Rb}[$Ri << $Shift]"> {
@@ -1050,7 +1077,6 @@ class FullMemPCRel16Shift2<bits<12> Op, string Mnemonic>
   let Inst{31-20} = Op;
   let Inst{19-16} = Rp;
   let Inst{15-0} = Disp;
-  let isCodeGenOnly = 1;
 }
 
 class FullMemDisp11UImm5<bits<12> Op, string Mnemonic>
@@ -2502,6 +2528,10 @@ def LD_D_IndexShift : FullLoadPairIndexShift<0b0000001000, "ld.d">;
 def LDA_W : AVR32Pseudo<(outs GPR:$Rd), (ins ldaexpr:$Imm),
                         "lda.w\t$Rd, $Imm">;
 def LDDPC : CompactLoadBaseDisp7Shift2<0b01001, PCOnly, "lddpc">;
+def LDDPCp : AVR32Pseudo<(outs GPR:$Rd),
+                         (ins PCOnly:$Rp, simm16pcrel:$Disp),
+                         "lddpc\t$Rd, ${Rp}[$Disp]">;
+def LDDPC_PCREL16 : FullLoadPCRel16<0b01111, "lddpc">;
 def LDDPCcp : CompactLoadBasePCRel7Shift2<0b01001, PCOnly, "lddpc">;
 def LDDSP : CompactLoadBaseDisp7Shift2<0b01000, SPOnly, "lddsp">;
 def LDINS_B : FullLoadInsertByteDisp12;

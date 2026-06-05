@@ -95,6 +95,7 @@ RelExpr AVR32::getRelExpr(RelType type, const Symbol &s,
   case R_AVR32_8_PCREL:
   case R_AVR32_16_PCREL:
   case R_AVR32_32_PCREL:
+  case R_AVR32_18W_PCREL:
   case R_AVR32_22H_PCREL:
   case R_AVR32_16B_PCREL:
   case R_AVR32_11H_PCREL:
@@ -155,6 +156,7 @@ int64_t AVR32::getImplicitAddend(const uint8_t *buf, RelType type) const {
     return (read32be(buf) & 0xffff) << 16;
   case R_AVR32_LO16:
     return read32be(buf) & 0xffff;
+  case R_AVR32_18W_PCREL:
   case R_AVR32_CPCALL:
     return SignExtend64<16>(read32be(buf) & 0xffff) << 2;
   case R_AVR32_16_CP:
@@ -261,6 +263,7 @@ void AVR32::relocate(uint8_t *loc, const Relocation &rel, uint64_t val) const {
     write16be(loc, word | ((static_cast<uint16_t>(disp) & 0x7f) << 4));
     break;
   }
+  case R_AVR32_18W_PCREL:
   case R_AVR32_CPCALL: {
     int64_t pcrel = getAlignedPCRel(rel, val, 4);
     checkAlignment(ctx, loc, pcrel, 4, rel);

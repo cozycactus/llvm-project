@@ -92,6 +92,20 @@ public:
     return 0;
   }
 
+  unsigned getPCRel16BOpValue(const MCInst &MI, unsigned OpNo,
+                              SmallVectorImpl<MCFixup> &Fixups,
+                              const MCSubtargetInfo &STI) const {
+    const MCOperand &MO = MI.getOperand(OpNo);
+    if (MO.isImm())
+      return static_cast<unsigned>(MO.getImm());
+
+    assert(MO.isExpr() && "expected expression operand");
+    Fixups.push_back(MCFixup::create(
+        0, MO.getExpr(), static_cast<MCFixupKind>(AVR32::fixup_16b_pcrel),
+        /*PCRel=*/true));
+    return 0;
+  }
+
   unsigned getShifted1OpValue(const MCInst &MI, unsigned OpNo,
                               SmallVectorImpl<MCFixup> &Fixups,
                               const MCSubtargetInfo &STI) const {
