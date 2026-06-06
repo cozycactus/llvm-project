@@ -349,6 +349,72 @@ static uint64_t getConstantPoolStart(ArrayRef<uint64_t> cpOffsets,
   return *it;
 }
 
+static uint64_t getAlignPaddingBytes(ArrayRef<Relocation> rels,
+                                     const InputSection &sec, size_t index,
+                                     uint64_t align) {
+  uint64_t end = sec.content().size();
+  for (size_t i = index + 1, e = rels.size(); i != e; ++i) {
+    if (rels[i].offset == rels[index].offset && rels[i].type != R_AVR32_ALIGN)
+      return 0;
+    if (rels[i].offset > rels[index].offset) {
+      end = rels[i].offset;
+      break;
+    }
+  }
+  uint64_t limit = std::min(end - rels[index].offset, align - 1);
+  ArrayRef<uint8_t> data = sec.content().slice(rels[index].offset, limit);
+  uint64_t available = 0;
+  while (available != data.size() && data[available] == 0)
+    ++available;
+  return available;
+}
+
+static std::optional<uint64_t> getAlignForReloc(Ctx &ctx,
+                                                const Relocation &r) {
+  if (r.addend < 0 || r.addend >= 63) {
+    Err(ctx) << "invalid alignment order for " << r.type << ": " << r.addend;
+    return std::nullopt;
+  }
+  return 1ULL << r.addend;
+}
+
+static bool isWordPCRel(RelType type) {
+  switch (type) {
+  case R_AVR32_18W_PCREL:
+  case R_AVR32_9UW_PCREL:
+  case R_AVR32_CPCALL:
+  case R_AVR32_9W_CP:
+    return true;
+  default:
+    return false;
+  }
+}
+
+static bool hasWordPCRel(ArrayRef<Relocation> rels) {
+  return llvm::any_of(rels,
+                      [](const Relocation &r) { return isWordPCRel(r.type); });
+}
+
+static bool canRemoveHalfword(Ctx &ctx, const InputSection &sec,
+                              ArrayRef<Relocation> rels, size_t index,
+                              uint64_t delta, bool requireWordAlignment) {
+  for (size_t i = index + 1, e = rels.size(); i != e; ++i) {
+    const Relocation &r = rels[i];
+    if (r.type != R_AVR32_ALIGN)
+      continue;
+
+    std::optional<uint64_t> align = getAlignForReloc(ctx, r);
+    if (!align)
+      return false;
+    if (*align < 4)
+      continue;
+    uint64_t loc = sec.getVA() + r.offset - delta - 2;
+    uint64_t needed = alignTo(loc, *align) - loc;
+    return needed <= getAlignPaddingBytes(rels, sec, i, *align);
+  }
+  return !requireWordAlignment;
+}
+
 static SmallVector<char, 0>
 getRelaxableFullLddpcRelocs(Ctx &ctx, const InputSection &sec,
                             ArrayRef<Relocation> rels, const RelaxAux &aux) {
@@ -527,6 +593,7 @@ static bool relax(Ctx &ctx, InputSection &sec) {
   bool changed = false;
   ArrayRef<SymbolAnchor> sa = ArrayRef(aux.anchors);
   uint64_t delta = 0;
+  bool hasWordPCRelocs = hasWordPCRel(relocs);
 
   std::fill_n(aux.relocTypes.get(), relocs.size(), R_AVR32_NONE);
   aux.writes.clear();
@@ -535,7 +602,15 @@ static bool relax(Ctx &ctx, InputSection &sec) {
   for (auto [i, r] : llvm::enumerate(relocs)) {
     const uint64_t loc = secAddr + r.offset - delta;
     uint32_t &cur = aux.relocDeltas[i], remove = 0;
-    if (r.type == R_AVR32_22H_PCREL && r.expr == R_PC) {
+    size_t oldWritesSize = aux.writes.size();
+    if (r.type == R_AVR32_ALIGN) {
+      if (std::optional<uint64_t> align = getAlignForReloc(ctx, r)) {
+        uint64_t available = getAlignPaddingBytes(relocs, sec, i, *align);
+        uint64_t needed = alignTo(loc, *align) - loc;
+        if (needed <= available)
+          remove = available - needed;
+      }
+    } else if (r.type == R_AVR32_22H_PCREL && r.expr == R_PC) {
       uint32_t word = read32be(sec.content().data() + r.offset);
       if (isFullControlTransfer(word)) {
         uint64_t val = getRelocTargetVA(ctx, sec, relocs, aux, r, loc);
@@ -614,6 +689,13 @@ static bool relax(Ctx &ctx, InputSection &sec) {
           remove = gap;
         }
       }
+    }
+
+    if (r.type != R_AVR32_ALIGN && remove == 2 &&
+        !canRemoveHalfword(ctx, sec, relocs, i, delta, hasWordPCRelocs)) {
+      aux.relocTypes[i] = R_AVR32_NONE;
+      aux.writes.resize(oldWritesSize);
+      remove = 0;
     }
 
     for (; sa.size() && sa[0].offset <= r.offset; sa = sa.slice(1)) {

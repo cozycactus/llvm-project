@@ -30,6 +30,22 @@
 # RUN: llvm-readobj --relocations call-emit-relocs \
 # RUN:   | FileCheck %s --check-prefix=CALL-EMITREL
 
+# RUN: llvm-mc -triple=avr32 -mattr=+relax -filetype=obj align-a.s -o align-a.o
+# RUN: llvm-mc -triple=avr32 -mattr=+relax -filetype=obj align-b.s -o align-b.o
+# RUN: ld.lld align-a.o align-b.o -o align-relax
+# RUN: llvm-readobj --hex-dump=.text align-relax \
+# RUN:   | FileCheck %s --check-prefix=ALIGN
+
+# RUN: ld.lld --no-relax align-a.o align-b.o -o align-norelax
+# RUN: llvm-readobj --hex-dump=.text align-norelax \
+# RUN:   | FileCheck %s --check-prefix=ALIGN-NORELAX
+
+# RUN: llvm-mc -triple=avr32 -mattr=+relax -filetype=obj align-code-a.s -o align-code-a.o
+# RUN: llvm-mc -triple=avr32 -mattr=+relax -filetype=obj align-code-b.s -o align-code-b.o
+# RUN: ld.lld align-code-a.o align-code-b.o -o align-code
+# RUN: llvm-readobj --hex-dump=.text align-code \
+# RUN:   | FileCheck %s --check-prefix=ALIGN-CODE
+
 # RELAX:      Flags [ (0x1)
 # RELAX-NEXT:   EF_AVR32_LINKRELAX (0x1)
 # RELAX-NEXT: ]
@@ -77,6 +93,16 @@
 # CALL-EMITREL-NEXT:     0x110B4 R_AVR32_11H_PCREL target_call 0x0
 # CALL-EMITREL-NEXT:   }
 # CALL-EMITREL-NEXT: ]
+
+# ALIGN:      Hex dump of section '.text':
+# ALIGN-NEXT: 0x{{[0-9a-f]+}} c068f01f 00020000 000110c0 d703
+
+# ALIGN-NORELAX:      Hex dump of section '.text':
+# ALIGN-NORELAX-NEXT: 0x{{[0-9a-f]+}} e08f0008 f01f0002 00000000 000110c4
+# ALIGN-NORELAX-NEXT: 0x{{[0-9a-f]+}} d703
+
+# ALIGN-CODE:      Hex dump of section '.text':
+# ALIGN-CODE-NEXT: 0x{{[0-9a-f]+}} e08f0004 f8000003 d703
 
 #--- a.s
 .text
@@ -132,4 +158,39 @@ _start:
 .text
 .globl target_call
 target_call:
+  nop
+
+#--- align-a.s
+.text
+.globl _start
+_start:
+  bral target_align
+.Lcall:
+  .long 0xf01f0000
+  .reloc .Lcall, R_AVR32_CPCALL, .Lpool
+  .short 0
+  .reloc ., R_AVR32_ALIGN, 2
+  .short 0
+.Lpool:
+  .long 0
+  .reloc .Lpool, R_AVR32_32_CPENT, target_align
+
+#--- align-b.s
+.text
+.globl target_align
+target_align:
+  nop
+
+#--- align-code-a.s
+.text
+.globl _start
+_start:
+  bral target_code
+  .reloc ., R_AVR32_ALIGN, 2
+  .long 0xf8000003
+
+#--- align-code-b.s
+.text
+.globl target_code
+target_code:
   nop
