@@ -446,6 +446,9 @@ static void checkOptions(Ctx &ctx) {
       ErrAlways(ctx) << "-z zicfiss is only supported on RISC-V targets";
   }
 
+  if (ctx.arg.emachine != EM_AVR32 && ctx.arg.directData)
+    ErrAlways(ctx) << "--direct-data is only supported on AVR32 targets";
+
   if (ctx.arg.emachine != EM_386 && ctx.arg.emachine != EM_X86_64 &&
       ctx.arg.zCetReport != ReportPolicy::None)
     ErrAlways(ctx) << "-z cet-report only supported on X86 and X86_64";
@@ -1420,6 +1423,7 @@ static void readConfigs(Ctx &ctx, opt::InputArgList &args) {
   ctx.arg.dependencyFile = args.getLastArgValue(OPT_dependency_file);
   ctx.arg.dependentLibraries =
       args.hasFlag(OPT_dependent_libraries, OPT_no_dependent_libraries, true);
+  ctx.arg.directData = args.hasArg(OPT_direct_data);
   ctx.arg.disableVerify = args.hasArg(OPT_disable_verify);
   ctx.arg.discard = getDiscard(args);
   ctx.arg.dtltoDistributor = args.getLastArgValue(OPT_thinlto_distributor_eq);

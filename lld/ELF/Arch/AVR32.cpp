@@ -23,6 +23,8 @@ using namespace llvm::support::endian;
 using namespace lld;
 using namespace lld::elf;
 
+static constexpr uint32_t INTERNAL_R_AVR32_RELAX_CALL = UINT32_MAX;
+
 namespace {
 class AVR32 final : public TargetInfo {
 public:
@@ -71,6 +73,10 @@ static bool canRelaxControlTransfer(Ctx &ctx) {
   return ctx.arg.relax && (ctx.arg.eflags & EF_AVR32_LINKRELAX);
 }
 
+static bool canRelaxDirectData(Ctx &ctx) {
+  return canRelaxControlTransfer(ctx) && ctx.arg.directData;
+}
+
 static bool isFullBranch(uint32_t word) {
   return (word & 0xe1e00000) == 0xe0800000;
 }
@@ -81,6 +87,44 @@ static bool isFullCall(uint32_t word) {
 
 static bool isFullControlTransfer(uint32_t word) {
   return isFullBranch(word) || isFullCall(word);
+}
+
+static bool isMcallPC(uint32_t word) {
+  return (word & 0xffff0000) == 0xf01f0000;
+}
+
+static std::optional<uint32_t> findUniqueMcallToCPEntry(ArrayRef<uint8_t> data,
+                                                        uint64_t cpOffset) {
+  std::optional<uint32_t> found;
+  for (uint64_t offset = 0, size = std::min<uint64_t>(data.size(), cpOffset);
+       offset + 4 <= size;
+       offset += 2) {
+    uint32_t word = read32be(data.data() + offset);
+    if (!isMcallPC(word))
+      continue;
+
+    int64_t pcrel = SignExtend64<16>(word & 0xffff) << 2;
+    int64_t target = static_cast<int64_t>(offset & ~uint64_t(3)) + pcrel;
+    if (target != static_cast<int64_t>(cpOffset))
+      continue;
+    if (found)
+      return std::nullopt;
+    found = offset;
+  }
+  return found;
+}
+
+static uint32_t getDeltaBefore(ArrayRef<Relocation> rels, const RelaxAux &aux,
+                               uint64_t offset) {
+  uint32_t delta = 0;
+  for (size_t i = 0, e = rels.size(); i != e && rels[i].offset < offset; ++i)
+    delta = aux.relocDeltas[i];
+  return delta;
+}
+
+static uint64_t getRelaxedOffset(ArrayRef<Relocation> rels, const RelaxAux &aux,
+                                 uint64_t offset) {
+  return offset - getDeltaBefore(rels, aux, offset);
 }
 
 static std::optional<std::pair<RelType, uint16_t>>
@@ -243,6 +287,20 @@ static bool relax(Ctx &ctx, InputSection &sec) {
           remove = 2;
         }
       }
+    } else if (canRelaxDirectData(ctx) && r.type == R_AVR32_32_CPENT &&
+               !r.sym->isPreemptible && !r.sym->isGnuIFunc()) {
+      if (std::optional<uint32_t> callOffset =
+              findUniqueMcallToCPEntry(sec.content(), r.offset)) {
+        uint64_t callLoc =
+            secAddr + *callOffset - getDeltaBefore(relocs, aux, *callOffset);
+        uint64_t val = sec.getRelocTargetVA(ctx, r, loc);
+        int64_t pcrel = SignExtend64(val - callLoc, 32);
+        if (!(pcrel & 1) && isInt<21>(pcrel >> 1)) {
+          aux.relocTypes[i] = INTERNAL_R_AVR32_RELAX_CALL;
+          aux.writes.push_back(*callOffset);
+          remove = 4;
+        }
+      }
     }
 
     for (; sa.size() && sa[0].offset <= r.offset; sa = sa.slice(1)) {
@@ -311,11 +369,28 @@ void AVR32::finalizeRelax(int passes) const {
 
       ArrayRef<uint8_t> old = sec->content();
       size_t newSize = old.size() - aux.relocDeltas[rels.size() - 1];
+      SmallVector<uint32_t, 0> relaxedCallOffsets(rels.size(), UINT32_MAX);
+      size_t writesScanIdx = 0;
+      for (size_t i = 0, e = rels.size(); i != e; ++i) {
+        switch (aux.relocTypes[i].v) {
+        case R_AVR32_11H_PCREL:
+        case R_AVR32_9H_PCREL:
+          ++writesScanIdx;
+          break;
+        case INTERNAL_R_AVR32_RELAX_CALL:
+          relaxedCallOffsets[i] =
+              getRelaxedOffset(rels, aux, aux.writes[writesScanIdx++]);
+          break;
+        default:
+          break;
+        }
+      }
       size_t writesIdx = 0;
-      uint8_t *p = ctx.bAlloc.Allocate<uint8_t>(newSize);
+      uint8_t *newContent = ctx.bAlloc.Allocate<uint8_t>(newSize);
+      uint8_t *p = newContent;
       uint64_t offset = 0;
       int64_t delta = 0;
-      sec->content_ = p;
+      sec->content_ = newContent;
       sec->size = newSize;
       sec->bytesDropped = 0;
 
@@ -332,11 +407,14 @@ void AVR32::finalizeRelax(int passes) const {
 
         int64_t skip = 0;
         if (RelType newType = aux.relocTypes[i]) {
-          switch (newType) {
+          switch (newType.v) {
           case R_AVR32_11H_PCREL:
           case R_AVR32_9H_PCREL:
             skip = 2;
             write16be(p, aux.writes[writesIdx++]);
+            break;
+          case INTERNAL_R_AVR32_RELAX_CALL:
+            ++writesIdx;
             break;
           default:
             llvm_unreachable("unsupported type");
@@ -348,13 +426,23 @@ void AVR32::finalizeRelax(int passes) const {
       }
       memcpy(p, old.data() + offset, old.size() - offset);
 
+      for (uint32_t callOffset : relaxedCallOffsets)
+        if (callOffset != UINT32_MAX)
+          write32be(newContent + callOffset, 0xe0a00000);
+
       delta = 0;
       for (size_t i = 0, e = rels.size(); i != e;) {
         uint64_t cur = rels[i].offset;
         do {
-          rels[i].offset -= delta;
-          if (aux.relocTypes[i] != R_AVR32_NONE)
-            rels[i].type = aux.relocTypes[i];
+          if (relaxedCallOffsets[i] != UINT32_MAX) {
+            rels[i].expr = R_PC;
+            rels[i].offset = relaxedCallOffsets[i];
+            rels[i].type = R_AVR32_22H_PCREL;
+          } else {
+            rels[i].offset -= delta;
+            if (aux.relocTypes[i] != R_AVR32_NONE)
+              rels[i].type = aux.relocTypes[i];
+          }
         } while (++i != e && rels[i].offset == cur);
         delta = aux.relocDeltas[i - 1];
       }

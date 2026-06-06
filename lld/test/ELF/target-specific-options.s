@@ -13,6 +13,9 @@
 # RUN: not ld.lld %t --toc-optimize -o /dev/null 2>&1 | FileCheck %s --check-prefix=ERR-TOC
 # ERR-TOC: error: --toc-optimize is only supported on PowerPC64 targets
 
+# RUN: not ld.lld %t --direct-data -o /dev/null 2>&1 | FileCheck %s --check-prefix=ERR-AVR32
+# ERR-AVR32: error: --direct-data is only supported on AVR32 targets
+
 # RUN: not ld.lld %t -z execute-only-report=warning -o /dev/null 2>&1 | \
 # RUN:     FileCheck %s --check-prefix=ERR-EXECUTE-ONLY
 # RUN: not ld.lld %t -z execute-only-report=error -o /dev/null 2>&1 | \

@@ -6,7 +6,6 @@ RUN:   --no-add-needed \
 RUN:   -no-copy-dt-needed-entries \
 RUN:   -no-ctors-in-init-array \
 RUN:   -no-keep-memory \
-RUN:   --direct-data \
 RUN:   --no-relax \
 RUN:   -no-warn-mismatch \
 RUN:   -rpath-link . \

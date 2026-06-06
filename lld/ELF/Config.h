@@ -320,6 +320,7 @@ struct Config {
   bool debugNames;
   bool demangle = true;
   bool dependentLibraries;
+  bool directData;
   bool disableVerify;
   bool ehFrameHdr;
   bool emitLLVM;
