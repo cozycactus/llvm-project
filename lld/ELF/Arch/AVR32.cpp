@@ -7,10 +7,14 @@
 //===----------------------------------------------------------------------===//
 
 #include "InputFiles.h"
+#include "OutputSections.h"
 #include "Symbols.h"
 #include "Target.h"
 #include "llvm/BinaryFormat/ELF.h"
 #include "llvm/Support/Endian.h"
+#include "llvm/Support/TimeProfiler.h"
+#include <algorithm>
+#include <cstring>
 
 using namespace llvm;
 using namespace llvm::ELF;
@@ -33,6 +37,8 @@ public:
   RelExpr getRelExpr(RelType type, const Symbol &s,
                      const uint8_t *loc) const override;
   int64_t getImplicitAddend(const uint8_t *buf, RelType type) const override;
+  bool relaxOnce(int pass) const override;
+  void finalizeRelax(int passes) const override;
   void relocate(uint8_t *loc, const Relocation &rel,
                 uint64_t val) const override;
 };
@@ -59,6 +65,34 @@ static int64_t getAlignedPCRel(const Relocation &rel, uint64_t val,
 
 static uint32_t getEFlags(InputFile *file) {
   return cast<ObjFile<ELF32BE>>(file)->getObj().getHeader().e_flags;
+}
+
+static bool canRelaxBranches(Ctx &ctx) {
+  return ctx.arg.relax && (ctx.arg.eflags & EF_AVR32_LINKRELAX);
+}
+
+static bool isFullBranch(uint32_t word) {
+  return (word & 0xe1e00000) == 0xe0800000;
+}
+
+static std::optional<std::pair<RelType, uint16_t>>
+getRelaxedBranch(uint32_t word, int64_t pcrel) {
+  if (pcrel & 1)
+    return std::nullopt;
+
+  int64_t disp = pcrel >> 1;
+  uint32_t cond = (word >> 16) & 0xf;
+  if (cond == 0xf) {
+    if (isInt<10>(disp))
+      return std::make_pair(R_AVR32_11H_PCREL, static_cast<uint16_t>(0xc008));
+    return std::nullopt;
+  }
+
+  if (cond <= 7 && isInt<8>(disp))
+    return std::make_pair(R_AVR32_9H_PCREL,
+                          static_cast<uint16_t>(0xc000 | cond));
+
+  return std::nullopt;
 }
 
 uint32_t AVR32::calcEFlags() const {
@@ -165,6 +199,149 @@ int64_t AVR32::getImplicitAddend(const uint8_t *buf, RelType type) const {
     return ((read16be(buf) & 0x07f0) >> 4) << 2;
   default:
     return TargetInfo::getImplicitAddend(buf, type);
+  }
+}
+
+static bool relax(Ctx &ctx, InputSection &sec) {
+  const uint64_t secAddr = sec.getVA();
+  const MutableArrayRef<Relocation> relocs = sec.relocs();
+  auto &aux = *sec.relaxAux;
+  bool changed = false;
+  ArrayRef<SymbolAnchor> sa = ArrayRef(aux.anchors);
+  uint64_t delta = 0;
+
+  std::fill_n(aux.relocTypes.get(), relocs.size(), R_AVR32_NONE);
+  aux.writes.clear();
+  for (auto [i, r] : llvm::enumerate(relocs)) {
+    const uint64_t loc = secAddr + r.offset - delta;
+    uint32_t &cur = aux.relocDeltas[i], remove = 0;
+    if (r.type == R_AVR32_22H_PCREL && r.expr == R_PC) {
+      uint32_t word = read32be(sec.content().data() + r.offset);
+      if (isFullBranch(word)) {
+        uint64_t val = sec.getRelocTargetVA(ctx, r, loc);
+        int64_t pcrel = getAlignedPCRel(r, SignExtend64(val, 32), 2);
+        if (auto relaxed = getRelaxedBranch(word, pcrel)) {
+          aux.relocTypes[i] = relaxed->first;
+          aux.writes.push_back(relaxed->second);
+          remove = 2;
+        }
+      }
+    }
+
+    for (; sa.size() && sa[0].offset <= r.offset; sa = sa.slice(1)) {
+      if (sa[0].end)
+        sa[0].d->size = sa[0].offset - delta - sa[0].d->value;
+      else
+        sa[0].d->value = sa[0].offset - delta;
+    }
+    delta += remove;
+    if (delta != cur) {
+      cur = delta;
+      changed = true;
+    }
+  }
+
+  for (const SymbolAnchor &a : sa) {
+    if (a.end)
+      a.d->size = a.offset - delta - a.d->value;
+    else
+      a.d->value = a.offset - delta;
+  }
+  if (!isUInt<32>(delta))
+    Err(ctx) << "section size decrease is too large: " << delta;
+  sec.bytesDropped = delta;
+  return changed;
+}
+
+bool AVR32::relaxOnce(int pass) const {
+  if (!canRelaxBranches(ctx))
+    return false;
+
+  llvm::TimeTraceScope timeScope("AVR32 relaxOnce");
+  if (pass == 0)
+    initSymbolAnchors(ctx);
+
+  SmallVector<InputSection *, 0> storage;
+  bool changed = false;
+  for (OutputSection *osec : ctx.outputSections) {
+    if (!(osec->flags & SHF_EXECINSTR))
+      continue;
+    for (InputSection *sec : getInputSections(*osec, storage))
+      if (sec->relaxAux && sec->relaxAux->relocDeltas)
+        changed |= relax(ctx, *sec);
+  }
+  return changed;
+}
+
+void AVR32::finalizeRelax(int passes) const {
+  if (!canRelaxBranches(ctx))
+    return;
+
+  llvm::TimeTraceScope timeScope("Finalize AVR32 relaxation");
+  Log(ctx) << "relaxation passes: " << passes;
+  SmallVector<InputSection *, 0> storage;
+  for (OutputSection *osec : ctx.outputSections) {
+    if (!(osec->flags & SHF_EXECINSTR))
+      continue;
+    for (InputSection *sec : getInputSections(*osec, storage)) {
+      if (!sec->relaxAux || !sec->relaxAux->relocDeltas)
+        continue;
+
+      RelaxAux &aux = *sec->relaxAux;
+      MutableArrayRef<Relocation> rels = sec->relocs();
+      if (aux.relocDeltas[rels.size() - 1] == 0 && aux.writes.empty())
+        continue;
+
+      ArrayRef<uint8_t> old = sec->content();
+      size_t newSize = old.size() - aux.relocDeltas[rels.size() - 1];
+      size_t writesIdx = 0;
+      uint8_t *p = ctx.bAlloc.Allocate<uint8_t>(newSize);
+      uint64_t offset = 0;
+      int64_t delta = 0;
+      sec->content_ = p;
+      sec->size = newSize;
+      sec->bytesDropped = 0;
+
+      for (size_t i = 0, e = rels.size(); i != e; ++i) {
+        uint32_t remove = aux.relocDeltas[i] - delta;
+        delta = aux.relocDeltas[i];
+        if (remove == 0 && aux.relocTypes[i] == R_AVR32_NONE)
+          continue;
+
+        const Relocation &r = rels[i];
+        uint64_t size = r.offset - offset;
+        memcpy(p, old.data() + offset, size);
+        p += size;
+
+        int64_t skip = 0;
+        if (RelType newType = aux.relocTypes[i]) {
+          switch (newType) {
+          case R_AVR32_11H_PCREL:
+          case R_AVR32_9H_PCREL:
+            skip = 2;
+            write16be(p, aux.writes[writesIdx++]);
+            break;
+          default:
+            llvm_unreachable("unsupported type");
+          }
+        }
+
+        p += skip;
+        offset = r.offset + skip + remove;
+      }
+      memcpy(p, old.data() + offset, old.size() - offset);
+
+      delta = 0;
+      for (size_t i = 0, e = rels.size(); i != e;) {
+        uint64_t cur = rels[i].offset;
+        do {
+          rels[i].offset -= delta;
+          if (aux.relocTypes[i] != R_AVR32_NONE)
+            rels[i].type = aux.relocTypes[i];
+        } while (++i != e && rels[i].offset == cur);
+        delta = aux.relocDeltas[i - 1];
+      }
+    }
   }
 }
 
