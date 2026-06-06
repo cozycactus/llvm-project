@@ -3996,9 +3996,9 @@ def : Pat<(sra GPR:$LHS, GPR:$RHS), (ASRrrr GPR:$LHS, GPR:$RHS)>;
 def : Pat<(and (srl GPR:$Src, uimm5:$Bp), bfext_mask:$Width),
           (BFEXTU GPR:$Src, uimm5:$Bp, bfext_mask:$Width)>;
 def : Pat<(ctlz GPR:$Src), (CLZrr GPR:$Src)>;
-def : Pat<(ctlz_zero_poison GPR:$Src), (CLZrr GPR:$Src)>;
+def : Pat<(ctlz_zero_undef GPR:$Src), (CLZrr GPR:$Src)>;
 def : Pat<(cttz GPR:$Src), (CLZrr (BREVcg GPR:$Src))>;
-def : Pat<(cttz_zero_poison GPR:$Src), (CLZrr (BREVcg GPR:$Src))>;
+def : Pat<(cttz_zero_undef GPR:$Src), (CLZrr (BREVcg GPR:$Src))>;
 def : Pat<(mul GPR:$LHS, GPR:$RHS), (MULrrr GPR:$LHS, GPR:$RHS)>;
 def : Pat<(sdiv GPR:$LHS, GPR:$RHS), (DIVSrrr GPR:$LHS, GPR:$RHS)>;
 def : Pat<(udiv GPR:$LHS, GPR:$RHS), (DIVUrrr GPR:$LHS, GPR:$RHS)>;

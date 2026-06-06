@@ -21,6 +21,7 @@
 #include "llvm/MC/MCStreamer.h"
 #include "llvm/MC/MCSubtargetInfo.h"
 #include "llvm/MC/TargetRegistry.h"
+#include "llvm/Support/Casting.h"
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/MathExtras.h"
@@ -567,8 +568,8 @@ class AVR32AsmParser : public MCTargetAsmParser {
 
 public:
   AVR32AsmParser(const MCSubtargetInfo &STI, MCAsmParser &Parser,
-                 const MCInstrInfo &MII)
-      : MCTargetAsmParser(STI, MII), Parser(Parser) {
+                 const MCInstrInfo &MII, const MCTargetOptions &Options)
+      : MCTargetAsmParser(Options, STI, MII), Parser(Parser) {
     MCAsmParserExtension::Initialize(Parser);
     setAvailableFeatures(ComputeAvailableFeatures(STI.getFeatureBits()));
   }

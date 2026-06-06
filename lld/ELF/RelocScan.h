@@ -87,8 +87,10 @@ void RelocScan::scan(typename Relocs<RelTy>::const_iterator &it, RelType type,
   RelExpr expr =
       ctx.target->getRelExpr(type, sym, sec->content().data() + offset);
 
-  // Ignore R_*_NONE and other marker relocations.
-  if (expr == R_NONE)
+  // Ignore R_*_NONE and other marker relocations. AVR32 uses R_AVR32_ALIGN as
+  // a relaxation marker that the target relaxer must see.
+  if (expr == R_NONE &&
+      !(ctx.arg.emachine == EM_AVR32 && type == R_AVR32_ALIGN))
     return;
 
   // Error if the target symbol is undefined. Symbol index 0 may be used by
