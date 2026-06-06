@@ -24,6 +24,7 @@ using namespace lld;
 using namespace lld::elf;
 
 static constexpr uint32_t INTERNAL_R_AVR32_RELAX_CALL = UINT32_MAX;
+static constexpr uint32_t INTERNAL_R_AVR32_RELAX_LDDPC_MOV = UINT32_MAX - 1;
 
 namespace {
 class AVR32 final : public TargetInfo {
@@ -93,6 +94,8 @@ static bool isMcallPC(uint32_t word) {
   return (word & 0xffff0000) == 0xf01f0000;
 }
 
+static bool isCompactLddpc(uint16_t word) { return (word & 0xf800) == 0x4800; }
+
 static std::optional<uint32_t> findUniqueMcallToCPEntry(ArrayRef<uint8_t> data,
                                                         uint64_t cpOffset) {
   std::optional<uint32_t> found;
@@ -112,6 +115,39 @@ static std::optional<uint32_t> findUniqueMcallToCPEntry(ArrayRef<uint8_t> data,
     found = offset;
   }
   return found;
+}
+
+static std::optional<uint32_t> findUniqueLddpcToCPEntry(ArrayRef<uint8_t> data,
+                                                        uint64_t cpOffset) {
+  std::optional<uint32_t> found;
+  for (uint64_t offset = 0, size = std::min<uint64_t>(data.size(), cpOffset);
+       offset + 2 <= size; offset += 2) {
+    uint16_t word = read16be(data.data() + offset);
+    if (!isCompactLddpc(word))
+      continue;
+
+    int64_t pcrel = ((word & 0x07f0) >> 4) << 2;
+    int64_t target = static_cast<int64_t>(offset & ~uint64_t(3)) + pcrel;
+    if (target != static_cast<int64_t>(cpOffset))
+      continue;
+    if (found)
+      return std::nullopt;
+    found = offset;
+  }
+  return found;
+}
+
+static uint32_t getMovri21Base(uint16_t lddpc) {
+  uint32_t rd = lddpc & 0xf;
+  return 0xe0600000 | (rd << 16);
+}
+
+static bool hasSymbolAnchorInRange(ArrayRef<SymbolAnchor> anchors,
+                                   uint64_t begin, uint64_t end) {
+  for (const SymbolAnchor &a : anchors)
+    if (begin <= a.offset && a.offset < end)
+      return true;
+  return false;
 }
 
 static uint32_t getDeltaBefore(ArrayRef<Relocation> rels, const RelaxAux &aux,
@@ -300,6 +336,26 @@ static bool relax(Ctx &ctx, InputSection &sec) {
           aux.writes.push_back(*callOffset);
           remove = 4;
         }
+      } else if (std::optional<uint32_t> loadOffset =
+                     findUniqueLddpcToCPEntry(sec.content(), r.offset)) {
+        // The load is 2 bytes and the pool entry is 4 bytes. Replacing the
+        // load plus immediately following pool bytes with a 4-byte mov is
+        // layout-local; wider cases would require inserting bytes before
+        // arbitrary code, which this relaxation pass does not model.
+        uint32_t gap = r.offset - *loadOffset;
+        bool poolFollowsLoad =
+            gap == 2 ||
+            (gap == 4 &&
+             read16be(sec.content().data() + *loadOffset + 2) == 0 &&
+             !hasSymbolAnchorInRange(aux.anchors, *loadOffset + 2, r.offset));
+        uint64_t val = sec.getRelocTargetVA(ctx, r, loc);
+        if (poolFollowsLoad && isInt<21>(SignExtend64(val, 32))) {
+          aux.relocTypes[i] = INTERNAL_R_AVR32_RELAX_LDDPC_MOV;
+          aux.writes.push_back(*loadOffset);
+          aux.writes.push_back(
+              getMovri21Base(read16be(sec.content().data() + *loadOffset)));
+          remove = gap;
+        }
       }
     }
 
@@ -370,6 +426,7 @@ void AVR32::finalizeRelax(int passes) const {
       ArrayRef<uint8_t> old = sec->content();
       size_t newSize = old.size() - aux.relocDeltas[rels.size() - 1];
       SmallVector<uint32_t, 0> relaxedCallOffsets(rels.size(), UINT32_MAX);
+      SmallVector<uint32_t, 0> relaxedLoadOffsets(rels.size(), UINT32_MAX);
       size_t writesScanIdx = 0;
       for (size_t i = 0, e = rels.size(); i != e; ++i) {
         switch (aux.relocTypes[i].v) {
@@ -380,6 +437,11 @@ void AVR32::finalizeRelax(int passes) const {
         case INTERNAL_R_AVR32_RELAX_CALL:
           relaxedCallOffsets[i] =
               getRelaxedOffset(rels, aux, aux.writes[writesScanIdx++]);
+          break;
+        case INTERNAL_R_AVR32_RELAX_LDDPC_MOV:
+          relaxedLoadOffsets[i] =
+              getRelaxedOffset(rels, aux, aux.writes[writesScanIdx]);
+          writesScanIdx += 2;
           break;
         default:
           break;
@@ -401,6 +463,19 @@ void AVR32::finalizeRelax(int passes) const {
           continue;
 
         const Relocation &r = rels[i];
+        if (aux.relocTypes[i] == INTERNAL_R_AVR32_RELAX_LDDPC_MOV) {
+          uint32_t loadOffset = aux.writes[writesIdx++];
+          uint32_t mov = aux.writes[writesIdx++];
+          assert(loadOffset >= offset && "overlapping AVR32 relaxation");
+          uint64_t size = loadOffset - offset;
+          memcpy(p, old.data() + offset, size);
+          p += size;
+          write32be(p, mov);
+          p += 4;
+          offset = r.offset + 4;
+          continue;
+        }
+
         uint64_t size = r.offset - offset;
         memcpy(p, old.data() + offset, size);
         p += size;
@@ -438,6 +513,10 @@ void AVR32::finalizeRelax(int passes) const {
             rels[i].expr = R_PC;
             rels[i].offset = relaxedCallOffsets[i];
             rels[i].type = R_AVR32_22H_PCREL;
+          } else if (relaxedLoadOffsets[i] != UINT32_MAX) {
+            rels[i].expr = R_ABS;
+            rels[i].offset = relaxedLoadOffsets[i];
+            rels[i].type = R_AVR32_21S;
           } else {
             rels[i].offset -= delta;
             if (aux.relocTypes[i] != R_AVR32_NONE)
