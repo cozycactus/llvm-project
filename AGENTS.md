@@ -75,8 +75,7 @@ Use this subset after AVR32 target, Clang, MC, object, or lld changes:
   lld/test/ELF/avr32-lddpc-relax.s
 ```
 
-Last known result for this subset: 43/43 passed after the `popm` return-value
-change.
+Last known result for this subset: 43/43 passed after the LLVM 22.1.7 sync.
 
 ## AVR32 Code Map
 
@@ -138,8 +137,10 @@ find "$HOME" -maxdepth 4 -type d -name sdr-widget 2>/dev/null
 The board docs/reference checkout under Downloads is documentation-heavy. Prefer
 a source checkout with `Release/src/subdir.mk` for compile and size comparisons.
 
-Use `Release/src/subdir.mk` as the source of truth for the SDR-widget source
-list and include paths. Avoid reconstructing include flags by memory.
+Use `Release/src/subdir.mk` as the source of truth for top-level SDR-widget C
+compile checks and include paths. For full `Release/widget.elf` comparisons,
+use all `Release/**/subdir.mk` files included by `Release/makefile`; the current
+generated full graph has 74 objects from 23 `subdir.mk` files.
 
 For GCC-compatible SDR-widget comparisons, include GNU89 inline semantics:
 
@@ -170,6 +171,26 @@ Current practical compile reference:
   - GCC flash (`.text + .rodata + .data`): 20,128 bytes
   - LLVM flash (`.text + .rodata + .data`): 17,134 bytes
   - LLVM delta: -2,994 bytes (-14.9%)
+- Current clean full generated `Release` graph after the LLVM 22.1.7 sync
+  (SDR-widget branch `sdr-widget` at `bdfb13e9`; flash is `.text + .rodata +
+  .data`, excludes `.reset`, `.exception`, `.userpage`, `.stack`, and debug):
+  - GCC Os: flash 111,590; `.text` 99,662; `.exception` 512; `.rodata` 10,256; `.data` 1,672; `.bss` 22,176
+  - GCC O2: flash 115,718; `.text` 103,346; `.exception` 512; `.rodata` 10,700; `.data` 1,672; `.bss` 22,176
+  - LLVM Oz/lld: flash 116,612; `.text` 106,060; `.exception` 372; `.rodata` 8,888; `.data` 1,664; `.bss` 22,048
+  - LLVM O2/lld: flash 128,100; `.text` 117,560; `.exception` 372; `.rodata` 8,876; `.data` 1,664; `.bss` 22,040
+  - All four builds used 74 objects and `/Users/ruslanmigirov/cozycactus/sdr-widget/Release/src/newlib_compat.o`.
+  - In temporary makefile-wrapper builds, use `make all` explicitly; bare `make`
+    may select an included dependency target before `all`.
+  - Clang wrapper details used for this comparison: pass `--target=avr32
+    --sysroot=/Users/ruslanmigirov/avr32-tools-src/avr32`, rewrite the makefile
+    `-O2` to the requested LLVM opt level, add `-std=gnu89 -fcommon
+    -Wno-expansion-to-defined` for C compiles, drop assembler-only `-Wa,-g`,
+    and add `-mrelax` for links.
+  - Matched project objects explain +3,115 bytes of LLVM Oz vs GCC Os flash
+    delta: LLVM objects flash 87,128 vs GCC objects flash 84,013. Runtime/libc
+    and final link selection explain the remaining roughly +1.9 KB.
+  - Largest current object flash deltas, LLVM Oz minus GCC Os: `taskPushButtonMenu.o` +468, `taskMoboCtrl.o` +410, `tasks.o` +385, `DG8SAQ_cmd.o` +382, `taskLCD.o` +355, `uac2_usb_specific_request.o` -346, `gpio.o` +328, `uac2_device_audio_task.o` +328, `tc.o` -304, `twim_patched.o` +284.
+  - Largest current final text symbol deltas, LLVM Oz minus GCC Os: `dg8saqFunctionSetup` +520, `vtaskLCD` +452, `uac2_device_audio_task` +316, `uac2_user_read_request` -296, `vtaskMoboCtrl` +264, `menu_level0` +248, `pcf8574_menu` +212, `i2c_menu` +204.
 - Current full SDR-widget link reference after the `popm` return-value change
   (`.text + .rodata + .data`; current local artifacts):
   - LLVM Oz/lld: flash 107,964; `.text` 97,376; `.exception` 356; `.rodata` 8,924; `.data` 1,664; `.bss` 22,040
