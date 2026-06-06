@@ -206,6 +206,33 @@ SDValue AVR32TargetLowering::LowerOperation(SDValue Op,
                      DAG.getConstant(TargetCC, DL, MVT::i32), Flag);
 }
 
+static unsigned getMoveImmOpcodeForCC(AVR32CC::CondCodes CC) {
+  switch (CC) {
+  default:
+    return 0;
+  case AVR32CC::COND_EQ:
+    return AVR32::MOVEQriCG;
+  case AVR32CC::COND_NE:
+    return AVR32::MOVNEriCG;
+  case AVR32CC::COND_CC:
+    return AVR32::MOVCCriCG;
+  case AVR32CC::COND_CS:
+    return AVR32::MOVCSriCG;
+  case AVR32CC::COND_GE:
+    return AVR32::MOVGEriCG;
+  case AVR32CC::COND_LT:
+    return AVR32::MOVLTriCG;
+  case AVR32CC::COND_LS:
+    return AVR32::MOVLSriCG;
+  case AVR32CC::COND_GT:
+    return AVR32::MOVGTriCG;
+  case AVR32CC::COND_LE:
+    return AVR32::MOVLEriCG;
+  case AVR32CC::COND_HI:
+    return AVR32::MOVHIriCG;
+  }
+}
+
 static unsigned getBranchOpcodeForCC(AVR32CC::CondCodes CC) {
   switch (CC) {
   default:
@@ -233,30 +260,30 @@ static unsigned getBranchOpcodeForCC(AVR32CC::CondCodes CC) {
   }
 }
 
-static unsigned getMoveImmOpcodeForCC(AVR32CC::CondCodes CC) {
+static unsigned getMoveRegOpcodeForCC(AVR32CC::CondCodes CC) {
   switch (CC) {
   default:
     return 0;
   case AVR32CC::COND_EQ:
-    return AVR32::MOVEQriCG;
+    return AVR32::MOVEQrrCG;
   case AVR32CC::COND_NE:
-    return AVR32::MOVNEriCG;
+    return AVR32::MOVNErrCG;
   case AVR32CC::COND_CC:
-    return AVR32::MOVCCriCG;
+    return AVR32::MOVCCrrCG;
   case AVR32CC::COND_CS:
-    return AVR32::MOVCSriCG;
+    return AVR32::MOVCSrrCG;
   case AVR32CC::COND_GE:
-    return AVR32::MOVGEriCG;
+    return AVR32::MOVGErrCG;
   case AVR32CC::COND_LT:
-    return AVR32::MOVLTriCG;
+    return AVR32::MOVLTrrCG;
   case AVR32CC::COND_LS:
-    return AVR32::MOVLSriCG;
+    return AVR32::MOVLSrrCG;
   case AVR32CC::COND_GT:
-    return AVR32::MOVGTriCG;
+    return AVR32::MOVGTrrCG;
   case AVR32CC::COND_LE:
-    return AVR32::MOVLEriCG;
+    return AVR32::MOVLErrCG;
   case AVR32CC::COND_HI:
-    return AVR32::MOVHIriCG;
+    return AVR32::MOVHIrrCG;
   }
 }
 
@@ -286,6 +313,23 @@ MachineBasicBlock *AVR32TargetLowering::EmitInstrWithCustomInserter(
     BuildMI(*BB, MI, DL, TII.get(AVR32::CPrr)).addReg(LHS).addReg(RHS);
     BuildMI(*BB, MI, DL, TII.get(AVR32::MOVri21), FalseReg).addImm(0);
     BuildMI(*BB, MI, DL, TII.get(MovOpc), Dst).addReg(FalseReg).addImm(1);
+    MI.eraseFromParent();
+    return BB;
+  }
+
+  // AVR32 compact branches are often smaller than full conditional moves after
+  // relaxation, especially when register allocation needs an extra copy.
+  if (!MF->getFunction().hasOptSize() && !MF->getFunction().hasMinSize()) {
+    unsigned MovOpc = getMoveRegOpcodeForCC(CC);
+    if (!MovOpc)
+      report_fatal_error("AVR32 condition code is not implemented yet");
+
+    Register TrueReg = MI.getOperand(3).getReg();
+    Register FalseReg = MI.getOperand(4).getReg();
+    BuildMI(*BB, MI, DL, TII.get(AVR32::CPrr)).addReg(LHS).addReg(RHS);
+    BuildMI(*BB, MI, DL, TII.get(MovOpc), Dst)
+        .addReg(FalseReg)
+        .addReg(TrueReg);
     MI.eraseFromParent();
     return BB;
   }

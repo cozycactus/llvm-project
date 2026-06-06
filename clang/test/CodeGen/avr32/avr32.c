@@ -631,7 +631,9 @@ __attribute__((optnone, noinline)) int pick(int a, int b) {
 // ASM: popm r0-r3, pc
 
 // ASM-LABEL: shift_arith64:
-// ASM: ret r12
+// ASM: movcs
+// ASM: moveq
+// ASM: popm r0-r3, pc
 
 // ASM-LABEL: sign_byte:
 // ASM: lsl
@@ -692,12 +694,12 @@ __attribute__((optnone, noinline)) int pick(int a, int b) {
 // ASM-LABEL: choose_lt:
 // ASM: mov {{r[0-9]+}}, 7
 // ASM: cp r12, {{r[0-9]+}}
-// ASM: brcs
+// ASM: movcs
 // ASM: ret r12
 
 // ASM-LABEL: choose_nonzero:
 // ASM: cp r12
-// ASM: br{{eq|ne}}
+// ASM: moveq
 // ASM: ret r12
 
 // ASM-LABEL: clear_n:
