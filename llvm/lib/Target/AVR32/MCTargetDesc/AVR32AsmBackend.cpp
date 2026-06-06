@@ -15,6 +15,7 @@
 #include "llvm/MC/MCELFObjectWriter.h"
 #include "llvm/MC/MCFixup.h"
 #include "llvm/MC/MCObjectWriter.h"
+#include "llvm/MC/MCSubtargetInfo.h"
 #include "llvm/MC/MCValue.h"
 #include "llvm/Support/Endian.h"
 #include "llvm/Support/ErrorHandling.h"
@@ -26,8 +27,12 @@ using namespace llvm;
 namespace {
 
 class AVR32AsmBackend : public MCAsmBackend {
+  bool LinkRelax;
+
 public:
-  AVR32AsmBackend() : MCAsmBackend(llvm::endianness::big) {}
+  AVR32AsmBackend(const MCSubtargetInfo &STI)
+      : MCAsmBackend(llvm::endianness::big),
+        LinkRelax(STI.hasFeature(AVR32::FeatureRelax)) {}
 
   std::unique_ptr<MCObjectTargetWriter>
   createObjectTargetWriter() const override {
@@ -47,6 +52,9 @@ public:
   void applyFixup(const MCFragment &F, const MCFixup &Fixup,
                   const MCValue &Target, uint8_t *Data, uint64_t Value,
                   bool IsResolved) override {
+    if (IsResolved &&
+        Fixup.getKind() == static_cast<MCFixupKind>(AVR32::fixup_16b_pcrel))
+      IsResolved = !LinkRelax;
     maybeAddReloc(F, Fixup, Target, Value, IsResolved);
     if (!Value)
       return;
@@ -212,14 +220,10 @@ public:
 
   MCFixupKindInfo getFixupKindInfo(MCFixupKind Kind) const override {
     static const MCFixupKindInfo Infos[AVR32::NumTargetFixupKinds] = {
-        {"fixup_22h_pcrel", 0, 32, 0},
-        {"fixup_9h_pcrel", 0, 16, 0},
-        {"fixup_11h_pcrel", 0, 16, 0},
-        {"fixup_7w_pcrel", 0, 16, 0},
-        {"fixup_16w_pcrel", 0, 32, 0},
-        {"fixup_16b_pcrel", 0, 32, 0},
-        {"fixup_21s", 0, 32, 0},
-        {"fixup_hi16", 0, 16, 0},
+        {"fixup_22h_pcrel", 0, 32, 0}, {"fixup_9h_pcrel", 0, 16, 0},
+        {"fixup_11h_pcrel", 0, 16, 0}, {"fixup_7w_pcrel", 0, 16, 0},
+        {"fixup_16w_pcrel", 0, 32, 0}, {"fixup_16b_pcrel", 0, 32, 0},
+        {"fixup_21s", 0, 32, 0},       {"fixup_hi16", 0, 16, 0},
         {"fixup_lo16", 0, 16, 0},
     };
 
@@ -257,8 +261,8 @@ public:
 } // end anonymous namespace
 
 MCAsmBackend *llvm::createAVR32MCAsmBackend(const Target &,
-                                            const MCSubtargetInfo &,
+                                            const MCSubtargetInfo &STI,
                                             const MCRegisterInfo &,
                                             const MCTargetOptions &) {
-  return new AVR32AsmBackend();
+  return new AVR32AsmBackend(STI);
 }

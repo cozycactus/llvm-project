@@ -1,0 +1,69 @@
+# RUN: rm -rf %t && split-file %s %t && cd %t
+
+# RUN: llvm-mc -triple=avr32 -mattr=+relax -filetype=obj single.s -o single.o
+# RUN: ld.lld single.o -o single
+# RUN: llvm-readobj --hex-dump=.text single | FileCheck %s --check-prefix=SINGLE
+# RUN: ld.lld --direct-data --emit-relocs single.o -o single-direct
+# RUN: llvm-readobj --relocations --hex-dump=.text single-direct \
+# RUN:   | FileCheck %s --check-prefix=DIRECT
+
+# RUN: llvm-mc -triple=avr32 -mattr=+relax -filetype=obj pair.s -o pair.o
+# RUN: ld.lld pair.o -o pair
+# RUN: llvm-readobj --hex-dump=.text pair | FileCheck %s --check-prefix=PAIR
+# RUN: ld.lld --emit-relocs pair.o -o pair-emit
+# RUN: llvm-readobj --relocations --hex-dump=.text pair-emit \
+# RUN:   | FileCheck %s --check-prefix=PAIR-EMIT
+# RUN: ld.lld --no-relax pair.o -o pair-norelax
+# RUN: llvm-readobj --hex-dump=.text pair-norelax \
+# RUN:   | FileCheck %s --check-prefix=PAIR-NORELAX
+
+# SINGLE:      Hex dump of section '.text':
+# SINGLE-NEXT: 0x{{[0-9a-f]+}} fef80004 000110bc d703
+
+# DIRECT:      Relocations [
+# DIRECT-NEXT:   Section ({{.*}}) .rela.text {
+# DIRECT-NEXT:     0x110B4 R_AVR32_21S target 0x0
+# DIRECT-NEXT:     0x0 R_AVR32_NONE - 0x0
+# DIRECT-NEXT:   }
+# DIRECT-NEXT: ]
+# DIRECT:      Hex dump of section '.text':
+# DIRECT-NEXT: 0x{{[0-9a-f]+}} e07810b8 d703
+
+# PAIR:      Hex dump of section '.text':
+# PAIR-NEXT: 0x{{[0-9a-f]+}} 48184819 000110bc d703
+
+# PAIR-EMIT:      Relocations [
+# PAIR-EMIT-NEXT:   Section ({{.*}}) .rela.text {
+# PAIR-EMIT-NEXT:     0x110B4 R_AVR32_9W_CP .text 0x4
+# PAIR-EMIT-NEXT:     0x110B6 R_AVR32_9W_CP .text 0x4
+# PAIR-EMIT-NEXT:     0x110B8 R_AVR32_32_CPENT target 0x0
+# PAIR-EMIT-NEXT:   }
+# PAIR-EMIT-NEXT: ]
+# PAIR-EMIT:      Hex dump of section '.text':
+# PAIR-EMIT-NEXT: 0x{{[0-9a-f]+}} 48184819 000110bc d703
+
+# PAIR-NORELAX:      Hex dump of section '.text':
+# PAIR-NORELAX-NEXT: 0x{{[0-9a-f]+}} fef80008 fef90004 000110c0 d703
+
+#--- single.s
+.text
+.globl _start, target
+_start:
+  lddpc r8, pc[.Lpool]
+.Lpool:
+  .long 0
+  .reloc .Lpool, R_AVR32_32_CPENT, target
+target:
+  nop
+
+#--- pair.s
+.text
+.globl _start, target
+_start:
+  lddpc r8, pc[.Lpool]
+  lddpc r9, pc[.Lpool]
+.Lpool:
+  .long 0
+  .reloc .Lpool, R_AVR32_32_CPENT, target
+target:
+  nop

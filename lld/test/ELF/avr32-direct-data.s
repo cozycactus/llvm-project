@@ -97,6 +97,7 @@
 # LOAD-FULL-GAP-EMIT:      Relocations [
 # LOAD-FULL-GAP-EMIT-NEXT:   Section ({{.*}}) .rela.text {
 # LOAD-FULL-GAP-EMIT-NEXT:     0x110B4 R_AVR32_21S target 0x0
+# LOAD-FULL-GAP-EMIT-NEXT:     0x0 R_AVR32_NONE - 0x0
 # LOAD-FULL-GAP-EMIT-NEXT:   }
 # LOAD-FULL-GAP-EMIT-NEXT: ]
 

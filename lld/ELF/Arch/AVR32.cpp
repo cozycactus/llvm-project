@@ -10,6 +10,7 @@
 #include "OutputSections.h"
 #include "Symbols.h"
 #include "Target.h"
+#include "llvm/ADT/DenseMap.h"
 #include "llvm/BinaryFormat/ELF.h"
 #include "llvm/Support/Endian.h"
 #include "llvm/Support/TimeProfiler.h"
@@ -27,6 +28,7 @@ static constexpr uint32_t INTERNAL_R_AVR32_RELAX_CALL = UINT32_MAX;
 static constexpr uint32_t INTERNAL_R_AVR32_RELAX_LDDPC_MOV = UINT32_MAX - 1;
 static constexpr uint32_t INTERNAL_R_AVR32_RELAX_FULL_LDDPC_MOV =
     UINT32_MAX - 2;
+static constexpr uint32_t INTERNAL_R_AVR32_RELAX_SKIP_RELOC = UINT32_MAX - 3;
 
 namespace {
 class AVR32 final : public TargetInfo {
@@ -51,8 +53,7 @@ public:
 
 static uint32_t encodeS21(int64_t val) {
   uint32_t enc = static_cast<uint32_t>(val);
-  return (enc & 0xffff) | ((enc & 0x10000) << 4) |
-         ((enc & 0x1e0000) << 8);
+  return (enc & 0xffff) | ((enc & 0x10000) << 4) | ((enc & 0x1e0000) << 8);
 }
 
 static int64_t decodeS21(uint32_t word) {
@@ -102,12 +103,16 @@ static bool isFullLddpc(uint32_t word) {
 
 static bool isCompactLddpc(uint16_t word) { return (word & 0xf800) == 0x4800; }
 
+static bool isSameSectionSymbol(const Relocation &r, const InputSection &sec) {
+  auto *d = dyn_cast_or_null<Defined>(r.sym);
+  return d && d->isSection() && d->section == &sec;
+}
+
 static std::optional<uint32_t> findUniqueMcallToCPEntry(ArrayRef<uint8_t> data,
                                                         uint64_t cpOffset) {
   std::optional<uint32_t> found;
   for (uint64_t offset = 0, size = std::min<uint64_t>(data.size(), cpOffset);
-       offset + 4 <= size;
-       offset += 2) {
+       offset + 4 <= size; offset += 2) {
     uint32_t word = read32be(data.data() + offset);
     if (!isMcallPC(word))
       continue;
@@ -167,6 +172,35 @@ findUniqueFullLddpcToCPEntry(ArrayRef<uint8_t> data, uint64_t cpOffset) {
   return found;
 }
 
+static std::optional<size_t> findUniqueFullLddpcRelocIndexToCPEntry(
+    ArrayRef<uint8_t> data, ArrayRef<Relocation> rels, const InputSection &sec,
+    uint64_t cpOffset) {
+  std::optional<size_t> found;
+  for (auto [i, r] : llvm::enumerate(rels)) {
+    if (r.type != R_AVR32_16B_PCREL || r.expr != R_PC ||
+        !isSameSectionSymbol(r, sec) ||
+        r.addend != static_cast<int64_t>(cpOffset))
+      continue;
+    if (r.offset + 4 > data.size() ||
+        !isFullLddpc(read32be(data.data() + r.offset)))
+      continue;
+    if (found)
+      return std::nullopt;
+    found = i;
+  }
+  return found;
+}
+
+static std::optional<uint32_t>
+findUniqueFullLddpcRelocToCPEntry(ArrayRef<uint8_t> data,
+                                  ArrayRef<Relocation> rels,
+                                  const InputSection &sec, uint64_t cpOffset) {
+  if (std::optional<size_t> index =
+          findUniqueFullLddpcRelocIndexToCPEntry(data, rels, sec, cpOffset))
+    return rels[*index].offset;
+  return std::nullopt;
+}
+
 static uint32_t getMovri21BaseFromReg(uint32_t rd) {
   return 0xe0600000 | (rd << 16);
 }
@@ -177,6 +211,10 @@ static uint32_t getMovri21Base(uint16_t lddpc) {
 
 static uint32_t getMovri21Base(uint32_t lddpc) {
   return getMovri21BaseFromReg((lddpc >> 16) & 0xf);
+}
+
+static uint16_t getCompactLddpcBase(uint32_t lddpc) {
+  return 0x4800 | ((lddpc >> 16) & 0xf);
 }
 
 static bool hasSymbolAnchorInRange(ArrayRef<SymbolAnchor> anchors,
@@ -198,6 +236,39 @@ static uint32_t getDeltaBefore(ArrayRef<Relocation> rels, const RelaxAux &aux,
 static uint64_t getRelaxedOffset(ArrayRef<Relocation> rels, const RelaxAux &aux,
                                  uint64_t offset) {
   return offset - getDeltaBefore(rels, aux, offset);
+}
+
+static std::optional<uint64_t>
+getSameSectionSymbolOffset(const Relocation &r, const InputSection &sec,
+                           uint64_t oldSize) {
+  if (!isSameSectionSymbol(r, sec) || r.addend < 0 ||
+      static_cast<uint64_t>(r.addend) > oldSize)
+    return std::nullopt;
+  return static_cast<uint64_t>(r.addend);
+}
+
+static uint64_t getRelocTargetVA(Ctx &ctx, const InputSection &sec,
+                                 ArrayRef<Relocation> rels, const RelaxAux &aux,
+                                 const Relocation &r, uint64_t loc) {
+  if (std::optional<uint64_t> offset =
+          getSameSectionSymbolOffset(r, sec, sec.content().size())) {
+    uint64_t va = sec.getVA() + getRelaxedOffset(rels, aux, *offset);
+    if (r.expr == R_PC)
+      return va - loc;
+    if (r.expr == R_ABS)
+      return va;
+  }
+  return sec.getRelocTargetVA(ctx, r, loc);
+}
+
+static void adjustSameSectionSymbolAddend(const InputSection &sec,
+                                          ArrayRef<Relocation> rels,
+                                          const RelaxAux &aux, uint64_t oldSize,
+                                          Relocation &r) {
+  std::optional<uint64_t> offset = getSameSectionSymbolOffset(r, sec, oldSize);
+  if (!offset)
+    return;
+  r.addend -= getDeltaBefore(rels, aux, *offset);
 }
 
 static std::optional<std::pair<RelType, uint16_t>>
@@ -227,6 +298,119 @@ getRelaxedControlTransfer(uint32_t word, int64_t pcrel) {
                           static_cast<uint16_t>(0xc000 | cond));
 
   return std::nullopt;
+}
+
+static std::optional<uint16_t> getRelaxedFullLddpc(uint32_t word,
+                                                   int64_t pcrel) {
+  if (!isFullLddpc(word) || (pcrel & 3))
+    return std::nullopt;
+
+  int64_t disp = pcrel >> 2;
+  if (!isUInt<7>(disp))
+    return std::nullopt;
+  return getCompactLddpcBase(word);
+}
+
+static std::optional<size_t> findRelocAtOffset(ArrayRef<Relocation> rels,
+                                               uint64_t offset, RelType type) {
+  for (auto [i, r] : llvm::enumerate(rels))
+    if (r.offset == offset && r.type == type)
+      return i;
+  return std::nullopt;
+}
+
+static bool canRelaxFullLddpcToMov(Ctx &ctx, const InputSection &sec,
+                                   ArrayRef<Relocation> rels,
+                                   const RelaxAux &aux, size_t cpIndex,
+                                   uint32_t loadOffset) {
+  const Relocation &cp = rels[cpIndex];
+  if (!canRelaxDirectData(ctx) || cp.type != R_AVR32_32_CPENT ||
+      cp.sym->isPreemptible || cp.sym->isGnuIFunc())
+    return false;
+
+  std::optional<uint32_t> found =
+      findUniqueFullLddpcRelocToCPEntry(sec.content(), rels, sec, cp.offset);
+  if (!found)
+    found = findUniqueFullLddpcToCPEntry(sec.content(), cp.offset);
+  if (!found || *found != loadOffset)
+    return false;
+
+  uint64_t loc = sec.getVA() + cp.offset - getDeltaBefore(rels, aux, cp.offset);
+  uint64_t val = getRelocTargetVA(ctx, sec, rels, aux, cp, loc);
+  return isInt<21>(SignExtend64(val, 32));
+}
+
+static uint64_t getConstantPoolStart(ArrayRef<uint64_t> cpOffsets,
+                                     uint64_t offset) {
+  auto it = llvm::lower_bound(cpOffsets, offset);
+  assert(it != cpOffsets.end() && *it == offset);
+  while (it != cpOffsets.begin() && *(it - 1) + 4 == *it)
+    --it;
+  return *it;
+}
+
+static SmallVector<char, 0>
+getRelaxableFullLddpcRelocs(Ctx &ctx, const InputSection &sec,
+                            ArrayRef<Relocation> rels, const RelaxAux &aux) {
+  SmallVector<char, 0> relaxable(rels.size(), false);
+  if (llvm::any_of(
+          rels, [](const Relocation &r) { return r.type == R_AVR32_CPCALL; }))
+    return relaxable;
+
+  SmallVector<uint64_t, 0> cpOffsets;
+  for (const Relocation &r : rels)
+    if (r.type == R_AVR32_32_CPENT)
+      cpOffsets.push_back(r.offset);
+  llvm::sort(cpOffsets);
+
+  DenseMap<uint64_t, SmallVector<size_t, 0>> sameSectionGroups;
+  for (auto [i, r] : llvm::enumerate(rels)) {
+    if (r.type != R_AVR32_16B_PCREL || r.expr != R_PC ||
+        r.offset + 4 > sec.content().size())
+      continue;
+
+    uint32_t word = read32be(sec.content().data() + r.offset);
+    if (!isFullLddpc(word))
+      continue;
+
+    uint64_t delta = getDeltaBefore(rels, aux, r.offset);
+    uint64_t loc = sec.getVA() + r.offset - delta;
+    uint64_t val = getRelocTargetVA(ctx, sec, rels, aux, r, loc);
+    Relocation relaxedRel = r;
+    relaxedRel.offset -= delta;
+    int64_t pcrel = getAlignedPCRel(relaxedRel, SignExtend64(val, 32), 4);
+    if (!getRelaxedFullLddpc(word, pcrel))
+      continue;
+
+    std::optional<uint64_t> targetOffset =
+        getSameSectionSymbolOffset(r, sec, sec.content().size());
+    if (!targetOffset) {
+      relaxable[i] = true;
+      continue;
+    }
+
+    auto cpIt = llvm::lower_bound(cpOffsets, *targetOffset);
+    if (cpIt != cpOffsets.end() && *cpIt == *targetOffset) {
+      if (std::optional<size_t> cpIndex =
+              findRelocAtOffset(rels, *targetOffset, R_AVR32_32_CPENT))
+        if (canRelaxFullLddpcToMov(ctx, sec, rels, aux, *cpIndex,
+                                   static_cast<uint32_t>(r.offset)))
+          continue;
+      sameSectionGroups[getConstantPoolStart(cpOffsets, *targetOffset)]
+          .push_back(i);
+      continue;
+    }
+
+    sameSectionGroups[*targetOffset].push_back(i);
+  }
+
+  for (auto &it : sameSectionGroups) {
+    MutableArrayRef<size_t> group = it.second;
+    size_t count = group.size() & ~size_t(1);
+    for (size_t i = 0; i != count; ++i)
+      relaxable[group[i]] = true;
+  }
+  return relaxable;
 }
 
 uint32_t AVR32::calcEFlags() const {
@@ -346,38 +530,62 @@ static bool relax(Ctx &ctx, InputSection &sec) {
 
   std::fill_n(aux.relocTypes.get(), relocs.size(), R_AVR32_NONE);
   aux.writes.clear();
+  SmallVector<char, 0> relaxableFullLddpc =
+      getRelaxableFullLddpcRelocs(ctx, sec, relocs, aux);
   for (auto [i, r] : llvm::enumerate(relocs)) {
     const uint64_t loc = secAddr + r.offset - delta;
     uint32_t &cur = aux.relocDeltas[i], remove = 0;
     if (r.type == R_AVR32_22H_PCREL && r.expr == R_PC) {
       uint32_t word = read32be(sec.content().data() + r.offset);
       if (isFullControlTransfer(word)) {
-        uint64_t val = sec.getRelocTargetVA(ctx, r, loc);
-        int64_t pcrel = getAlignedPCRel(r, SignExtend64(val, 32), 2);
+        uint64_t val = getRelocTargetVA(ctx, sec, relocs, aux, r, loc);
+        Relocation relaxedRel = r;
+        relaxedRel.offset -= delta;
+        int64_t pcrel = getAlignedPCRel(relaxedRel, SignExtend64(val, 32), 2);
         if (auto relaxed = getRelaxedControlTransfer(word, pcrel)) {
           aux.relocTypes[i] = relaxed->first;
           aux.writes.push_back(relaxed->second);
           remove = 2;
         }
       }
+    } else if (relaxableFullLddpc[i]) {
+      uint32_t word = read32be(sec.content().data() + r.offset);
+      aux.relocTypes[i] = R_AVR32_9W_CP;
+      aux.writes.push_back(getCompactLddpcBase(word));
+      remove = 2;
     } else if (canRelaxDirectData(ctx) && r.type == R_AVR32_32_CPENT &&
                !r.sym->isPreemptible && !r.sym->isGnuIFunc()) {
       if (std::optional<uint32_t> callOffset =
               findUniqueMcallToCPEntry(sec.content(), r.offset)) {
         uint64_t callLoc =
             secAddr + *callOffset - getDeltaBefore(relocs, aux, *callOffset);
-        uint64_t val = sec.getRelocTargetVA(ctx, r, loc);
+        uint64_t val = getRelocTargetVA(ctx, sec, relocs, aux, r, loc);
         int64_t pcrel = SignExtend64(val - callLoc, 32);
         if (!(pcrel & 1) && isInt<21>(pcrel >> 1)) {
           aux.relocTypes[i] = INTERNAL_R_AVR32_RELAX_CALL;
           aux.writes.push_back(*callOffset);
           remove = 4;
         }
+      } else if (std::optional<size_t> loadIndex =
+                     findUniqueFullLddpcRelocIndexToCPEntry(
+                         sec.content(), relocs, sec, r.offset)) {
+        // The full load and mov are both 4 bytes, so only the pool entry needs
+        // to be deleted. Intervening code can keep its original layout.
+        uint64_t val = getRelocTargetVA(ctx, sec, relocs, aux, r, loc);
+        if (isInt<21>(SignExtend64(val, 32))) {
+          uint32_t loadOffset = relocs[*loadIndex].offset;
+          aux.relocTypes[*loadIndex] = INTERNAL_R_AVR32_RELAX_SKIP_RELOC;
+          aux.relocTypes[i] = INTERNAL_R_AVR32_RELAX_FULL_LDDPC_MOV;
+          aux.writes.push_back(loadOffset);
+          aux.writes.push_back(
+              getMovri21Base(read32be(sec.content().data() + loadOffset)));
+          remove = 4;
+        }
       } else if (std::optional<uint32_t> loadOffset =
                      findUniqueFullLddpcToCPEntry(sec.content(), r.offset)) {
         // The full load and mov are both 4 bytes, so only the pool entry needs
         // to be deleted. Intervening code can keep its original layout.
-        uint64_t val = sec.getRelocTargetVA(ctx, r, loc);
+        uint64_t val = getRelocTargetVA(ctx, sec, relocs, aux, r, loc);
         if (isInt<21>(SignExtend64(val, 32))) {
           aux.relocTypes[i] = INTERNAL_R_AVR32_RELAX_FULL_LDDPC_MOV;
           aux.writes.push_back(*loadOffset);
@@ -397,7 +605,7 @@ static bool relax(Ctx &ctx, InputSection &sec) {
             (gap == 4 &&
              read16be(sec.content().data() + *loadOffset + 2) == 0 &&
              !hasSymbolAnchorInRange(aux.anchors, *loadOffset + 2, r.offset));
-        uint64_t val = sec.getRelocTargetVA(ctx, r, loc);
+        uint64_t val = getRelocTargetVA(ctx, sec, relocs, aux, r, loc);
         if (poolFollowsLoad && isInt<21>(SignExtend64(val, 32))) {
           aux.relocTypes[i] = INTERNAL_R_AVR32_RELAX_LDDPC_MOV;
           aux.writes.push_back(*loadOffset);
@@ -483,7 +691,10 @@ void AVR32::finalizeRelax(int passes) const {
         switch (aux.relocTypes[i].v) {
         case R_AVR32_11H_PCREL:
         case R_AVR32_9H_PCREL:
+        case R_AVR32_9W_CP:
           ++writesScanIdx;
+          break;
+        case INTERNAL_R_AVR32_RELAX_SKIP_RELOC:
           break;
         case INTERNAL_R_AVR32_RELAX_CALL:
           relaxedCallOffsets[i] =
@@ -542,8 +753,11 @@ void AVR32::finalizeRelax(int passes) const {
           switch (newType.v) {
           case R_AVR32_11H_PCREL:
           case R_AVR32_9H_PCREL:
+          case R_AVR32_9W_CP:
             skip = 2;
             write16be(p, aux.writes[writesIdx++]);
+            break;
+          case INTERNAL_R_AVR32_RELAX_SKIP_RELOC:
             break;
           case INTERNAL_R_AVR32_RELAX_CALL:
             ++writesIdx;
@@ -569,6 +783,9 @@ void AVR32::finalizeRelax(int passes) const {
           write32be(newContent + relaxedFullLoadOffsets[i],
                     relaxedFullLoadWrites[i]);
 
+      for (Relocation &rel : rels)
+        adjustSameSectionSymbolAddend(*sec, rels, aux, old.size(), rel);
+
       delta = 0;
       for (size_t i = 0, e = rels.size(); i != e;) {
         uint64_t cur = rels[i].offset;
@@ -585,6 +802,9 @@ void AVR32::finalizeRelax(int passes) const {
             rels[i].expr = R_ABS;
             rels[i].offset = relaxedFullLoadOffsets[i];
             rels[i].type = R_AVR32_21S;
+          } else if (aux.relocTypes[i] == INTERNAL_R_AVR32_RELAX_SKIP_RELOC) {
+            rels[i].expr = R_NONE;
+            rels[i].type = R_AVR32_NONE;
           } else {
             rels[i].offset -= delta;
             if (aux.relocTypes[i] != R_AVR32_NONE)
@@ -593,6 +813,9 @@ void AVR32::finalizeRelax(int passes) const {
         } while (++i != e && rels[i].offset == cur);
         delta = aux.relocDeltas[i - 1];
       }
+      llvm::erase_if(sec->relocations, [](const Relocation &r) {
+        return r.expr == R_NONE && r.type == R_AVR32_NONE;
+      });
     }
   }
 }
