@@ -157,6 +157,14 @@ On another machine, check `~/Downloads` or ask the user to provide the PDFs if
 they are missing. Use them when instruction semantics, ABI details,
 startup/linker behavior, or GCC compatibility are unclear.
 
+## Communication Budget
+
+- Prefer concise output.
+- Do not paste full logs, full diffs, or full generated files unless the user asks.
+- For long commands, write logs to `/tmp` and summarize only failures or final pass/fail counts.
+- Final responses should include only changed files, commit hash if any, validation, push status, and next action.
+- Do not mention unrelated untracked files unless they affect the task.
+
 ## Git Hygiene
 
 - Keep commits small and focused.
