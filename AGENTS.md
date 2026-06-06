@@ -62,10 +62,11 @@ Use this subset after AVR32 target, Clang, MC, object, or lld changes:
   llvm/test/tools/obj2yaml/ELF/avr32-relocs-and-flags.yaml \
   lld/test/ELF/avr32.test \
   lld/test/ELF/avr32-relax.s \
-  lld/test/ELF/avr32-direct-data.s
+  lld/test/ELF/avr32-direct-data.s \
+  lld/test/ELF/avr32-lddpc-relax.s
 ```
 
-Last known result for this subset: 37/37 passed after commit `364bd865d`.
+Last known result for this subset: 41/41 passed after commit `75d9fc112`.
 
 ## AVR32 Code Map
 
@@ -85,6 +86,9 @@ Last known result for this subset: 37/37 passed after commit `364bd865d`.
 - AVR32 relaxation work uses `+relax` and lld relaxation tests.
 - Prefer Clang's integrated assembler for LLVM end-to-end validation. Use `avr32-gcc` / GNU binutils only as comparison references.
 - `LDA_W` is a codegen pseudo that emits one full `lddpc` at the instruction point and a `CPENT` constant-pool entry later. Its TableGen size must stay `4`, otherwise branch compaction can underestimate distances and produce `fixup_9h_pcrel` overflows.
+- `R_AVR32_ALIGN` addends are alignment orders, not padding byte counts. Addend `2` means align to 4 bytes. This differs from RISC-V/LoongArch-style byte-count align relocs.
+- LLVM MC currently marks full `lddpc` (`fixup_16b_pcrel`) as linker-relaxable under `+relax`, so later `.p2align` can emit `R_AVR32_ALIGN`. Do not blindly mark full branch/call fixups linker-relaxable: doing that broke SDR-widget `exception.x` because `_intN - _evba` table expressions stopped folding and produced `expected relocatable expression`.
+- If MC linker-relaxable marking changes, compile the SDR-widget assembly `.x` files as part of validation, not just lit tests.
 - When touching return instruction aliases, check printer/parser behavior separately. Some printed return forms may not round-trip through the parser unless the alias is supported.
 
 ## SDR-widget Benchmark
@@ -118,12 +122,22 @@ For GCC-compatible SDR-widget comparisons, include GNU89 inline semantics:
 
 ```sh
 --target=avr32 -mpart=uc3a3256 -std=gnu89 -O2 \
-  -fdata-sections -ffunction-sections -Wall -Wno-expansion-to-defined
+  -fcommon -fdata-sections -ffunction-sections -Wall -Wno-expansion-to-defined
 ```
 
 Why `-std=gnu89` matters: Atmel ASF headers use `extern __inline__`; without
 GNU89 semantics Clang may emit extra out-of-line helper bodies that old
 `avr32-gcc` does not emit.
+
+Why `-fcommon` matters: SDR-widget has old-style tentative globals such as
+`xStatus`; without `-fcommon`, a full link can fail with duplicate symbols.
+
+For full SDR-widget LLVM links, compile with `--sysroot=/Users/ruslanmigirov/avr32-tools-src/avr32`
+and link with Clang/lld using `-nostartfiles -mrelax -Wl,--gc-sections
+-Wl,-e,_trampoline -Wl,--direct-data`, the object response file, and
+`/Users/ruslanmigirov/cozycactus/sdr-widget/Release/src/newlib_compat.o`.
+The sysroot is also needed for assembly-with-cpp `.x` files that include
+`<avr32/io.h>`.
 
 Current practical compile reference:
 
@@ -133,6 +147,11 @@ Current practical compile reference:
   - GCC flash (`.text + .rodata + .data`): 20,128 bytes
   - LLVM flash (`.text + .rodata + .data`): 17,134 bytes
   - LLVM delta: -2,994 bytes (-14.9%)
+- Current full SDR-widget link reference after commit `75d9fc112`:
+  - LLVM Oz/lld: flash 116,528; text 105,940; `.rodata` 8,924; `.data` 1,664; `.bss` 22,040
+  - GCC Os: flash 120,338; text 108,370; `.rodata` 10,296; `.data` 1,672; `.bss` 22,168
+  - LLVM instruction counts from GNU `avr32-objdump`: `ld.w total=2147`, `ld.w pc=139`, `lddpc=458`, `mcall=497`
+  - GCC instruction counts: `ld.w total=2074`, `ld.w pc=19`, `lddpc=2502`, `mcall=2140`
 
 For object-size comparisons, do not use raw `.o` file size as the main metric.
 Report:
