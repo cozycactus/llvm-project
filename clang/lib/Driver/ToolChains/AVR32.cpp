@@ -105,12 +105,14 @@ void addAVR32GCCLibPaths(const Driver &D, ToolChain::path_list &Paths,
 }
 
 std::optional<std::string> getAVR32LinkerScript(StringRef SysRoot,
-                                                StringRef Emulation) {
+                                                StringRef Emulation,
+                                                bool WritableRodata) {
   if (SysRoot.empty() || Emulation.empty())
     return std::nullopt;
 
   SmallString<128> Path(SysRoot);
-  llvm::sys::path::append(Path, "lib", "ldscripts", Emulation + ".x");
+  llvm::sys::path::append(Path, "lib", "ldscripts",
+                          Emulation + (WritableRodata ? ".xwr" : ".x"));
   if (llvm::sys::fs::exists(Path))
     return std::string(Path);
   return std::nullopt;
@@ -235,7 +237,8 @@ void AVR32::Linker::ConstructJob(Compilation &C, const JobAction &JA,
 
   if (!Args.hasArg(options::OPT_T, options::OPT_r)) {
     if (std::optional<std::string> Script =
-            getAVR32LinkerScript(SysRoot, Emulation))
+            getAVR32LinkerScript(SysRoot, Emulation,
+                                  Args.hasArg(options::OPT_rodata_writable)))
       CmdArgs.push_back(Args.MakeArgString("-T" + *Script));
   }
   Args.AddAllArgs(CmdArgs, options::OPT_T);

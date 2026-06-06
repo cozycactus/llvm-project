@@ -15,6 +15,12 @@
 // CUSTOM-NOT: avr32elf_uc3a3256.x
 
 // RUN: %clang -### --target=avr32 --sysroot=%S/Inputs/basic_avr32_tree \
+// RUN:   -mpart=uc3a3256 -nostartfiles --rodata-writable %s 2>&1 \
+// RUN:   | FileCheck --check-prefix=WRITABLE-RODATA %s
+// WRITABLE-RODATA: "{{.*}}ld.lld"
+// WRITABLE-RODATA-SAME: "-T{{.*}}basic_avr32_tree{{/|\\\\}}lib{{/|\\\\}}ldscripts{{/|\\\\}}avr32elf_uc3a3256.xwr"
+
+// RUN: %clang -### --target=avr32 --sysroot=%S/Inputs/basic_avr32_tree \
 // RUN:   -mmcu=uc3a3256 -nostartfiles -r %s 2>&1 \
 // RUN:   | FileCheck --check-prefix=RELOC %s
 // RELOC: "{{.*}}ld.lld"
