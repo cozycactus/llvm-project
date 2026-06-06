@@ -114,6 +114,16 @@ void AVR32InstPrinter::printRegList8(const MCInst *MI, unsigned OpNo,
   }
 }
 
+void AVR32InstPrinter::printPopmRetVal(const MCInst *MI, unsigned OpNo,
+                                       raw_ostream &OS) {
+  const MCOperand &Op = MI->getOperand(OpNo);
+  assert(Op.isImm() && "popm return value must be an immediate");
+  int64_t Value = Op.getImm();
+  if (Value < -1 || Value > 1)
+    llvm_unreachable("invalid popm return value");
+  OS << Value;
+}
+
 void AVR32InstPrinter::printCoprocessor(const MCInst *MI, unsigned OpNo,
                                         raw_ostream &OS) {
   const MCOperand &Op = MI->getOperand(OpNo);

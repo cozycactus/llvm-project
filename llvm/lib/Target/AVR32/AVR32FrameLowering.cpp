@@ -104,6 +104,29 @@ void AVR32FrameLowering::emitEpilogue(MachineFunction &MF,
   MachineBasicBlock::iterator MBBI = MBB.getFirstTerminator();
   DebugLoc DL = MBBI != MBB.end() ? MBBI->getDebugLoc() : DebugLoc();
 
+  bool HasPopmRetVal = false;
+  int64_t PopmRetVal = 0;
+  MachineBasicBlock::iterator PopmRetValMI = MBB.end();
+  if (MBBI != MBB.begin() && MBBI != MBB.end() &&
+      MBBI->getOpcode() == AVR32::RETR12) {
+    MachineBasicBlock::iterator Prev = std::prev(MBBI);
+    while (Prev != MBB.begin() && Prev->isDebugInstr())
+      --Prev;
+    if (!Prev->isDebugInstr() &&
+        (Prev->getOpcode() == AVR32::MOVri8 ||
+         Prev->getOpcode() == AVR32::MOVri21) &&
+        Prev->getOperand(0).isReg() &&
+        Prev->getOperand(0).getReg() == AVR32::R12 &&
+        Prev->getOperand(1).isImm()) {
+      int64_t Imm = Prev->getOperand(1).getImm();
+      if (Imm >= -1 && Imm <= 1) {
+        HasPopmRetVal = true;
+        PopmRetVal = Imm;
+        PopmRetValMI = Prev;
+      }
+    }
+  }
+
   if (HasFP)
     BuildMI(MBB, MBBI, DL, TII.get(AVR32::MOVrr), AVR32::SP)
         .addReg(AVR32::R7);
@@ -116,9 +139,17 @@ void AVR32FrameLowering::emitEpilogue(MachineFunction &MF,
   if (PushmMask != 0) {
     if (MBBI != MBB.end() && MBBI->getOpcode() == AVR32::RETR12) {
       unsigned RetMask = (PushmMask & ~(1 << 6)) | (1 << 7);
-      BuildMI(MBB, MBBI, DL, TII.get(AVR32::POPM_RET))
-          .addImm(RetMask)
-          .setMIFlag(MachineInstr::FrameDestroy);
+      if (HasPopmRetVal && (RetMask & ((1 << 5) | (1 << 6))) == 0) {
+        BuildMI(MBB, MBBI, DL, TII.get(AVR32::POPM_RETVAL))
+            .addImm(RetMask)
+            .addImm(PopmRetVal)
+            .setMIFlag(MachineInstr::FrameDestroy);
+        PopmRetValMI->eraseFromParent();
+      } else {
+        BuildMI(MBB, MBBI, DL, TII.get(AVR32::POPM_RET))
+            .addImm(RetMask)
+            .setMIFlag(MachineInstr::FrameDestroy);
+      }
       MBBI->eraseFromParent();
     } else {
       BuildMI(MBB, MBBI, DL, TII.get(AVR32::POPM))

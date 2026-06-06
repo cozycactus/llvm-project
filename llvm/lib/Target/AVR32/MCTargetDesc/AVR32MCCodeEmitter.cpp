@@ -216,6 +216,18 @@ public:
     return Imm > 0 ? Imm - 1 : Imm + 8;
   }
 
+  unsigned getPopmRetValOpValue(const MCInst &MI, unsigned OpNo,
+                                SmallVectorImpl<MCFixup> &Fixups,
+                                const MCSubtargetInfo &STI) const {
+    const MCOperand &MO = MI.getOperand(OpNo);
+    if (!MO.isImm())
+      return 0;
+    int64_t Imm = MO.getImm();
+    if (Imm == -1)
+      return 2;
+    return static_cast<unsigned>(Imm);
+  }
+
   void encodeInstruction(const MCInst &MI, SmallVectorImpl<char> &CB,
                          SmallVectorImpl<MCFixup> &Fixups,
                          const MCSubtargetInfo &STI) const override {

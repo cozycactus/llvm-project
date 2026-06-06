@@ -14,6 +14,10 @@ mov r4, r5
 moval r4, r5
 pushm r0-r12, lr
 popm r0-r12, lr
+popm pc, r12=0
+popm pc, r12=1
+popm pc, r12=-1
+popm r0-r7, pc, r12=-1
 
 # CHECK: nop # encoding: [0xd7,0x03]
 # CHECK-NEXT: retal lr # encoding: [0x5e,0xfe]
@@ -29,3 +33,7 @@ popm r0-r12, lr
 # CHECK-NEXT: moval r4, r5 # encoding: [0xea,0x04,0x17,0xf0]
 # CHECK-NEXT: pushm r0-r3, r4-r7, r8-r9, r10, r11, r12, lr # encoding: [0xd7,0xf1]
 # CHECK-NEXT: popm r0-r3, r4-r7, r8-r9, r10, r11, r12, lr # encoding: [0xd7,0xf2]
+# CHECK-NEXT: popm pc, r12=0 # encoding: [0xd8,0x0a]
+# CHECK-NEXT: popm pc, r12=1 # encoding: [0xda,0x0a]
+# CHECK-NEXT: popm pc, r12=-1 # encoding: [0xdc,0x0a]
+# CHECK-NEXT: popm r0-r3, r4-r7, pc, r12=-1 # encoding: [0xdc,0x3a]

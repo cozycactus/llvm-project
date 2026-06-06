@@ -254,6 +254,11 @@ def RegList8AsmOperand : AsmOperandClass {
   let RenderMethod = "addImmOperands";
 }
 
+def PopmRetValAsmOperand : AsmOperandClass {
+  let Name = "PopmRetVal";
+  let RenderMethod = "addImmOperands";
+}
+
 def CoprocessorAsmOperand : AsmOperandClass {
   let Name = "Coprocessor";
   let RenderMethod = "addImmOperands";
@@ -572,6 +577,13 @@ def reglist8 : Operand<i32>,
                ImmLeaf<i32, [{ return Imm > 0 && Imm < 256; }]> {
   let ParserMatchClass = RegList8AsmOperand;
   let PrintMethod = "printRegList8";
+}
+
+def popmretval : Operand<i32>,
+                 ImmLeaf<i32, [{ return Imm >= -1 && Imm <= 1; }]> {
+  let ParserMatchClass = PopmRetValAsmOperand;
+  let PrintMethod = "printPopmRetVal";
+  let EncoderMethod = "getPopmRetValOpValue";
 }
 
 def coprocessor : Operand<i32>,
@@ -1683,6 +1695,23 @@ class CompactRegList8<bits<4> Low, string Mnemonic>
   let Inst{5} = Mask{1};
   let Inst{4} = Mask{0};
   let Inst{3-0} = Low;
+}
+
+class CompactPopmRetVal
+    : AVR32Inst<0, (outs), (ins reglist8:$Mask, popmretval:$RetVal),
+                "popm\t$Mask, r12=$RetVal"> {
+  bits<8> Mask;
+  bits<2> RetVal;
+
+  let Inst{15-12} = 0b1101;
+  let Inst{11} = Mask{7};
+  let Inst{10-9} = RetVal;
+  let Inst{8} = Mask{4};
+  let Inst{7} = Mask{3};
+  let Inst{6} = Mask{2};
+  let Inst{5} = Mask{1};
+  let Inst{4} = Mask{0};
+  let Inst{3-0} = 0b1010;
 }
 
 class MoveCopRegToRegD<string Mnemonic>
@@ -3632,6 +3661,8 @@ def PUNPCKSB_H : FullRegRegHalf<0b00100100101, "punpcksb.h">;
 def POPM : CompactRegList8<0b0010, "popm">;
 let isBarrier = 1, isCodeGenOnly = 1, isReturn = 1, isTerminator = 1 in
 def POPM_RET : CompactRegList8<0b0010, "popm">;
+let isBarrier = 1, isReturn = 1, isTerminator = 1 in
+def POPM_RETVAL : CompactPopmRetVal;
 def POPJC : AVR32Inst<0b1101011100010011, (outs), (ins), "popjc">;
 def PUSHM : CompactRegList8<0b0001, "pushm">;
 def PUSHJC : AVR32Inst<0b1101011100100011, (outs), (ins), "pushjc">;

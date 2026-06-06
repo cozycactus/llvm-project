@@ -66,7 +66,8 @@ Use this subset after AVR32 target, Clang, MC, object, or lld changes:
   lld/test/ELF/avr32-lddpc-relax.s
 ```
 
-Last known result for this subset: 41/41 passed after commit `75d9fc112`.
+Last known result for this subset: 43/43 passed after the `popm` return-value
+change.
 
 ## AVR32 Code Map
 
@@ -90,6 +91,9 @@ Last known result for this subset: 41/41 passed after commit `75d9fc112`.
 - LLVM MC currently marks full `lddpc` (`fixup_16b_pcrel`) as linker-relaxable under `+relax`, so later `.p2align` can emit `R_AVR32_ALIGN`. Do not blindly mark full branch/call fixups linker-relaxable: doing that broke SDR-widget `exception.x` because `_intN - _evba` table expressions stopped folding and produced `expected relocatable expression`.
 - If MC linker-relaxable marking changes, compile the SDR-widget assembly `.x` files as part of validation, not just lit tests.
 - When touching return instruction aliases, check printer/parser behavior separately. Some printed return forms may not round-trip through the parser unless the alias is supported.
+- `SELECT_CC` lowers to `cp` plus a conditional register move for normal optimization, but keeps the old branch/PHI lowering under `optsize`/`minsize`. Current SDR-widget `-Oz` measurement showed conditional moves can grow size because AVR32 compact branches may relax smaller and register allocation can need extra copies.
+- `popm ..., pc, r12=<imm>` is supported for immediate return values `-1`, `0`, and `1`. The special form cannot pop `lr` or `r12`; codegen folds a final `mov r12, -1/0/1` into `popm` when the epilogue is already returning through a saved `pc`.
+- Next code-size targets should be measured per SDR object/function before changing codegen. A good candidate from GCC comparisons is predicated stores.
 
 ## SDR-widget Benchmark
 
@@ -147,7 +151,16 @@ Current practical compile reference:
   - GCC flash (`.text + .rodata + .data`): 20,128 bytes
   - LLVM flash (`.text + .rodata + .data`): 17,134 bytes
   - LLVM delta: -2,994 bytes (-14.9%)
-- Current full SDR-widget link reference after commit `75d9fc112`:
+- Current full SDR-widget link reference after the `popm` return-value change
+  (`.text + .rodata + .data`; current local artifacts):
+  - LLVM Oz/lld: flash 107,964; `.text` 97,376; `.exception` 356; `.rodata` 8,924; `.data` 1,664; `.bss` 22,040
+  - GCC Os: flash 111,626; `.text` 99,658; `.exception` 512; `.rodata` 10,296; `.data` 1,672; `.bss` 22,168
+  - The `popm` return-value change folded 15 linked return sites and reduced the ordered LLVM `-Oz` flash size by 8 bytes from the `a424b63a0` reference.
+- Prior full SDR-widget link reference after commit `a424b63a0`:
+  - LLVM Oz/lld: flash 107,972; `.text` 97,384; `.exception` 356; `.rodata` 8,924; `.data` 1,664; `.bss` 22,040
+  - GCC Os: flash 111,626; `.text` 99,658; `.exception` 512; `.rodata` 10,296; `.data` 1,672; `.bss` 22,168
+  - The `SELECT_CC` conditional-move change was neutral for this LLVM `-Oz` linked size because size-optimized functions keep branch/PHI lowering.
+- Prior full SDR-widget link reference after commit `75d9fc112`:
   - LLVM Oz/lld: flash 116,528; text 105,940; `.rodata` 8,924; `.data` 1,664; `.bss` 22,040
   - GCC Os: flash 120,338; text 108,370; `.rodata` 10,296; `.data` 1,672; `.bss` 22,168
   - LLVM instruction counts from GNU `avr32-objdump`: `ld.w total=2147`, `ld.w pc=139`, `lddpc=458`, `mcall=497`

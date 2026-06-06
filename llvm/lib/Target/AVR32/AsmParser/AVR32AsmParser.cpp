@@ -356,6 +356,13 @@ public:
     return Const && Const->getValue() > 0 && Const->getValue() < 256;
   }
 
+  bool isPopmRetVal() const {
+    if (Kind != Immediate)
+      return false;
+    auto *Const = dyn_cast<MCConstantExpr>(Imm);
+    return Const && Const->getValue() >= -1 && Const->getValue() <= 1;
+  }
+
   bool isCoprocessorRegListD() const {
     if (Kind != Immediate)
       return false;
@@ -611,7 +618,8 @@ private:
   bool parseLoadMultipleOperands(OperandVector &Operands);
   bool parseStoreMultipleOperands(OperandVector &Operands);
   bool parseRegList16Operand(OperandVector &Operands);
-  bool parseRegList8Operand(OperandVector &Operands);
+  bool parseRegList8Operand(OperandVector &Operands,
+                            bool AllowPopmRetVal = false);
   bool parseCoprocessorRegListOperand(OperandVector &Operands, bool IsDouble);
   bool parseCoprocessorOperand(OperandVector &Operands);
   bool parseCoprocessorRegisterOperand(OperandVector &Operands);
@@ -1058,7 +1066,7 @@ bool AVR32AsmParser::parseInstruction(ParseInstructionInfo &Info,
     if (parseImmediateCommaImmediate(Operands))
       return true;
   } else if (Name == "popm" || Name == "pushm") {
-    if (parseRegList8Operand(Operands))
+    if (parseRegList8Operand(Operands, Name == "popm"))
       return true;
   } else if (Name == "ldins.b" || Name == "ldins.h") {
     if (parseLoadInsertOperands(Operands, Name == "ldins.b"))
@@ -2288,7 +2296,8 @@ static bool addRegList8Bits(int StartBit, int EndBit, unsigned &Mask) {
   return false;
 }
 
-bool AVR32AsmParser::parseRegList8Operand(OperandVector &Operands) {
+bool AVR32AsmParser::parseRegList8Operand(OperandVector &Operands,
+                                          bool AllowPopmRetVal) {
   SMLoc StartLoc = getLexer().getLoc();
   unsigned Mask = 0;
 
@@ -2305,6 +2314,35 @@ bool AVR32AsmParser::parseRegList8Operand(OperandVector &Operands) {
     int StartBit = getRegList16Bit(StartReg);
     if (StartBit < 0)
       return Error(RegStartLoc, "invalid register in register list");
+
+    if (AllowPopmRetVal && StartReg == AVR32::R12 &&
+        getLexer().is(AsmToken::Equal)) {
+      if ((Mask & (1u << 7)) == 0)
+        return Error(RegStartLoc,
+                     "return value requires pc in popm register list");
+      if (Mask & ((1u << 5) | (1u << 6)))
+        return Error(RegStartLoc,
+                     "can't pop LR or R12 when specifying return value");
+
+      parseOptionalToken(AsmToken::Equal);
+      SMLoc ImmLoc = getLexer().getLoc();
+      const MCExpr *RetVal = nullptr;
+      if (parseImmediateExpression(RetVal))
+        return Error(ImmLoc, "expected popm return value");
+      auto *Const = dyn_cast<MCConstantExpr>(RetVal);
+      if (!Const || Const->getValue() < -1 || Const->getValue() > 1)
+        return Error(ImmLoc, "invalid popm return value");
+      if (getLexer().isNot(AsmToken::EndOfStatement))
+        return Error(getLexer().getLoc(), "expected end of statement");
+
+      const MCExpr *MaskExpr = MCConstantExpr::create(Mask, getContext());
+      Operands.push_back(
+          AVR32Operand::createImm(MaskExpr, StartLoc, getLexer().getLoc()));
+      Operands.push_back(AVR32Operand::createToken("r12=", RegStartLoc));
+      Operands.push_back(
+          AVR32Operand::createImm(RetVal, ImmLoc, getLexer().getLoc()));
+      return false;
+    }
 
     int EndBit = StartBit;
     if (parseOptionalToken(AsmToken::Minus)) {
