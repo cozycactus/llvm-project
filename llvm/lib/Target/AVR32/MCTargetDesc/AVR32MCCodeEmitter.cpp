@@ -8,8 +8,8 @@
 
 #include "AVR32FixupKinds.h"
 #include "AVR32MCTargetDesc.h"
-#include "llvm/BinaryFormat/ELF.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/BinaryFormat/ELF.h"
 #include "llvm/MC/MCCodeEmitter.h"
 #include "llvm/MC/MCContext.h"
 #include "llvm/MC/MCExpr.h"
@@ -100,9 +100,12 @@ public:
       return static_cast<unsigned>(MO.getImm());
 
     assert(MO.isExpr() && "expected expression operand");
-    Fixups.push_back(MCFixup::create(
+    MCFixup Fixup = MCFixup::create(
         0, MO.getExpr(), static_cast<MCFixupKind>(AVR32::fixup_16b_pcrel),
-        /*PCRel=*/true));
+        /*PCRel=*/true);
+    if (STI.hasFeature(AVR32::FeatureRelax))
+      Fixup.setLinkerRelaxable();
+    Fixups.push_back(Fixup);
     return 0;
   }
 
@@ -135,9 +138,9 @@ public:
         return 0;
       }
     }
-    Fixups.push_back(MCFixup::create(
-        0, MO.getExpr(), static_cast<MCFixupKind>(AVR32::fixup_21s),
-        /*PCRel=*/false));
+    Fixups.push_back(MCFixup::create(0, MO.getExpr(),
+                                     static_cast<MCFixupKind>(AVR32::fixup_21s),
+                                     /*PCRel=*/false));
     return 0;
   }
 

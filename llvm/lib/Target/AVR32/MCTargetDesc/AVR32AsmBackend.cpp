@@ -9,10 +9,12 @@
 #include "AVR32FixupKinds.h"
 #include "AVR32MCTargetDesc.h"
 #include "llvm/ADT/StringSwitch.h"
+#include "llvm/BinaryFormat/ELF.h"
 #include "llvm/MC/MCAsmBackend.h"
 #include "llvm/MC/MCAssembler.h"
 #include "llvm/MC/MCContext.h"
 #include "llvm/MC/MCELFObjectWriter.h"
+#include "llvm/MC/MCExpr.h"
 #include "llvm/MC/MCFixup.h"
 #include "llvm/MC/MCObjectWriter.h"
 #include "llvm/MC/MCSubtargetInfo.h"
@@ -56,6 +58,8 @@ public:
         Fixup.getKind() == static_cast<MCFixupKind>(AVR32::fixup_16b_pcrel))
       IsResolved = !LinkRelax;
     maybeAddReloc(F, Fixup, Target, Value, IsResolved);
+    if (mc::isRelocation(Fixup.getKind()))
+      return;
     if (!Value)
       return;
 
@@ -227,6 +231,9 @@ public:
         {"fixup_lo16", 0, 16, 0},
     };
 
+    if (mc::isRelocation(Kind))
+      return {};
+
     if (Kind < FirstTargetFixupKind)
       return MCAsmBackend::getFixupKindInfo(Kind);
 
@@ -244,6 +251,23 @@ public:
     if (Type == -1u)
       return std::nullopt;
     return static_cast<MCFixupKind>(FirstLiteralRelocationKind + Type);
+  }
+
+  bool relaxAlign(MCFragment &F, unsigned &Size) override {
+    auto *Sec = F.getParent();
+    if (!LinkRelax || F.getLayoutOrder() <= Sec->firstLinkerRelaxable())
+      return false;
+
+    if (F.getAlignment() <= 2)
+      return false;
+
+    Size = F.getAlignment().value() - 2;
+    auto *Expr = MCConstantExpr::create(Log2(F.getAlignment()), getContext());
+    MCFixup Fixup = MCFixup::create(
+        0, Expr, FirstLiteralRelocationKind + ELF::R_AVR32_ALIGN);
+    F.setVarFixups({Fixup});
+    F.setLinkerRelaxable();
+    return true;
   }
 
   bool writeNopData(raw_ostream &OS, uint64_t Count,
