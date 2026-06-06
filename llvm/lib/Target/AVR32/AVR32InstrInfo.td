@@ -3477,7 +3477,7 @@ def MOVHIrr : MovRR<0b1011, "movhi">;
 def MOVVSrr : MovRR<0b1100, "movvs">;
 def MOVVCrr : MovRR<0b1101, "movvc">;
 def MOVQSrr : MovRR<0b1110, "movqs">;
-def MOVrr : MovRR<0b1111, "mov">;
+def MOVrr : CompactRegReg<0b01001, "mov">;
 def MOVri8 : MovRI<0b0011, "mov">;
 def MOVri21 : FullRegImm<0b0011, "mov"> {
   let Pattern = [(set GPR:$Rd, simm21:$Imm)];
