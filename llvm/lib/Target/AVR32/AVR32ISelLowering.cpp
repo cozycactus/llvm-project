@@ -57,6 +57,8 @@ AVR32TargetLowering::AVR32TargetLowering(const TargetMachine &TM,
   setOperationAction(ISD::SRL_PARTS, MVT::i32, Expand);
   setBooleanContents(ZeroOrOneBooleanContent);
   setBooleanVectorContents(ZeroOrOneBooleanContent);
+  setIndexedLoadAction(ISD::POST_INC, {MVT::i8, MVT::i16, MVT::i32}, Legal);
+  setIndexedStoreAction(ISD::POST_INC, {MVT::i8, MVT::i16, MVT::i32}, Legal);
   setMinimumJumpTableEntries(UINT_MAX);
   computeRegisterProperties(STI.getRegisterInfo());
   setStackPointerRegisterToSaveRestore(AVR32::SP);
@@ -80,6 +82,31 @@ static void diagnoseUnsupported(SelectionDAG &DAG, const SDLoc &DL,
 
 static bool isSupportedRegValueType(EVT VT) {
   return VT == MVT::i32 || VT == MVT::i16 || VT == MVT::i8;
+}
+
+static unsigned getPostIncSize(EVT VT) {
+  if (VT == MVT::i8 || VT == MVT::i1)
+    return 1;
+  if (VT == MVT::i16)
+    return 2;
+  if (VT == MVT::i32)
+    return 4;
+  return 0;
+}
+
+static bool isSupportedPostIncLoad(EVT MemVT, ISD::LoadExtType ExtType) {
+  if (MemVT == MVT::i32)
+    return ExtType == ISD::NON_EXTLOAD;
+  if (MemVT == MVT::i16)
+    return true;
+  if (MemVT == MVT::i8 || MemVT == MVT::i1)
+    return ExtType != ISD::SEXTLOAD;
+  return false;
+}
+
+static bool isSupportedPostIncStore(EVT MemVT) {
+  return MemVT == MVT::i32 || MemVT == MVT::i16 || MemVT == MVT::i8 ||
+         MemVT == MVT::i1;
 }
 
 static ArrayRef<MCPhysReg> getIntArgRegs() {
@@ -373,6 +400,43 @@ MachineBasicBlock *AVR32TargetLowering::EmitInstrWithCustomInserter(
 
   MI.eraseFromParent();
   return SinkBB;
+}
+
+bool AVR32TargetLowering::getPostIndexedAddressParts(
+    SDNode *N, SDNode *Op, SDValue &Base, SDValue &Offset,
+    ISD::MemIndexedMode &AM, SelectionDAG &DAG) const {
+  EVT MemVT;
+  SDValue Ptr;
+
+  if (const auto *LD = dyn_cast<LoadSDNode>(N)) {
+    MemVT = LD->getMemoryVT();
+    Ptr = LD->getBasePtr();
+    if (!isSupportedPostIncLoad(MemVT, LD->getExtensionType()))
+      return false;
+  } else if (const auto *ST = dyn_cast<StoreSDNode>(N)) {
+    MemVT = ST->getMemoryVT();
+    Ptr = ST->getBasePtr();
+    if (!isSupportedPostIncStore(MemVT))
+      return false;
+  } else {
+    return false;
+  }
+
+  if (Op->getOpcode() != ISD::ADD)
+    return false;
+
+  auto *RHS = dyn_cast<ConstantSDNode>(Op->getOperand(1));
+  unsigned Inc = getPostIncSize(MemVT);
+  if (!RHS || RHS->getSExtValue() != Inc)
+    return false;
+
+  Base = Op->getOperand(0);
+  if (Ptr != Base)
+    return false;
+
+  Offset = DAG.getConstant(Inc, SDLoc(N), MVT::i32);
+  AM = ISD::POST_INC;
+  return true;
 }
 
 SDValue AVR32TargetLowering::LowerFormalArguments(

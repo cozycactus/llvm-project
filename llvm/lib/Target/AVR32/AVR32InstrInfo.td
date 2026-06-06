@@ -739,9 +739,11 @@ class CompactRegRegNoOut<bits<5> Op, string Mnemonic>
 }
 
 class CompactStorePostInc<bits<5> Op, string Mnemonic>
-    : AVR32Inst<0, (outs), (ins GPR:$Rp, GPR:$Rs),
+    : AVR32Inst<0, (outs GPR:$Rp_wb), (ins GPR:$Rp, GPR:$Rs),
                 Mnemonic#"\t${Rp}++, $Rs"> {
   let mayStore = 1;
+  let hasExtraDefRegAllocReq = 1;
+  let Constraints = "$Rp = $Rp_wb,@earlyclobber $Rp_wb";
 
   bits<4> Rp;
   bits<4> Rs;
@@ -815,9 +817,11 @@ class CompactStoreDisp4Shift2<string Mnemonic>
 }
 
 class CompactLoadPostInc<bits<5> Op, string Mnemonic>
-    : AVR32Inst<0, (outs GPR:$Rd), (ins GPR:$Rp),
+    : AVR32Inst<0, (outs GPR:$Rd, GPR:$Rp_wb), (ins GPR:$Rp),
                 Mnemonic#"\t$Rd, ${Rp}++"> {
   let mayLoad = 1;
+  let hasExtraDefRegAllocReq = 1;
+  let Constraints = "$Rp = $Rp_wb,@earlyclobber $Rd";
 
   bits<4> Rd;
   bits<4> Rp;

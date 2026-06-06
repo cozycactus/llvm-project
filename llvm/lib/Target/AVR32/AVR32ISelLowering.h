@@ -35,6 +35,10 @@ public:
   EmitInstrWithCustomInserter(MachineInstr &MI,
                               MachineBasicBlock *BB) const override;
 
+  bool getPostIndexedAddressParts(SDNode *N, SDNode *Op, SDValue &Base,
+                                  SDValue &Offset, ISD::MemIndexedMode &AM,
+                                  SelectionDAG &DAG) const override;
+
   SDValue LowerFormalArguments(SDValue Chain, CallingConv::ID CallConv,
                                bool IsVarArg,
                                const SmallVectorImpl<ISD::InputArg> &Ins,

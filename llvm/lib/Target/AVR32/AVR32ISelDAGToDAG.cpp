@@ -122,6 +122,17 @@ public:
     return 0;
   }
 
+  unsigned getPostIncLoadOpcode(EVT MemVT, ISD::LoadExtType ExtType) const {
+    if (MemVT == MVT::i32)
+      return ExtType == ISD::NON_EXTLOAD ? AVR32::LD_W_PostInc : 0;
+    if (MemVT == MVT::i8 || MemVT == MVT::i1)
+      return ExtType == ISD::SEXTLOAD ? 0 : AVR32::LD_UB_PostInc;
+    if (MemVT == MVT::i16)
+      return ExtType == ISD::SEXTLOAD ? AVR32::LD_SH_PostInc
+                                      : AVR32::LD_UH_PostInc;
+    return 0;
+  }
+
   unsigned getStoreOpcode(EVT MemVT) const {
     if (MemVT == MVT::i32)
       return AVR32::ST_W_Disp16;
@@ -129,6 +140,26 @@ public:
       return AVR32::ST_H_Disp16;
     if (MemVT == MVT::i8 || MemVT == MVT::i1)
       return AVR32::ST_B_Disp16;
+    return 0;
+  }
+
+  unsigned getPostIncStoreOpcode(EVT MemVT) const {
+    if (MemVT == MVT::i32)
+      return AVR32::ST_W_PostInc;
+    if (MemVT == MVT::i16)
+      return AVR32::ST_H_PostInc;
+    if (MemVT == MVT::i8 || MemVT == MVT::i1)
+      return AVR32::ST_B_PostInc;
+    return 0;
+  }
+
+  static unsigned getPostIncSize(EVT VT) {
+    if (VT == MVT::i8 || VT == MVT::i1)
+      return 1;
+    if (VT == MVT::i16)
+      return 2;
+    if (VT == MVT::i32)
+      return 4;
     return 0;
   }
 
@@ -515,6 +546,22 @@ public:
 
     if (Node->getOpcode() == ISD::LOAD) {
       auto *LD = cast<LoadSDNode>(Node);
+      if (LD->getAddressingMode() == ISD::POST_INC) {
+        unsigned Opcode =
+            getPostIncLoadOpcode(LD->getMemoryVT(), LD->getExtensionType());
+        auto *Offset = dyn_cast<ConstantSDNode>(LD->getOffset());
+        if (!Opcode || !Offset ||
+            Offset->getSExtValue() != getPostIncSize(LD->getMemoryVT()))
+          return false;
+
+        SDValue Ops[] = {LD->getBasePtr(), LD->getChain()};
+        SDNode *Result = CurDAG->SelectNodeTo(
+            Node, Opcode, MVT::i32, MVT::i32, MVT::Other, Ops);
+        CurDAG->setNodeMemRefs(cast<MachineSDNode>(Result),
+                               {LD->getMemOperand()});
+        return true;
+      }
+
       unsigned Opcode = getLoadOpcode(LD->getMemoryVT(), LD->getExtensionType());
       unsigned IndexedOpcode =
           getIndexedLoadOpcode(LD->getMemoryVT(), LD->getExtensionType());
@@ -543,6 +590,21 @@ public:
 
     if (Node->getOpcode() == ISD::STORE) {
       auto *ST = cast<StoreSDNode>(Node);
+      if (ST->getAddressingMode() == ISD::POST_INC) {
+        unsigned Opcode = getPostIncStoreOpcode(ST->getMemoryVT());
+        auto *Offset = dyn_cast<ConstantSDNode>(ST->getOffset());
+        if (!Opcode || !Offset ||
+            Offset->getSExtValue() != getPostIncSize(ST->getMemoryVT()))
+          return false;
+
+        SDValue Ops[] = {ST->getBasePtr(), ST->getValue(), ST->getChain()};
+        SDNode *Result =
+            CurDAG->SelectNodeTo(Node, Opcode, MVT::i32, MVT::Other, Ops);
+        CurDAG->setNodeMemRefs(cast<MachineSDNode>(Result),
+                               {ST->getMemOperand()});
+        return true;
+      }
+
       unsigned Opcode = getStoreOpcode(ST->getMemoryVT());
       if (!Opcode || !selectBaseDispAddress(ST->getBasePtr(), Base, Disp))
         return false;

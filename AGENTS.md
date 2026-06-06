@@ -75,7 +75,8 @@ Use this subset after AVR32 target, Clang, MC, object, or lld changes:
   lld/test/ELF/avr32-lddpc-relax.s
 ```
 
-Last known result for this subset: 43/43 passed after the LLVM 22.1.7 sync.
+Last known result for this subset: 44/44 passed after AVR32 post-increment
+load/store lowering was added.
 
 ## AVR32 Code Map
 
@@ -176,8 +177,11 @@ Current practical compile reference:
   .data`, excludes `.reset`, `.exception`, `.userpage`, `.stack`, and debug):
   - GCC Os: flash 111,590; `.text` 99,662; `.exception` 512; `.rodata` 10,256; `.data` 1,672; `.bss` 22,176
   - GCC O2: flash 115,718; `.text` 103,346; `.exception` 512; `.rodata` 10,700; `.data` 1,672; `.bss` 22,176
-  - LLVM Oz/lld: flash 116,612; `.text` 106,060; `.exception` 372; `.rodata` 8,888; `.data` 1,664; `.bss` 22,048
+  - LLVM Oz/lld after AVR32 post-increment load/store lowering: flash 116,536; `.text` 105,984; `.exception` 372; `.rodata` 8,888; `.data` 1,664; `.bss` 22,048
   - LLVM O2/lld: flash 128,100; `.text` 117,560; `.exception` 372; `.rodata` 8,876; `.data` 1,664; `.bss` 22,040
+  - AVR32 post-increment lowering improved LLVM Oz/lld by 76 flash bytes from
+    the post-sync baseline (`.text` 106,060 -> 105,984) and reduced
+    `dg8saqFunctionSetup` from 3,444 to 3,424 bytes.
   - All four builds used 74 objects and `/Users/ruslanmigirov/cozycactus/sdr-widget/Release/src/newlib_compat.o`.
   - In temporary makefile-wrapper builds, use `make all` explicitly; bare `make`
     may select an included dependency target before `all`.
@@ -186,11 +190,11 @@ Current practical compile reference:
     `-O2` to the requested LLVM opt level, add `-std=gnu89 -fcommon
     -Wno-expansion-to-defined` for C compiles, drop assembler-only `-Wa,-g`,
     and add `-mrelax` for links.
-  - Matched project objects explain +3,115 bytes of LLVM Oz vs GCC Os flash
-    delta: LLVM objects flash 87,128 vs GCC objects flash 84,013. Runtime/libc
+  - Matched project objects explain +3,037 bytes of LLVM Oz vs GCC Os flash
+    delta: LLVM objects flash 87,050 vs GCC objects flash 84,013. Runtime/libc
     and final link selection explain the remaining roughly +1.9 KB.
-  - Largest current object flash deltas, LLVM Oz minus GCC Os: `taskPushButtonMenu.o` +468, `taskMoboCtrl.o` +410, `tasks.o` +385, `DG8SAQ_cmd.o` +382, `taskLCD.o` +355, `uac2_usb_specific_request.o` -346, `gpio.o` +328, `uac2_device_audio_task.o` +328, `tc.o` -304, `twim_patched.o` +284.
-  - Largest current final text symbol deltas, LLVM Oz minus GCC Os: `dg8saqFunctionSetup` +520, `vtaskLCD` +452, `uac2_device_audio_task` +316, `uac2_user_read_request` -296, `vtaskMoboCtrl` +264, `menu_level0` +248, `pcf8574_menu` +212, `i2c_menu` +204.
+  - Largest current object flash deltas, LLVM Oz minus GCC Os: `taskPushButtonMenu.o` +460, `taskMoboCtrl.o` +410, `tasks.o` +385, `DG8SAQ_cmd.o` +362, `taskLCD.o` +355, `uac2_usb_specific_request.o` -346, `uac2_device_audio_task.o` +328, `gpio.o` +328, `tc.o` -304, `twim_patched.o` +284.
+  - Largest current final text symbol deltas, LLVM Oz minus GCC Os: `dg8saqFunctionSetup` +500, `vtaskLCD` +452, `uac2_device_audio_task` +316, `uac2_user_read_request` -296, `vtaskMoboCtrl` +264, `menu_level0` +248, `pcf8574_menu` +212, `i2c_menu` +204.
 - Current full SDR-widget link reference after the `popm` return-value change
   (`.text + .rodata + .data`; current local artifacts):
   - LLVM Oz/lld: flash 107,964; `.text` 97,376; `.exception` 356; `.rodata` 8,924; `.data` 1,664; `.bss` 22,040
