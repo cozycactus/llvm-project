@@ -11,6 +11,15 @@ Prefer focused, verifiable changes and keep unrelated repository state alone.
 - Use `apply_patch` for source edits.
 - Do not delete or modify unrelated local files such as the root `a.out` unless the user explicitly asks.
 - If comparing with external projects, treat them as read-only unless the user asks otherwise.
+- This is a minimal-diff LLVM fork. Keep changes surgical, avoid drive-by
+  formatting/refactors, and make commits logically isolated.
+- AVR32-owned areas are the normal place to work. Shared LLVM files such as
+  target registration, generic MC/ELF/lld plumbing, or Clang target tables can
+  be edited when the AVR32 task genuinely requires it, but keep those edits
+  narrow and explain why they are needed.
+- Prefer LLVM's existing patterns and TableGen definitions where the framework
+  expects them. Do not invent hand-written C++ paths for instruction, register,
+  or calling-convention data unless the surrounding target code already does so.
 
 ## Build Directory
 
@@ -84,6 +93,16 @@ change.
 - Target triple: `avr32`
 - Common part/CPU for SDR-widget work: `uc3a3256`
 - Common Clang flags: `--target=avr32 -mpart=uc3a3256`
+- AVR32 is big-endian in LLVM MC (`IsLittleEndian = false`).
+- Register roles used by the current backend: `r0-r7` are normal
+  call-preserved registers; `r8-r12` are caller-saved integer argument/return
+  registers; `r13=sp`, `r14=lr`, `r15=pc`. `sp`, `lr`, and `pc` are reserved
+  from allocation; `r7` is also reserved when used as the frame pointer.
+- Current integer argument and return register order is `r12, r11, r10, r9,
+  r8`. Verify ABI-sensitive changes against AVR32 GCC/binutils or the provided
+  PDFs before changing calling convention, callee-save, stack, or return rules.
+- Calls define `lr`; frame lowering saves/restores `lr` with `pushm/popm` when a
+  function makes calls.
 - AVR32 relaxation work uses `+relax` and lld relaxation tests.
 - Prefer Clang's integrated assembler for LLVM end-to-end validation. Use `avr32-gcc` / GNU binutils only as comparison references.
 - `LDA_W` is a codegen pseudo that emits one full `lddpc` at the instruction point and a `CPENT` constant-pool entry later. Its TableGen size must stay `4`, otherwise branch compaction can underestimate distances and produce `fixup_9h_pcrel` overflows.
