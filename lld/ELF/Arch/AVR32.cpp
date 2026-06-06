@@ -67,7 +67,7 @@ static uint32_t getEFlags(InputFile *file) {
   return cast<ObjFile<ELF32BE>>(file)->getObj().getHeader().e_flags;
 }
 
-static bool canRelaxBranches(Ctx &ctx) {
+static bool canRelaxControlTransfer(Ctx &ctx) {
   return ctx.arg.relax && (ctx.arg.eflags & EF_AVR32_LINKRELAX);
 }
 
@@ -75,12 +75,29 @@ static bool isFullBranch(uint32_t word) {
   return (word & 0xe1e00000) == 0xe0800000;
 }
 
+static bool isFullCall(uint32_t word) {
+  return (word & 0xe1ef0000) == 0xe0a00000;
+}
+
+static bool isFullControlTransfer(uint32_t word) {
+  return isFullBranch(word) || isFullCall(word);
+}
+
 static std::optional<std::pair<RelType, uint16_t>>
-getRelaxedBranch(uint32_t word, int64_t pcrel) {
+getRelaxedControlTransfer(uint32_t word, int64_t pcrel) {
   if (pcrel & 1)
     return std::nullopt;
 
   int64_t disp = pcrel >> 1;
+  if (isFullCall(word)) {
+    if (isInt<10>(disp))
+      return std::make_pair(R_AVR32_11H_PCREL, static_cast<uint16_t>(0xc00c));
+    return std::nullopt;
+  }
+
+  if (!isFullBranch(word))
+    return std::nullopt;
+
   uint32_t cond = (word >> 16) & 0xf;
   if (cond == 0xf) {
     if (isInt<10>(disp))
@@ -217,10 +234,10 @@ static bool relax(Ctx &ctx, InputSection &sec) {
     uint32_t &cur = aux.relocDeltas[i], remove = 0;
     if (r.type == R_AVR32_22H_PCREL && r.expr == R_PC) {
       uint32_t word = read32be(sec.content().data() + r.offset);
-      if (isFullBranch(word)) {
+      if (isFullControlTransfer(word)) {
         uint64_t val = sec.getRelocTargetVA(ctx, r, loc);
         int64_t pcrel = getAlignedPCRel(r, SignExtend64(val, 32), 2);
-        if (auto relaxed = getRelaxedBranch(word, pcrel)) {
+        if (auto relaxed = getRelaxedControlTransfer(word, pcrel)) {
           aux.relocTypes[i] = relaxed->first;
           aux.writes.push_back(relaxed->second);
           remove = 2;
@@ -254,7 +271,7 @@ static bool relax(Ctx &ctx, InputSection &sec) {
 }
 
 bool AVR32::relaxOnce(int pass) const {
-  if (!canRelaxBranches(ctx))
+  if (!canRelaxControlTransfer(ctx))
     return false;
 
   llvm::TimeTraceScope timeScope("AVR32 relaxOnce");
@@ -274,7 +291,7 @@ bool AVR32::relaxOnce(int pass) const {
 }
 
 void AVR32::finalizeRelax(int passes) const {
-  if (!canRelaxBranches(ctx))
+  if (!canRelaxControlTransfer(ctx))
     return;
 
   llvm::TimeTraceScope timeScope("Finalize AVR32 relaxation");

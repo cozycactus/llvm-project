@@ -20,6 +20,16 @@
 # RUN: llvm-readobj --relocations emit-relocs \
 # RUN:   | FileCheck %s --check-prefix=EMITREL
 
+# RUN: llvm-mc -triple=avr32 -mattr=+relax -filetype=obj call-a.s -o call-a.o
+# RUN: llvm-mc -triple=avr32 -mattr=+relax -filetype=obj call-b.s -o call-b.o
+# RUN: ld.lld call-a.o call-b.o -o call-relax
+# RUN: llvm-readobj --hex-dump=.text call-relax \
+# RUN:   | FileCheck %s --check-prefix=CALL
+
+# RUN: ld.lld --emit-relocs call-a.o call-b.o -o call-emit-relocs
+# RUN: llvm-readobj --relocations call-emit-relocs \
+# RUN:   | FileCheck %s --check-prefix=CALL-EMITREL
+
 # RELAX:      Flags [ (0x1)
 # RELAX-NEXT:   EF_AVR32_LINKRELAX (0x1)
 # RELAX-NEXT: ]
@@ -58,6 +68,15 @@
 # EMITREL-NEXT:     0x110CA R_AVR32_22H_PCREL target_gt 0x0
 # EMITREL-NEXT:   }
 # EMITREL-NEXT: ]
+
+# CALL:      Hex dump of section '.text':
+# CALL-NEXT: 0x{{[0-9a-f]+}} c02cd703 d703
+
+# CALL-EMITREL:      Relocations [
+# CALL-EMITREL-NEXT:   Section ({{.*}}) .rela.text {
+# CALL-EMITREL-NEXT:     0x110B4 R_AVR32_11H_PCREL target_call 0x0
+# CALL-EMITREL-NEXT:   }
+# CALL-EMITREL-NEXT: ]
 
 #--- a.s
 .text
@@ -100,4 +119,17 @@ target_pl:
 target_ls:
   nop
 target_gt:
+  nop
+
+#--- call-a.s
+.text
+.globl _start
+_start:
+  rcall target_call
+  nop
+
+#--- call-b.s
+.text
+.globl target_call
+target_call:
   nop
