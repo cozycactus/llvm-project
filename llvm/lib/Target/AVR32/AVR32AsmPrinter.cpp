@@ -8,6 +8,7 @@
 
 #include "AVR32.h"
 #include "MCTargetDesc/AVR32InstPrinter.h"
+#include "MCTargetDesc/AVR32TargetStreamer.h"
 #include "TargetInfo/AVR32TargetInfo.h"
 #include "llvm/BinaryFormat/ELF.h"
 #include "llvm/CodeGen/AsmPrinter.h"
@@ -23,6 +24,11 @@ using namespace llvm;
 
 #define DEBUG_TYPE "asm-printer"
 
+#define GET_INSTRINFO_ENUM
+#include "AVR32GenInstrInfo.inc"
+#define GET_REGINFO_ENUM
+#include "AVR32GenRegisterInfo.inc"
+
 namespace {
 class AVR32AsmPrinter : public AsmPrinter {
 public:
@@ -32,13 +38,22 @@ public:
   StringRef getPassName() const override { return "AVR32 Assembly Printer"; }
 
   void emitInstruction(const MachineInstr *MI) override;
+  void emitFunctionBodyEnd() override;
   bool PrintAsmOperand(const MachineInstr *MI, unsigned OpNo,
                        const char *ExtraCode, raw_ostream &O) override;
   const MCExpr *lowerSymbolOperand(const MachineOperand &MO);
+  AVR32TargetStreamer &getAVR32TargetStreamer() const;
+  void emitLdaWPseudo(const MachineInstr *MI);
 
   static char ID;
 };
 } // namespace
+
+AVR32TargetStreamer &AVR32AsmPrinter::getAVR32TargetStreamer() const {
+  MCTargetStreamer *TS = OutStreamer->getTargetStreamer();
+  assert(TS && "missing AVR32 target streamer");
+  return static_cast<AVR32TargetStreamer &>(*TS);
+}
 
 const MCExpr *AVR32AsmPrinter::lowerSymbolOperand(const MachineOperand &MO) {
   const MCSymbol *Symbol;
@@ -107,7 +122,39 @@ bool AVR32AsmPrinter::PrintAsmOperand(const MachineInstr *MI, unsigned OpNo,
   return true;
 }
 
+void AVR32AsmPrinter::emitFunctionBodyEnd() {
+  getAVR32TargetStreamer().emitCurrentConstantPool();
+}
+
+void AVR32AsmPrinter::emitLdaWPseudo(const MachineInstr *MI) {
+  const MachineOperand &Dst = MI->getOperand(0);
+  const MachineOperand &Value = MI->getOperand(1);
+  assert(Dst.isReg() && "lda.w destination must be a register");
+
+  const MCExpr *ValueExpr = nullptr;
+  if (Value.isGlobal() || Value.isSymbol() || Value.isMBB())
+    ValueExpr = lowerSymbolOperand(Value);
+  else if (Value.isImm())
+    ValueExpr = MCConstantExpr::create(Value.getImm(), OutContext);
+  else
+    report_fatal_error("AVR32 lda.w cannot lower this operand yet");
+
+  const MCExpr *CPLoc =
+      getAVR32TargetStreamer().addCPENTConstantPoolEntry(ValueExpr, SMLoc());
+
+  MCInst Load;
+  // Function-end pools can be too far for the compact lddpc form.
+  Load.setOpcode(AVR32::LDDPC_PCREL16);
+  Load.addOperand(MCOperand::createReg(Dst.getReg()));
+  Load.addOperand(MCOperand::createReg(AVR32::PC));
+  Load.addOperand(MCOperand::createExpr(CPLoc));
+  EmitToStreamer(*OutStreamer, Load);
+}
+
 void AVR32AsmPrinter::emitInstruction(const MachineInstr *MI) {
+  if (MI->getOpcode() == AVR32::LDA_W)
+    return emitLdaWPseudo(MI);
+
   MCInst Inst;
   Inst.setOpcode(MI->getOpcode());
   for (const MachineOperand &MO : MI->operands()) {

@@ -382,17 +382,9 @@ public:
     if (Offset == std::numeric_limits<int64_t>::min())
       Offset = GA->getOffset();
 
-    SDValue Hi = CurDAG->getTargetGlobalAddress(
-        GA->getGlobal(), DL, MVT::i32, Offset, AVR32II::MO_ABS_HI);
-    SDValue Lo = CurDAG->getTargetGlobalAddress(
-        GA->getGlobal(), DL, MVT::i32, Offset, AVR32II::MO_ABS_LO);
-
-    SDValue HiReg =
-        SDValue(CurDAG->getMachineNode(AVR32::MOVHri, DL, MVT::i32, Hi), 0);
-    SDValue LoReg =
-        SDValue(CurDAG->getMachineNode(AVR32::MOVri21, DL, MVT::i32, Lo), 0);
-    return SDValue(
-        CurDAG->getMachineNode(AVR32::ORALrrr, DL, MVT::i32, HiReg, LoReg), 0);
+    SDValue Sym = CurDAG->getTargetGlobalAddress(GA->getGlobal(), DL, MVT::i32,
+                                                  Offset);
+    return SDValue(CurDAG->getMachineNode(AVR32::LDA_W, DL, MVT::i32, Sym), 0);
   }
 
   bool selectConstant(SDNode *Node) {

@@ -44,6 +44,10 @@ void AVR32TargetStreamer::emitConstantPools() {
   ConstantPools->emitAll(Streamer);
 }
 
+void AVR32TargetStreamer::finish() {
+  emitConstantPools();
+}
+
 MCTargetStreamer *llvm::createAVR32NullTargetStreamer(MCStreamer &S) {
   return new AVR32TargetStreamer(S);
 }

@@ -27,6 +27,7 @@ public:
   const MCExpr *addCPENTConstantPoolEntry(const MCExpr *Expr, SMLoc Loc);
   void emitCurrentConstantPool();
   void emitConstantPools() override;
+  void finish() override;
 };
 
 } // end namespace llvm

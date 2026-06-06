@@ -440,30 +440,30 @@ __attribute__((optnone, noinline)) int pick(int a, int b) {
 // ASM: ret r12
 
 // ASM-LABEL: addr:
-// ASM: mov [[BYTES_ADDR:r[0-9]+]], LO(bytes)
-// ASM: orh [[BYTES_ADDR]], HI(bytes)
-// ASM: ret r12
+// ASM: lddpc [[BYTES_ADDR:r[0-9]+]], pc[.Ltmp{{[0-9]+}}]
+// ASM: ret [[BYTES_ADDR]]
+// ASM: .long CPENT(bytes)
 
 // ASM-LABEL: load_byte:
-// ASM: mov [[BYTE_BASE:r[0-9]+]], LO(bytes)
-// ASM: orh [[BYTE_BASE]], HI(bytes)
+// ASM: lddpc [[BYTE_BASE:r[0-9]+]], pc[.Ltmp{{[0-9]+}}]
 // ASM: ld.ub r12, [[BYTE_BASE]][3]
 // ASM: ret r12
+// ASM: .long CPENT(bytes)
 
 // ASM-LABEL: load_two_bytes:
-// ASM: mov [[BYTES_BASE:r[0-9]+]], LO(bytes)
-// ASM: orh [[BYTES_BASE]], HI(bytes)
+// ASM: lddpc [[BYTES_BASE:r[0-9]+]], pc[.Ltmp{{[0-9]+}}]
 // ASM: ld.ub [[BYTE0:r[0-9]+]], [[BYTES_BASE]][2]
 // ASM: ld.ub [[BYTE1:r[0-9]+]], [[BYTES_BASE]][3]
 // ASM: add{{.*}} r12, [[BYTE1]]
 // ASM: ret r12
+// ASM: .long CPENT(bytes)
 
 // ASM-LABEL: load_table:
 // ASM: and
-// ASM: mov [[VALUES_BASE:r[0-9]+]], LO(values)
-// ASM: orh [[VALUES_BASE]], HI(values)
-// ASM: ld.w r12, {{r[0-9]+}}[{{r[0-9]+}} << 2]
+// ASM: lddpc [[VALUES_BASE:r[0-9]+]], pc[.Ltmp{{[0-9]+}}]
+// ASM: ld.w r12, [[VALUES_BASE]][{{r[0-9]+}} << 2]
 // ASM: ret r12
+// ASM: .long CPENT(values)
 
 // ASM-LABEL: or_mask:
 // ASM: sbr r12, 16
@@ -652,10 +652,10 @@ __attribute__((optnone, noinline)) int pick(int a, int b) {
 // ASM: ret r12
 
 // ASM-LABEL: store_global:
-// ASM: mov [[SINK_BASE:r[0-9]+]], LO(sink)
-// ASM: orh [[SINK_BASE]], HI(sink)
-// ASM: st.w {{r[0-9]+}}[0], r12
+// ASM: lddpc [[SINK_BASE:r[0-9]+]], pc[.Ltmp{{[0-9]+}}]
+// ASM: st.w [[SINK_BASE]][0], r12
 // ASM: ret r12
+// ASM: .long CPENT(sink)
 
 // O0ASM-LABEL: add:
 // O0ASM: sub sp, 8
@@ -682,11 +682,8 @@ __attribute__((optnone, noinline)) int pick(int a, int b) {
 // O0ASM: ret r12
 
 // RELOC: R_AVR32_22H_PCREL add
-// RELOC: R_AVR32_LO16 bytes 0x0
-// RELOC: R_AVR32_HI16 bytes 0x0
-// RELOC: R_AVR32_LO16 bytes 0x0
-// RELOC: R_AVR32_HI16 bytes 0x0
-// RELOC: R_AVR32_LO16 values 0x0
-// RELOC: R_AVR32_HI16 values 0x0
-// RELOC: R_AVR32_LO16 sink 0x0
-// RELOC: R_AVR32_HI16 sink 0x0
+// RELOC: R_AVR32_32_CPENT bytes 0x0
+// RELOC: R_AVR32_32_CPENT bytes 0x0
+// RELOC: R_AVR32_32_CPENT bytes 0x0
+// RELOC: R_AVR32_32_CPENT values 0x0
+// RELOC: R_AVR32_32_CPENT sink 0x0

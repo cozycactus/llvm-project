@@ -40,6 +40,15 @@
 # RUN: llvm-readobj --hex-dump=.text load-adjacent \
 # RUN:   | FileCheck %s --check-prefix=LOAD-ADJACENT
 
+# RUN: llvm-mc -triple=avr32 -mattr=+relax -filetype=obj load-full-gap.s -o load-full-gap.o
+# RUN: ld.lld --direct-data load-full-gap.o -o load-full-gap
+# RUN: llvm-readobj --hex-dump=.text load-full-gap \
+# RUN:   | FileCheck %s --check-prefix=LOAD-FULL-GAP
+
+# RUN: ld.lld --direct-data --emit-relocs load-full-gap.o -o load-full-gap-emit
+# RUN: llvm-readobj --relocations --hex-dump=.text load-full-gap-emit \
+# RUN:   | FileCheck %s --check-prefixes=LOAD-FULL-GAP-EMIT,LOAD-FULL-GAP
+
 # RUN: llvm-mc -triple=avr32 -mattr=+relax -filetype=obj load-gap.s -o load-gap.o
 # RUN: ld.lld --direct-data load-gap.o -o load-gap
 # RUN: llvm-readobj --hex-dump=.text load-gap \
@@ -85,6 +94,15 @@
 # LOAD-ADJACENT:      Hex dump of section '.text':
 # LOAD-ADJACENT-NEXT: 0x{{[0-9a-f]+}} d703e070 10b4
 
+# LOAD-FULL-GAP-EMIT:      Relocations [
+# LOAD-FULL-GAP-EMIT-NEXT:   Section ({{.*}}) .rela.text {
+# LOAD-FULL-GAP-EMIT-NEXT:     0x110B4 R_AVR32_21S target 0x0
+# LOAD-FULL-GAP-EMIT-NEXT:   }
+# LOAD-FULL-GAP-EMIT-NEXT: ]
+
+# LOAD-FULL-GAP:      Hex dump of section '.text':
+# LOAD-FULL-GAP-NEXT: 0x{{[0-9a-f]+}} e07010bc d7035efe d703
+
 # LOAD-GAP:      Hex dump of section '.text':
 # LOAD-GAP-NEXT: 0x{{[0-9a-f]+}} 4810d703 000110bc d703
 
@@ -118,6 +136,20 @@ _start:
   lda.w r0, target
   nop
   .ltorg
+target:
+  nop
+
+#--- load-full-gap.s
+.text
+.globl _start, target
+_start:
+  lddpc r0, pc[.Lpool]
+  nop
+  retal lr
+  .p2align 2, 0
+.Lpool:
+  .long 0
+  .reloc .Lpool, R_AVR32_32_CPENT, target
 target:
   nop
 
