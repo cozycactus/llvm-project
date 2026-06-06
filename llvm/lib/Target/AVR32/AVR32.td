@@ -11,6 +11,9 @@ include "llvm/Target/Target.td"
 include "AVR32RegisterInfo.td"
 include "AVR32InstrInfo.td"
 
+def FeatureRelax : SubtargetFeature<"relax", "EnableLinkerRelax", "true",
+                                    "Enable linker relaxation">;
+
 defm : RemapAllTargetPseudoPointerOperands<GPR>;
 
 def AVR32InstrInfo : InstrInfo;

@@ -56,4 +56,7 @@ MCTargetStreamer *createAVR32ObjectTargetStreamer(MCStreamer &S,
 #define GET_INSTRINFO_MC_HELPER_DECLS
 #include "../AVR32GenInstrInfo.inc"
 
+#define GET_SUBTARGETINFO_ENUM
+#include "../AVR32GenSubtargetInfo.inc"
+
 #endif

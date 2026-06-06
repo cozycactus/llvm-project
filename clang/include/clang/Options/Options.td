@@ -5179,6 +5179,8 @@ def mpart_EQ : Joined<["-"], "mpart=">, Group<m_Group>,
   Flags<[TargetSpecific]>;
 def masm_addr_pseudos : Flag<["-"], "masm-addr-pseudos">, Group<m_Group>,
   Flags<[TargetSpecific]>, Visibility<[ClangOption]>;
+def mno_asm_addr_pseudos : Flag<["-"], "mno-asm-addr-pseudos">,
+  Group<m_Group>, Flags<[TargetSpecific]>, Visibility<[ClangOption]>;
 def msim : Flag<["-"], "msim">, Group<m_Group>;
 def mfix_and_continue : Flag<["-"], "mfix-and-continue">, Group<clang_ignored_m_Group>;
 def mieee_fp : Flag<["-"], "mieee-fp">, Group<clang_ignored_m_Group>;

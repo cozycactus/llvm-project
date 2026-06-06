@@ -11,6 +11,7 @@
 #include "clang/Driver/CommonArgs.h"
 #include "clang/Driver/Compilation.h"
 #include "clang/Driver/InputInfo.h"
+#include "clang/Frontend/CompilerInvocation.h"
 #include "clang/Options/Options.h"
 #include "llvm/Option/ArgList.h"
 #include "llvm/Support/FileSystem.h"
@@ -115,6 +116,17 @@ std::optional<std::string> getAVR32LinkerScript(StringRef SysRoot,
   return std::nullopt;
 }
 
+bool shouldEnableAVR32LinkRelax(const Driver &D, const ArgList &Args) {
+  if (const Arg *A = Args.getLastArg(options::OPT_mrelax,
+                                     options::OPT_mno_relax))
+    return A->getOption().matches(options::OPT_mrelax);
+
+  if (!Args.getLastArg(options::OPT_O_Group))
+    return false;
+
+  return getOptimizationLevel(Args, InputKind(), D.getDiags()) > 1;
+}
+
 } // end anonymous namespace
 
 AVR32ToolChain::AVR32ToolChain(const Driver &D, const llvm::Triple &Triple,
@@ -175,6 +187,9 @@ void AVR32ToolChain::addClangTargetOptions(
   DriverArgs.ClaimAllArgs(options::OPT_mpart_EQ);
   DriverArgs.ClaimAllArgs(options::OPT_mmcu_EQ);
   DriverArgs.ClaimAllArgs(options::OPT_masm_addr_pseudos);
+  DriverArgs.ClaimAllArgs(options::OPT_mno_asm_addr_pseudos);
+  DriverArgs.ClaimAllArgs(options::OPT_mrelax);
+  DriverArgs.ClaimAllArgs(options::OPT_mno_relax);
   DriverArgs.ClaimAllArgs(options::OPT_rodata_writable);
 }
 
@@ -212,7 +227,7 @@ void AVR32::Linker::ConstructJob(Compilation &C, const JobAction &JA,
 
   if (!Args.hasArg(options::OPT_r))
     CmdArgs.push_back("--gc-sections");
-  if (Args.hasFlag(options::OPT_mrelax, options::OPT_mno_relax, false))
+  if (shouldEnableAVR32LinkRelax(TC.getDriver(), Args))
     CmdArgs.push_back("--relax");
 
   Args.AddAllArgs(CmdArgs, options::OPT_L);

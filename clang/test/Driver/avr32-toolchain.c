@@ -44,3 +44,36 @@
 // CHAR: "-cc1"
 // CHAR-DAG: "-fno-signed-char"
 // CHAR-DAG: "-target-cpu" "uc3a3128"
+
+// RUN: %clang -### --target=avr32 -mpart=uc3a3256 -mrelax \
+// RUN:   -c %s 2>&1 | FileCheck --check-prefix=RELAX-CC1 %s
+// RELAX-CC1-NOT: warning: argument unused
+// RELAX-CC1: "-target-feature" "+relax"
+
+// RUN: %clang -### --target=avr32 -mpart=uc3a3256 -O2 \
+// RUN:   -c %s 2>&1 | FileCheck --check-prefix=OPT-RELAX-CC1 %s
+// OPT-RELAX-CC1: "-target-feature" "+relax"
+
+// RUN: %clang -### --target=avr32 -mpart=uc3a3256 -mno-relax \
+// RUN:   -c %s 2>&1 | FileCheck --check-prefix=NORELAX-CC1 %s
+// NORELAX-CC1-NOT: warning: argument unused
+// NORELAX-CC1: "-target-feature" "-relax"
+
+// RUN: %clang -### --target=avr32 -mpart=uc3a3256 \
+// RUN:   -mno-asm-addr-pseudos -c %s 2>&1 \
+// RUN:   | FileCheck --check-prefix=NOADDRPSEUDO %s
+// NOADDRPSEUDO-NOT: unknown argument
+// NOADDRPSEUDO-NOT: warning: argument unused
+// NOADDRPSEUDO: "-cc1"
+
+// RUN: %clang -### --target=avr32 --sysroot=%S/Inputs/basic_avr32_tree \
+// RUN:   -mpart=uc3a3256 -nostartfiles -O2 %s 2>&1 \
+// RUN:   | FileCheck --check-prefix=RELAX-LINK %s
+// RELAX-LINK: "{{.*}}ld.lld"
+// RELAX-LINK-SAME: "--relax"
+
+// RUN: %clang -### --target=avr32 --sysroot=%S/Inputs/basic_avr32_tree \
+// RUN:   -mpart=uc3a3256 -nostartfiles -O2 -mno-relax %s 2>&1 \
+// RUN:   | FileCheck --check-prefix=NORELAX-LINK %s
+// NORELAX-LINK: "{{.*}}ld.lld"
+// NORELAX-LINK-NOT: "--relax"

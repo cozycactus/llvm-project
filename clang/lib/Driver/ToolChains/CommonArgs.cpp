@@ -848,6 +848,25 @@ static void getWebAssemblyTargetFeatures(const Driver &D,
                             options::OPT_m_wasm_Features_Group);
 }
 
+static bool shouldEnableAVR32LinkRelax(const Driver &D, const ArgList &Args) {
+  if (const Arg *A = Args.getLastArg(options::OPT_mrelax,
+                                     options::OPT_mno_relax))
+    return A->getOption().matches(options::OPT_mrelax);
+
+  if (!Args.getLastArg(options::OPT_O_Group))
+    return false;
+
+  return getOptimizationLevel(Args, InputKind(), D.getDiags()) > 1;
+}
+
+static void getAVR32TargetFeatures(const Driver &D, const ArgList &Args,
+                                   std::vector<StringRef> &Features) {
+  if (shouldEnableAVR32LinkRelax(D, Args))
+    Features.push_back("+relax");
+  else if (Args.getLastArg(options::OPT_mno_relax))
+    Features.push_back("-relax");
+}
+
 void tools::getTargetFeatures(const Driver &D, const llvm::Triple &Triple,
                               const ArgList &Args, ArgStringList &CmdArgs,
                               bool ForAS, bool IsAux) {
@@ -895,6 +914,9 @@ void tools::getTargetFeatures(const Driver &D, const llvm::Triple &Triple,
   case llvm::Triple::wasm32:
   case llvm::Triple::wasm64:
     getWebAssemblyTargetFeatures(D, Triple, Args, Features);
+    break;
+  case llvm::Triple::avr32:
+    getAVR32TargetFeatures(D, Args, Features);
     break;
   case llvm::Triple::sparc:
   case llvm::Triple::sparcel:

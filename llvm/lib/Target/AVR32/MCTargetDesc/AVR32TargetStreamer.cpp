@@ -11,6 +11,8 @@
 #include "llvm/BinaryFormat/ELF.h"
 #include "llvm/MC/ConstantPools.h"
 #include "llvm/MC/MCContext.h"
+#include "llvm/MC/MCELFStreamer.h"
+#include "llvm/MC/MCELFObjectWriter.h"
 #include "llvm/MC/MCExpr.h"
 #include "llvm/MC/MCInstPrinter.h"
 #include "llvm/MC/MCStreamer.h"
@@ -55,5 +57,9 @@ MCTargetStreamer *llvm::createAVR32AsmTargetStreamer(MCStreamer &S,
 MCTargetStreamer *
 llvm::createAVR32ObjectTargetStreamer(MCStreamer &S,
                                       const MCSubtargetInfo &STI) {
+  if (STI.hasFeature(AVR32::FeatureRelax)) {
+    ELFObjectWriter &W = static_cast<MCELFStreamer &>(S).getWriter();
+    W.setELFHeaderEFlags(W.getELFHeaderEFlags() | ELF::EF_AVR32_LINKRELAX);
+  }
   return new AVR32TargetStreamer(S);
 }

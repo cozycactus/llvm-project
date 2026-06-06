@@ -11,6 +11,8 @@
 
 using namespace llvm;
 
+#define GET_SUBTARGETINFO_ENUM
+#include "AVR32GenSubtargetInfo.inc"
 #define GET_SUBTARGETINFO_TARGET_DESC
 #define GET_SUBTARGETINFO_CTOR
 #include "AVR32GenSubtargetInfo.inc"

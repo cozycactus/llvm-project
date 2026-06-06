@@ -27,6 +27,8 @@ class StringRef;
 class AVR32Subtarget : public AVR32GenSubtargetInfo {
   virtual void anchor();
 
+  bool EnableLinkerRelax = false;
+
   AVR32InstrInfo InstrInfo;
   AVR32FrameLowering FrameLowering;
   AVR32TargetLowering TLInfo;
