@@ -4,7 +4,7 @@ struct a { int b; };
 
 struct a test __attribute__((interrupt)); // expected-warning {{'interrupt' attribute only applies to functions}}
 
-__attribute__((interrupt(12))) void foo(void) {} // expected-error {{'interrupt' attribute takes no arguments}}
+__attribute__((interrupt(12))) void foo(void) {} // expected-error {{expected string literal as argument of 'interrupt' attribute}}
 
 __attribute__((interrupt)) int bad_return(void) { return 0; } // expected-warning {{AVR32 'interrupt' attribute only applies to functions that have a 'void' return type}}
 

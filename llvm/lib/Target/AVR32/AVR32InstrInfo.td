@@ -2525,6 +2525,7 @@ def LD_D_PreDec : CompactLoadPair<0b10001, 0, "ld.d\t$Rd, --$Rp">;
 def LD_D_Reg : CompactLoadPair<0b10000, 0, "ld.d\t$Rd, $Rp">;
 def LD_D_Disp16 : FullLoadPairDisp16<0b01110, "ld.d">;
 def LD_D_IndexShift : FullLoadPairIndexShift<0b0000001000, "ld.d">;
+let Size = 4 in
 def LDA_W : AVR32Pseudo<(outs GPR:$Rd), (ins ldaexpr:$Imm),
                         "lda.w\t$Rd, $Imm">;
 def LDDPC : CompactLoadBaseDisp7Shift2<0b01001, PCOnly, "lddpc">;
