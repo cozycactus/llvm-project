@@ -3070,7 +3070,10 @@ def AVR32InterruptDocs : Documentation {
 Clang supports the GNU style ``__attribute__((interrupt))`` attribute on
 AVR32 targets. This attribute may be attached to a function definition and
 instructs the backend to generate appropriate function exit code so that it can
-be used directly as an interrupt service routine.
+be used directly as an interrupt service routine. The GNU-compatible shadow
+register modes ``interrupt("none")``, ``interrupt("half")`` and
+``interrupt("full")`` are also accepted. Omitting the argument is equivalent to
+``interrupt("none")``.
 
 Interrupt handler functions defined with this attribute return using the
 ``rete`` instruction.

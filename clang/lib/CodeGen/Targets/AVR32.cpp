@@ -28,8 +28,23 @@ public:
     if (!FD)
       return;
 
-    if (FD->getAttr<AVR32InterruptAttr>())
-      cast<llvm::Function>(GV)->addFnAttr("interrupt");
+    const AVR32InterruptAttr *Attr = FD->getAttr<AVR32InterruptAttr>();
+    if (!Attr)
+      return;
+
+    auto *Fn = cast<llvm::Function>(GV);
+    switch (Attr->getInterrupt()) {
+    case AVR32InterruptAttr::Default:
+    case AVR32InterruptAttr::None:
+      Fn->addFnAttr("interrupt");
+      break;
+    case AVR32InterruptAttr::Half:
+      Fn->addFnAttr("interrupt", "half");
+      break;
+    case AVR32InterruptAttr::Full:
+      Fn->addFnAttr("interrupt", "full");
+      break;
+    }
   }
 };
 

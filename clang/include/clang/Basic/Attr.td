@@ -1070,7 +1070,12 @@ def AVRInterrupt : InheritableAttr, TargetSpecificAttr<TargetAVR> {
 def AVR32Interrupt : InheritableAttr, TargetSpecificAttr<TargetAVR32> {
   let Spellings = [GCC<"interrupt">];
   let Subjects = SubjectList<[Function]>;
+  let Args = [EnumArgument<"Interrupt", "InterruptType", /*is_string=*/true,
+                           ["none", "half", "full", ""],
+                           ["None", "Half", "Full", "Default"],
+                           1>];
   let ParseKind = "Interrupt";
+  let HasCustomParsing = 1;
   let Documentation = [AVR32InterruptDocs];
 }
 
