@@ -7,6 +7,7 @@ repo_root=$(cd "${script_dir}/.." && pwd)
 AVR32_GNU_PREFIX=${AVR32_GNU_PREFIX:-/Users/cozy/cozycactus/avr32-toolchain-macos-arm64/avr32-tools-src/bin/avr32-}
 AVR32_AS=${AVR32_AS:-${AVR32_GNU_PREFIX}as}
 AVR32_LD=${AVR32_LD:-${AVR32_GNU_PREFIX}ld}
+AVR32_NM=${AVR32_NM:-${AVR32_GNU_PREFIX}nm}
 AVR32_OBJDUMP=${AVR32_OBJDUMP:-${AVR32_GNU_PREFIX}objdump}
 AVR32_CLANG=${AVR32_CLANG:-${repo_root}/build-avr32/bin/clang}
 AVR32_GCC=${AVR32_GCC:-${AVR32_GNU_PREFIX}gcc}
@@ -27,6 +28,7 @@ require_executable() {
 
 require_executable "$AVR32_AS"
 require_executable "$AVR32_LD"
+require_executable "$AVR32_NM"
 require_executable "$AVR32_OBJDUMP"
 require_executable "$AVR32_CLANG"
 require_executable "$AVR32_GCC"
@@ -98,7 +100,22 @@ symbol_address_from_objdump() {
   echo "$address"
 }
 
-compile_memory_c() {
+symbol_address_from_nm() {
+  local symbol=$1
+  local elf=$2
+  local address
+  address=$("$AVR32_NM" "$elf" | awk -v sym="$symbol" '$3 == sym {
+    print "0x" $1
+    exit
+  }')
+  if [[ -z "$address" ]]; then
+    echo "could not find symbol ${symbol} in ${elf}" >&2
+    exit 1
+  fi
+  echo "$address"
+}
+
+compile_case_c() {
   local compiler=$1
   local dir=$2
 
@@ -106,12 +123,12 @@ compile_memory_c() {
   llvm)
     "$AVR32_CLANG" --target=avr32 -mpart=uc3a3256 -Oz \
       -ffreestanding -fno-builtin \
-      -c "$dir/memory.c" -o "$dir/memory.o"
+      -c "$dir/case.c" -o "$dir/case.o"
     ;;
   gcc)
     "$AVR32_GCC" -mpart=uc3a3256 -Os \
       -ffreestanding -fno-builtin \
-      -c "$dir/memory.c" -o "$dir/memory.o"
+      -c "$dir/case.c" -o "$dir/case.o"
     ;;
   *)
     echo "unknown memory smoke compiler: $compiler" >&2
@@ -282,14 +299,10 @@ ASM
   echo "AVR32 LLVM C smoke passed: answer(7,26) returned 42 at ${done_pc}"
 }
 
-run_memory_smoke_variant() {
-  local compiler=$1
-  local label=$2
-  local dir="$tmpdir/${compiler}-memory"
-  local done_pc
+write_start_shim() {
+  local path=$1
+  local entry=$2
   local sram_top_hi
-  local -a step_args=()
-  mkdir -p "$dir"
 
   if (( (AVR32_SRAM_TOP & 0xffff) != 0 )); then
     echo "AVR32_SRAM_TOP must be 64 KiB aligned for the current start shim" >&2
@@ -297,7 +310,101 @@ run_memory_smoke_variant() {
   fi
   sram_top_hi=$(printf "0x%x" "$((AVR32_SRAM_TOP >> 16))")
 
-  cat > "$dir/memory.c" <<'C'
+  cat > "$path" <<ASM
+        .section .text
+        .global _start
+        .type _start, @function
+_start:
+        movh    sp, ${sram_top_hi}
+        rcall   ${entry}
+done:
+        rjmp    done
+
+        .section .data
+ASM
+}
+
+run_compare_case_variant() {
+  local compiler=$1
+  local label=$2
+  local name=$3
+  local source=$4
+  local expected_return=$5
+  local expected_sink=$6
+  local step_count=$7
+  local dir="$tmpdir/${compiler}-${name}"
+  local done_pc
+  local sink_addr
+  local expected_return_hex
+  local expected_sink_hex
+  local -a step_args=()
+  mkdir -p "$dir"
+
+  cp "$source" "$dir/case.c"
+  write_linker_script "$dir/smoke.ld"
+  write_start_shim "$dir/start.S" test_entry
+  compile_case_c "$compiler" "$dir"
+  "$AVR32_AS" -o "$dir/start.o" "$dir/start.S"
+  "$AVR32_LD" -T "$dir/smoke.ld" \
+    -o "$dir/smoke.elf" "$dir/start.o" "$dir/case.o"
+  "$AVR32_OBJDUMP" -dr "$dir/smoke.elf" > "$dir/objdump.txt"
+  done_pc=$(symbol_address_from_objdump done "$dir/objdump.txt")
+  sink_addr=$(symbol_address_from_nm sink "$dir/smoke.elf")
+  expected_return_hex=$(printf "0x%x" "$expected_return")
+  expected_sink_hex=$(printf "0x%08x" "$expected_sink")
+
+  for ((i = 0; i < step_count; ++i)); do
+    step_args+=(-ex "si")
+  done
+
+  start_qemu "$dir/smoke.elf" "$dir/qemu.log"
+  run_gdb "$dir/smoke.elf" "$dir/gdb.log" \
+    -ex "x/24i \$pc" \
+    "${step_args[@]}" \
+    -ex "info registers pc sp r8 r9 r10 r11 r12" \
+    -ex "x/wx ${sink_addr}" \
+    -ex "detach"
+  stop_qemu
+
+  if ! grep -Eq "r12[[:space:]]+${expected_return_hex}[[:space:]]+${expected_return}" "$dir/gdb.log"; then
+    dump_failure "AVR32 ${label} ${name} failed: r12 did not become ${expected_return}" \
+      "$dir/gdb.log" "$dir/qemu.log" "$dir/objdump.txt"
+    exit 1
+  fi
+
+  if ! grep -Eq "pc[[:space:]]+${done_pc}[[:space:]]" "$dir/gdb.log"; then
+    dump_failure "AVR32 ${label} ${name} failed: PC did not reach done loop ${done_pc}" \
+      "$dir/gdb.log" "$dir/qemu.log" "$dir/objdump.txt"
+    exit 1
+  fi
+
+  if ! grep -Eq "${expected_sink_hex}" "$dir/gdb.log"; then
+    dump_failure "AVR32 ${label} ${name} failed: sink did not become ${expected_sink}" \
+      "$dir/gdb.log" "$dir/qemu.log" "$dir/objdump.txt"
+    exit 1
+  fi
+
+  echo "AVR32 ${label} ${name} passed: r12=${expected_return}, sink=${expected_sink}"
+}
+
+run_compare_case() {
+  local name=$1
+  local expected_return=$2
+  local expected_sink=$3
+  local step_count=$4
+  local source="$tmpdir/${name}.c"
+
+  cat > "$source"
+  run_compare_case_variant llvm LLVM "$name" "$source" \
+    "$expected_return" "$expected_sink" "$step_count"
+  run_compare_case_variant gcc GCC "$name" "$source" \
+    "$expected_return" "$expected_sink" "$step_count"
+}
+
+run_memory_comparison_smoke() {
+  local cases=0
+
+  run_compare_case stack_global 42 43 120 <<'C'
 volatile int sink;
 
 __attribute__((noinline)) static int fill(int *p, int x) {
@@ -307,74 +414,124 @@ __attribute__((noinline)) static int fill(int *p, int x) {
   return p[2];
 }
 
-int memory_test(int x) {
+int test_entry(void) {
   int local[3];
-  int y = fill(local, x);
+  int y;
+  y = fill(local, 10);
   sink = y + local[0];
   return sink - 1;
 }
 C
+  cases=$((cases + 1))
 
-  cat > "$dir/start.S" <<ASM
-        .section .text
-        .global _start
-        .type _start, @function
-_start:
-        movh    sp, ${sram_top_hi}
-        mov     r12, 10
-        rcall   memory_test
-done:
-        rjmp    done
+  run_compare_case branches 42 43 160 <<'C'
+volatile int sink;
 
-        .section .data
-ASM
-
-  write_linker_script "$dir/smoke.ld"
-  compile_memory_c "$compiler" "$dir"
-  "$AVR32_AS" -o "$dir/start.o" "$dir/start.S"
-  "$AVR32_LD" -T "$dir/smoke.ld" \
-    -o "$dir/smoke.elf" "$dir/start.o" "$dir/memory.o"
-  "$AVR32_OBJDUMP" -dr "$dir/smoke.elf" > "$dir/objdump.txt"
-  done_pc=$(symbol_address_from_objdump done "$dir/objdump.txt")
-
-  for _ in {1..60}; do
-    step_args+=(-ex "si")
-  done
-
-  start_qemu "$dir/smoke.elf" "$dir/qemu.log"
-  run_gdb "$dir/smoke.elf" "$dir/gdb.log" \
-    -ex "x/20i \$pc" \
-    "${step_args[@]}" \
-    -ex "info registers pc sp r8 r9 r11 r12" \
-    -ex "x/wx ${AVR32_SRAM_BASE}" \
-    -ex "detach"
-  stop_qemu
-
-  if ! grep -Eq "r12[[:space:]]+0x2a[[:space:]]+42" "$dir/gdb.log"; then
-    dump_failure "AVR32 ${label} memory smoke failed: r12 did not become 42" \
-      "$dir/gdb.log" "$dir/qemu.log" "$dir/objdump.txt"
-    exit 1
-  fi
-
-  if ! grep -Eq "pc[[:space:]]+${done_pc}[[:space:]]" "$dir/gdb.log"; then
-    dump_failure "AVR32 ${label} memory smoke failed: PC did not reach done loop ${done_pc}" \
-      "$dir/gdb.log" "$dir/qemu.log" "$dir/objdump.txt"
-    exit 1
-  fi
-
-  if ! grep -Eq "0x0000002b" "$dir/gdb.log"; then
-    dump_failure "AVR32 ${label} memory smoke failed: SRAM sink did not become 43" \
-      "$dir/gdb.log" "$dir/qemu.log" "$dir/objdump.txt"
-    exit 1
-  fi
-
-  echo "AVR32 ${label} memory smoke passed: stack, call, lddpc, and SRAM sink at ${AVR32_SRAM_BASE}"
+__attribute__((noinline)) static int branch_mix(int a, int b, unsigned int u) {
+  int r;
+  int i;
+  r = 0;
+  if (a < b)
+    r += 11;
+  else
+    r += 100;
+  if ((unsigned int)a > u)
+    r += 13;
+  else
+    r -= 7;
+  for (i = 0; i < 5; ++i) {
+    if ((i & 1) == 0)
+      r += b;
+    else
+      r += a;
+  }
+  return r;
 }
 
-run_memory_comparison_smoke() {
-  run_memory_smoke_variant llvm LLVM
-  run_memory_smoke_variant gcc GCC
-  echo "AVR32 LLVM/GCC memory comparison passed: both returned 42 and stored 43 in SRAM"
+int test_entry(void) {
+  int v;
+  v = branch_mix(-3, 8, 10U);
+  sink = v + 1;
+  return sink - 1;
+}
+C
+  cases=$((cases + 1))
+
+  run_compare_case mul_shift 42 43 120 <<'C'
+volatile int sink;
+
+__attribute__((noinline)) static int mul_shift(int x) {
+  int y;
+  int z;
+  y = x - 1;
+  z = x * y;
+  z += ((unsigned int)z >> 5);
+  z -= 1;
+  return z;
+}
+
+int test_entry(void) {
+  int v;
+  v = mul_shift(7);
+  sink = v + 1;
+  return sink - 1;
+}
+C
+  cases=$((cases + 1))
+
+  run_compare_case pointer_volatile 42 43 220 <<'C'
+volatile int sink;
+volatile int data[4];
+
+__attribute__((noinline)) static int ptr_walk(volatile int *p) {
+  int i;
+  int acc;
+  acc = 0;
+  for (i = 0; i < 4; ++i) {
+    p[i] = i + 9;
+    acc += p[i];
+  }
+  return acc;
+}
+
+int test_entry(void) {
+  int v;
+  v = ptr_walk(data);
+  sink = v + 1;
+  return sink - 1;
+}
+C
+  cases=$((cases + 1))
+
+  run_compare_case postinc_sum 42 43 220 <<'C'
+volatile int sink;
+
+__attribute__((noinline)) static int sum_inc(int *p, int n) {
+  int s;
+  s = 0;
+  while (n > 0) {
+    s += *p;
+    ++p;
+    --n;
+  }
+  return s;
+}
+
+int test_entry(void) {
+  int buf[4];
+  int v;
+  buf[0] = 5;
+  buf[1] = 8;
+  buf[2] = 13;
+  buf[3] = 16;
+  v = sum_inc(buf, 4);
+  sink = v + 1;
+  return sink - 1;
+}
+C
+  cases=$((cases + 1))
+
+  echo "AVR32 LLVM/GCC differential comparison passed: ${cases} cases returned 42 and stored 43 in SRAM"
 }
 
 run_asm_smoke
