@@ -2700,6 +2700,24 @@ def AVRSystemLibrary
               avr_sin, avr_cos)>;
 
 //===----------------------------------------------------------------------===//
+// AVR32 Runtime Libcalls
+//===----------------------------------------------------------------------===//
+
+defset list<RuntimeLibcallImpl> AVR32Libcalls = {
+def __avr32_f64_add : RuntimeLibcallImpl<ADD_F64>;
+def __avr32_f64_sub : RuntimeLibcallImpl<SUB_F64>;
+def __avr32_f64_mul : RuntimeLibcallImpl<MUL_F64>;
+def __avr32_f64_div : RuntimeLibcallImpl<DIV_F64>;
+def __avr32_f64_to_s32 : RuntimeLibcallImpl<FPTOSINT_F64_I32>;
+def __avr32_f64_to_u32 : RuntimeLibcallImpl<FPTOUINT_F64_I32>;
+def __avr32_s32_to_f64 : RuntimeLibcallImpl<SINTTOFP_I32_F64>;
+def __avr32_u32_to_f64 : RuntimeLibcallImpl<UINTTOFP_I32_F64>;
+def __avr32_mul64 : RuntimeLibcallImpl<MUL_I64>;
+def __avr32_udiv64 : RuntimeLibcallImpl<UDIV_I64>;
+def __avr32_umod64 : RuntimeLibcallImpl<UREM_I64>;
+}
+
+//===----------------------------------------------------------------------===//
 // DXIL Runtime Libcalls
 //===----------------------------------------------------------------------===//
 

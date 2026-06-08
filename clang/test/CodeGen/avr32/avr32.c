@@ -667,19 +667,19 @@ __attribute__((optnone, noinline)) int pick(int a, int b) {
 // ASM: ret r12
 
 // ASM-LABEL: unsigned_div64:
-// ASM: rcall __udivdi3
+// ASM: rcall __avr32_udiv64
 // ASM: popm pc
 
 // ASM-LABEL: double_sub:
-// ASM: rcall __subdf3
+// ASM: rcall __avr32_f64_sub
 // ASM: popm pc
 
 // ASM-LABEL: double_div:
-// ASM: rcall __divdf3
+// ASM: rcall __avr32_f64_div
 // ASM: popm pc
 
 // ASM-LABEL: double_to_uint:
-// ASM: rcall __fixunsdfsi
+// ASM: rcall __avr32_f64_to_u32
 // ASM: popm pc
 
 // ASM-LABEL: double_lt:
