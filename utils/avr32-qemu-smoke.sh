@@ -63,9 +63,6 @@ SECTIONS
 
   .text : {
     *(.text*)
-  }
-
-  .rodata : {
     *(.rodata*)
   }
 
@@ -534,6 +531,301 @@ C
   echo "AVR32 LLVM/GCC differential comparison passed: ${cases} cases returned 42 and stored 43 in SRAM"
 }
 
+run_widget_shape_comparison_smoke() {
+  local cases=0
+
+  run_compare_case widget_features 42 43 1100 <<'C'
+typedef unsigned char u8;
+
+enum {
+  feature_major_index = 0,
+  feature_minor_index,
+  feature_board_index,
+  feature_image_index,
+  feature_in_index,
+  feature_out_index,
+  feature_adc_index,
+  feature_dac_index,
+  feature_lcd_index,
+  feature_log_index,
+  feature_end_index
+};
+
+enum {
+  feature_board_none = 0,
+  feature_board_widget,
+  feature_board_usbi2s,
+  feature_board_usbdac,
+  feature_board_test,
+  feature_end_board,
+  feature_image_flashyblinky,
+  feature_image_uac1_audio,
+  feature_image_uac1_dg8saq,
+  feature_image_uac2_audio,
+  feature_image_uac2_dg8saq,
+  feature_image_hpsdr,
+  feature_image_test,
+  feature_end_image,
+  feature_in_normal,
+  feature_in_swapped,
+  feature_end_in,
+  feature_out_normal,
+  feature_out_swapped,
+  feature_end_out,
+  feature_adc_none,
+  feature_adc_ak5394a,
+  feature_end_adc,
+  feature_dac_none,
+  feature_dac_cs4344,
+  feature_dac_es9022,
+  feature_end_dac,
+  feature_lcd_none,
+  feature_lcd_hd44780,
+  feature_lcd_ks0073,
+  feature_end_lcd,
+  feature_log_none,
+  feature_log_250ms,
+  feature_log_500ms,
+  feature_log_1sec,
+  feature_log_2sec,
+  feature_end_log,
+  feature_end_values
+};
+
+volatile int sink;
+static u8 features[feature_end_index];
+static const u8 features_default[feature_end_index] = {
+  feature_end_index,
+  feature_end_values,
+  feature_board_widget,
+  feature_image_uac1_dg8saq,
+  feature_in_normal,
+  feature_out_normal,
+  feature_adc_ak5394a,
+  feature_dac_cs4344,
+  feature_lcd_hd44780,
+  feature_log_500ms
+};
+static const u8 value_is_end[feature_end_values] = {
+  0, 0, 0, 0, 0, 1,
+  0, 0, 0, 0, 0, 0, 0, 1,
+  0, 0, 1,
+  0, 0, 1,
+  0, 0, 1,
+  0, 0, 0, 1,
+  0, 0, 0, 1,
+  0, 0, 0, 0, 0, 1
+};
+
+__attribute__((noinline)) static void features_init_like(void) {
+  int i;
+
+  for (i = 0; i < feature_end_index; ++i)
+    features[i] = features_default[i];
+}
+
+__attribute__((noinline)) static u8 feature_get(u8 index) {
+  return index < feature_end_index ? features[index] : 0xff;
+}
+
+__attribute__((noinline)) static u8 feature_set(u8 index, u8 value) {
+  if (index > feature_minor_index && index < feature_end_index &&
+      value < feature_end_values) {
+    features[index] = value;
+    return features[index];
+  }
+  return 0xff;
+}
+
+__attribute__((noinline)) static int find_end(int start) {
+  for (;;) {
+    if (start + 1 == feature_end_values)
+      return 0xff;
+    if (value_is_end[start + 1])
+      return start;
+    start += 1;
+  }
+}
+
+__attribute__((noinline)) static void feature_find_first_and_last_value(
+    u8 index, u8 *firstp, u8 *lastp) {
+  u8 this_index;
+  u8 first;
+  u8 last;
+
+  if (index <= feature_minor_index || index >= feature_end_index) {
+    first = 0xff;
+    last = 0xff;
+  } else {
+    this_index = feature_minor_index + 1;
+    first = 0;
+    last = find_end(first);
+    while (this_index < index) {
+      this_index += 1;
+      first = last + 2;
+      last = find_end(first);
+    }
+  }
+
+  *firstp = first;
+  *lastp = last;
+}
+
+int test_entry(void) {
+  u8 first;
+  u8 last;
+  int acc;
+
+  features_init_like();
+  acc = feature_get(feature_board_index);
+  acc += feature_set(feature_log_index, feature_log_1sec);
+  feature_find_first_and_last_value(feature_dac_index, &first, &last);
+  acc += last - first;
+  feature_find_first_and_last_value(feature_image_index, &first, &last);
+  acc += last - first;
+
+  sink = acc;
+  return sink - 1;
+}
+C
+  cases=$((cases + 1))
+
+  run_compare_case widget_usb_packet 42 43 320 <<'C'
+typedef unsigned char u8;
+typedef unsigned int u32;
+
+volatile int sink;
+static volatile u8 ep_fifo[64];
+static volatile u8 *pep_fifo;
+static const u8 packet[18] = {
+  1, 2, 3, 4, 5, 6, 7, 8, 9,
+  10, 11, 12, 13, 14, 15, 16, 17, 18
+};
+static u8 captured[18];
+
+__attribute__((noinline)) static u32 min_u32(u32 a, u32 b) {
+  return a < b ? a : b;
+}
+
+__attribute__((noinline)) static u32 usb_write_packet_like(
+    const u8 *txbuf, u32 data_length, const u8 **ptxbuf) {
+  volatile u8 *fifo_cur;
+  const u8 *txbuf_cur;
+  const u8 *txbuf_end;
+
+  fifo_cur = pep_fifo;
+  txbuf_cur = txbuf;
+  txbuf_end = txbuf_cur + min_u32(data_length, 15);
+  while (txbuf_cur < txbuf_end)
+    *fifo_cur++ = *txbuf_cur++;
+  pep_fifo = fifo_cur;
+  if (ptxbuf)
+    *ptxbuf = txbuf_cur;
+  return data_length - (u32)(txbuf_cur - txbuf);
+}
+
+__attribute__((noinline)) static u32 usb_read_packet_like(
+    u8 *rxbuf, u32 data_length, u8 **prxbuf) {
+  volatile u8 *fifo_cur;
+  u8 *rxbuf_cur;
+  u8 *rxbuf_end;
+
+  fifo_cur = pep_fifo;
+  rxbuf_cur = rxbuf;
+  rxbuf_end = rxbuf_cur + min_u32(data_length, 15);
+  while (rxbuf_cur < rxbuf_end)
+    *rxbuf_cur++ = *fifo_cur++;
+  if (prxbuf)
+    *prxbuf = rxbuf_cur;
+  return data_length - (u32)(rxbuf_cur - rxbuf);
+}
+
+int test_entry(void) {
+  const u8 *txpos;
+  u8 *rxpos;
+  u32 unwritten;
+  u32 unread;
+  int acc;
+
+  pep_fifo = ep_fifo;
+  unwritten = usb_write_packet_like(packet, 18, &txpos);
+  pep_fifo = ep_fifo;
+  unread = usb_read_packet_like(captured, 15, &rxpos);
+
+  acc = captured[0] + captured[2] + captured[6] + captured[13];
+  acc += (int)unwritten;
+  acc += (int)(txpos - packet);
+  acc += (int)unread;
+  sink = acc;
+  return sink - 1;
+}
+C
+  cases=$((cases + 1))
+
+  run_compare_case widget_mobo_filter 42 43 320 <<'C'
+typedef unsigned char u8;
+typedef unsigned short u16;
+typedef unsigned int u32;
+
+struct mobo_data {
+  u32 Freq[10];
+  u8 SwitchFreq;
+  u16 FilterCrossOver[8];
+  u8 FilterNumber[8];
+  u32 BandSub[8];
+  u32 BandMul[8];
+};
+
+volatile int sink;
+static const struct mobo_data cdata = {
+  { 0, 0, 14U << 21, 0, 0, 0, 0, 0, 0, 0 },
+  2,
+  { 2, 4, 8, 11, 15, 20, 25, 30 },
+  { 1, 2, 3, 4, 5, 6, 7, 8 },
+  { 0, 0, 0, 0, 0, 1U << 21, 0, 0 },
+  { 0, 0, 0, 0, 0, 3U << 21, 0, 0 }
+};
+
+__attribute__((noinline)) static u8 select_rx_filter(u32 freq) {
+  u16 mhz;
+  int i;
+
+  mhz = (u16)(freq >> 21);
+  for (i = 0; i < 8; ++i) {
+    if (mhz < cdata.FilterCrossOver[i])
+      return cdata.FilterNumber[i];
+  }
+  return cdata.FilterNumber[7];
+}
+
+__attribute__((noinline)) static u32 apply_band_calibration(u32 freq, u8 band) {
+  return freq + cdata.BandMul[band] - cdata.BandSub[band];
+}
+
+int test_entry(void) {
+  u32 freq;
+  u32 tuned;
+  u8 filter;
+  int acc;
+
+  freq = cdata.Freq[cdata.SwitchFreq];
+  filter = select_rx_filter(freq);
+  tuned = apply_band_calibration(freq, filter);
+
+  acc = filter;
+  acc += (int)(tuned >> 21);
+  acc += cdata.FilterCrossOver[filter];
+  acc += cdata.SwitchFreq;
+  sink = acc;
+  return sink - 1;
+}
+C
+  cases=$((cases + 1))
+
+  echo "AVR32 LLVM/GCC widget-shaped comparison passed: ${cases} cases returned 42 and stored 43 in SRAM"
+}
+
 run_asm_smoke
 run_llvm_c_smoke
 run_memory_comparison_smoke
+run_widget_shape_comparison_smoke
