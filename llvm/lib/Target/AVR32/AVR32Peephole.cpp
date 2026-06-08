@@ -14,6 +14,7 @@
 #include "llvm/CodeGen/MachineFunctionPass.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
 #include "llvm/CodeGen/TargetInstrInfo.h"
+#include "llvm/CodeGen/TargetRegisterInfo.h"
 #include "llvm/Support/MathExtras.h"
 
 using namespace llvm;
@@ -55,6 +56,9 @@ private:
   bool foldSPStoreDisp(MachineInstr &MI, const TargetInstrInfo &TII);
   bool foldMovhOr(MachineInstr &MI, const TargetInstrInfo &TII);
   bool foldBitImmediate(MachineInstr &MI, const TargetInstrInfo &TII);
+  bool foldCompareImmediate(MachineInstr &MI, const TargetInstrInfo &TII);
+  bool foldRedundantCastBeforeCompare(MachineInstr &MI,
+                                      const TargetRegisterInfo &TRI);
   bool foldNearBranches(MachineFunction &MF, const TargetInstrInfo &TII);
 };
 
@@ -82,6 +86,49 @@ static bool isCompactDisp(int64_t Value, unsigned MaxDisp, unsigned Align) {
 
 static bool isMovLowImmOpcode(unsigned Opcode) {
   return Opcode == AVR32::MOVri8 || Opcode == AVR32::MOVri21;
+}
+
+static bool isCompareOpcode(unsigned Opcode) {
+  switch (Opcode) {
+  case AVR32::CPrr:
+  case AVR32::CP_Wrr:
+  case AVR32::CPri6:
+  case AVR32::CPri21:
+  case AVR32::CP_Wri6:
+  case AVR32::CP_Wri21:
+  case AVR32::CP_Brr:
+  case AVR32::CP_Hrr:
+    return true;
+  default:
+    return false;
+  }
+}
+
+static bool compareUsesReg(const MachineInstr &MI, Register Reg) {
+  if (!isCompareOpcode(MI.getOpcode()))
+    return false;
+  for (const MachineOperand &MO : MI.operands())
+    if (MO.isReg() && MO.isUse() && MO.getReg() == Reg)
+      return true;
+  return false;
+}
+
+static std::optional<unsigned> getCompareImmOpcode(unsigned Opcode) {
+  switch (Opcode) {
+  case AVR32::CPrr:
+    return AVR32::CPri21;
+  case AVR32::CP_Wrr:
+    return AVR32::CP_Wri21;
+  default:
+    return std::nullopt;
+  }
+}
+
+static bool explicitlyDefinesReg(const MachineInstr &MI, Register Reg) {
+  for (const MachineOperand &MO : MI.operands())
+    if (MO.isReg() && MO.isDef() && MO.getReg() == Reg)
+      return true;
+  return false;
 }
 
 static bool isLowMaterializationOperand(const MachineOperand &MO) {
@@ -163,6 +210,94 @@ static std::optional<unsigned> getBitClearIndex(unsigned Opcode, int64_t Imm) {
   default:
     return std::nullopt;
   }
+}
+
+static std::optional<unsigned> getZeroExtendedWidth(const MachineInstr &MI) {
+  switch (MI.getOpcode()) {
+  case AVR32::LD_UB_Disp3:
+  case AVR32::LD_UB_Disp16:
+  case AVR32::LD_UB_IndexShift:
+  case AVR32::LD_UB_PostInc:
+  case AVR32::LD_UB_PreDec:
+  case AVR32::CASTU_Bcg:
+    return 8;
+  case AVR32::LD_UH_Disp3:
+  case AVR32::LD_UH_Disp16:
+  case AVR32::LD_UH_IndexShift:
+  case AVR32::LD_UH_PostInc:
+  case AVR32::LD_UH_PreDec:
+  case AVR32::CASTU_Hcg:
+    return 16;
+  default:
+    return std::nullopt;
+  }
+}
+
+static std::optional<unsigned> getSignExtendedWidth(const MachineInstr &MI) {
+  switch (MI.getOpcode()) {
+  case AVR32::LD_SB_Disp16:
+  case AVR32::LD_SB_IndexShift:
+  case AVR32::CASTS_Bcg:
+    return 8;
+  case AVR32::LD_SH_Disp3:
+  case AVR32::LD_SH_Disp16:
+  case AVR32::LD_SH_IndexShift:
+  case AVR32::LD_SH_PostInc:
+  case AVR32::LD_SH_PreDec:
+  case AVR32::CASTS_Hcg:
+    return 16;
+  default:
+    return std::nullopt;
+  }
+}
+
+static bool isImmediateAlreadyExtended(int64_t Imm, bool Signed,
+                                       unsigned Width) {
+  if (Signed)
+    return isSignedNBit(Imm, Width);
+  return Imm >= 0 && static_cast<uint64_t>(Imm) < (uint64_t(1) << Width);
+}
+
+static bool isRegAlreadyExtendedBefore(MachineBasicBlock::iterator Pos,
+                                       Register Reg, bool Signed,
+                                       unsigned Width,
+                                       const TargetRegisterInfo &TRI,
+                                       unsigned Depth = 8) {
+  if (!Depth)
+    return false;
+
+  MachineBasicBlock &MBB = *Pos->getParent();
+  for (MachineBasicBlock::iterator I = Pos; I != MBB.begin();) {
+    --I;
+    MachineInstr &DefMI = *I;
+    if (DefMI.isDebugInstr())
+      continue;
+    if (!DefMI.modifiesRegister(Reg, &TRI))
+      continue;
+    if (!explicitlyDefinesReg(DefMI, Reg))
+      return false;
+
+    if (DefMI.getOpcode() == AVR32::MOVrr && DefMI.getNumOperands() == 2 &&
+        isRegOperand(DefMI.getOperand(0)) && isRegOperand(DefMI.getOperand(1)) &&
+        DefMI.getOperand(0).getReg() == Reg)
+      return isRegAlreadyExtendedBefore(I, DefMI.getOperand(1).getReg(),
+                                        Signed, Width, TRI, Depth - 1);
+
+    if (isMovLowImmOpcode(DefMI.getOpcode()) && DefMI.getNumOperands() == 2 &&
+        isRegOperand(DefMI.getOperand(0)) && DefMI.getOperand(0).getReg() == Reg &&
+        DefMI.getOperand(1).isImm())
+      return isImmediateAlreadyExtended(DefMI.getOperand(1).getImm(), Signed,
+                                        Width);
+
+    std::optional<unsigned> KnownWidth =
+        Signed ? getSignExtendedWidth(DefMI) : getZeroExtendedWidth(DefMI);
+    if (KnownWidth && *KnownWidth <= Width)
+      return true;
+
+    return false;
+  }
+
+  return false;
 }
 
 static unsigned getInstSize(const MachineInstr &MI) {
@@ -345,6 +480,87 @@ bool AVR32Peephole::foldBitImmediate(MachineInstr &MI,
       .addImm(*Bit)
       .setMIFlags(MI.getFlags());
   ImmMI.eraseFromParent();
+  MI.eraseFromParent();
+  ++NumCompactForms;
+  return true;
+}
+
+bool AVR32Peephole::foldCompareImmediate(MachineInstr &MI,
+                                         const TargetInstrInfo &TII) {
+  std::optional<unsigned> ImmOpc = getCompareImmOpcode(MI.getOpcode());
+  if (!ImmOpc || MI.getNumOperands() != 2 || !isRegOperand(MI.getOperand(0)) ||
+      !isRegOperand(MI.getOperand(1)) || !MI.getOperand(1).isKill())
+    return false;
+  if (MI.getIterator() == MI.getParent()->begin())
+    return false;
+
+  MachineBasicBlock::iterator ImmIt = std::prev(MI.getIterator());
+  MachineInstr &ImmMI = *ImmIt;
+  if (!isMovLowImmOpcode(ImmMI.getOpcode()) || ImmMI.getNumOperands() != 2 ||
+      !isRegOperand(ImmMI.getOperand(0)) || !ImmMI.getOperand(1).isImm() ||
+      ImmMI.getOperand(0).getReg() != MI.getOperand(1).getReg())
+    return false;
+
+  int64_t Imm = ImmMI.getOperand(1).getImm();
+  if (!isSignedNBit(Imm, 21))
+    return false;
+
+  MachineBasicBlock &MBB = *MI.getParent();
+  MachineFunction &MF = *MBB.getParent();
+  MachineInstrBuilder MIB =
+      BuildMI(MBB, ImmMI, MI.getDebugLoc(), TII.get(*ImmOpc))
+          .addReg(MI.getOperand(0).getReg(),
+                  getKillRegState(MI.getOperand(0).isKill()))
+          .addImm(Imm);
+  MIB.setMIFlags(MI.getFlags());
+  MIB->copyImplicitOps(MF, MI);
+  ImmMI.eraseFromParent();
+  MI.eraseFromParent();
+  ++NumCompactForms;
+  return true;
+}
+
+bool AVR32Peephole::foldRedundantCastBeforeCompare(
+    MachineInstr &MI, const TargetRegisterInfo &TRI) {
+  bool Signed = false;
+  unsigned Width = 0;
+  switch (MI.getOpcode()) {
+  case AVR32::CASTU_Bcg:
+    Width = 8;
+    break;
+  case AVR32::CASTU_Hcg:
+    Width = 16;
+    break;
+  case AVR32::CASTS_Bcg:
+    Signed = true;
+    Width = 8;
+    break;
+  case AVR32::CASTS_Hcg:
+    Signed = true;
+    Width = 16;
+    break;
+  default:
+    return false;
+  }
+
+  if (MI.getNumOperands() != 2 || !isRegOperand(MI.getOperand(0)) ||
+      !isRegOperand(MI.getOperand(1)) ||
+      MI.getOperand(0).getReg() != MI.getOperand(1).getReg())
+    return false;
+
+  MachineBasicBlock::iterator NextIt = std::next(MI.getIterator());
+  MachineBasicBlock &MBB = *MI.getParent();
+  while (NextIt != MBB.end() && NextIt->isDebugInstr())
+    ++NextIt;
+  if (NextIt == MBB.end())
+    return false;
+
+  Register Reg = MI.getOperand(0).getReg();
+  if (!compareUsesReg(*NextIt, Reg))
+    return false;
+  if (!isRegAlreadyExtendedBefore(MI.getIterator(), Reg, Signed, Width, TRI))
+    return false;
+
   MI.eraseFromParent();
   ++NumCompactForms;
   return true;
@@ -543,8 +759,9 @@ bool AVR32Peephole::foldSignedImmediate(MachineInstr &MI, unsigned CompactOpc,
 }
 
 bool AVR32Peephole::runOnMachineFunction(MachineFunction &MF) {
-  const TargetInstrInfo &TII =
-      *MF.getSubtarget<AVR32Subtarget>().getInstrInfo();
+  const AVR32Subtarget &STI = MF.getSubtarget<AVR32Subtarget>();
+  const TargetInstrInfo &TII = *STI.getInstrInfo();
+  const TargetRegisterInfo &TRI = *STI.getRegisterInfo();
   bool Changed = false;
 
   bool LocalChanged;
@@ -579,6 +796,9 @@ bool AVR32Peephole::runOnMachineFunction(MachineFunction &MF) {
         case AVR32::CPri21:
           LocalChanged |= foldSignedImmediate(MI, AVR32::CPri6, 6, false, TII);
           break;
+        case AVR32::CPrr:
+          LocalChanged |= foldCompareImmediate(MI, TII);
+          break;
         case AVR32::ORALrrr:
           LocalChanged |= foldMovhOr(MI, TII) ||
                           foldTwoAddressALU(MI, AVR32::ORrr, true, TII);
@@ -593,6 +813,15 @@ bool AVR32Peephole::runOnMachineFunction(MachineFunction &MF) {
         case AVR32::CP_Wri21:
           LocalChanged |=
               foldSignedImmediate(MI, AVR32::CP_Wri6, 6, false, TII);
+          break;
+        case AVR32::CP_Wrr:
+          LocalChanged |= foldCompareImmediate(MI, TII);
+          break;
+        case AVR32::CASTS_Bcg:
+        case AVR32::CASTS_Hcg:
+        case AVR32::CASTU_Bcg:
+        case AVR32::CASTU_Hcg:
+          LocalChanged |= foldRedundantCastBeforeCompare(MI, TRI);
           break;
         case AVR32::LD_SH_Disp16:
           LocalChanged |= foldLoadDisp(MI, AVR32::LD_SH_Disp3, 14, 2, TII);

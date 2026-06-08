@@ -89,8 +89,11 @@ AVR32RegisterInfo::getCallPreservedMask(const MachineFunction &MF,
 BitVector AVR32RegisterInfo::getReservedRegs(const MachineFunction &MF) const {
   BitVector Reserved(getNumRegs());
   Reserved.set(AVR32::SP);
-  Reserved.set(AVR32::LR);
   Reserved.set(AVR32::PC);
+  // Non-leaf functions save LR in PUSHM, so it can be a caller-clobbered
+  // scratch register between calls. Leaf functions still return through LR.
+  if (!MF.getFrameInfo().hasCalls())
+    Reserved.set(AVR32::LR);
   const TargetFrameLowering *TFI = MF.getSubtarget().getFrameLowering();
   if (TFI->hasFP(MF))
     Reserved.set(AVR32::R7);

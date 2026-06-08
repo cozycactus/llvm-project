@@ -1,0 +1,63 @@
+# RUN: llc -mtriple=avr32 -run-pass=avr32-peephole -verify-machineinstrs %s -o - | FileCheck %s
+
+--- |
+  target triple = "avr32"
+
+  define i32 @fold_redundant_cast(ptr %p) {
+    ret i32 0
+  }
+
+  define i32 @keep_needed_cast(i32 %x) {
+    ret i32 %x
+  }
+
+  define i32 @fold_compare_imm(i32 %x) {
+    ret i32 %x
+  }
+...
+---
+name:            fold_redundant_cast
+tracksRegLiveness: true
+body:             |
+  bb.0:
+    liveins: $r12
+
+    ; CHECK-LABEL: name: fold_redundant_cast
+    ; CHECK: $r8 = LD_UB_Disp3 $r12, 0
+    ; CHECK-NEXT: CPri6 killed $r8, 0
+    ; CHECK-NOT: CASTU_Bcg
+    $r8 = LD_UB_Disp16 $r12, 0
+    $r8 = CASTU_Bcg killed $r8
+    CPri6 killed $r8, 0
+    RETR12 implicit $r12
+...
+---
+name:            keep_needed_cast
+tracksRegLiveness: true
+body:             |
+  bb.0:
+    liveins: $r12
+
+    ; CHECK-LABEL: name: keep_needed_cast
+    ; CHECK: $r8 = MOVrr $r12
+    ; CHECK-NEXT: $r8 = CASTU_Bcg killed $r8
+    ; CHECK-NEXT: CPri6 killed $r8, 0
+    $r8 = MOVrr $r12
+    $r8 = CASTU_Bcg killed $r8
+    CPri6 killed $r8, 0
+    RETR12 implicit $r12
+...
+---
+name:            fold_compare_imm
+tracksRegLiveness: true
+body:             |
+  bb.0:
+    liveins: $r12
+
+    ; CHECK-LABEL: name: fold_compare_imm
+    ; CHECK-NOT: MOVri21 7
+    ; CHECK: CPri6 $r12, 7
+    $r8 = MOVri21 7
+    CPrr $r12, killed $r8
+    RETR12 implicit $r12
+...
