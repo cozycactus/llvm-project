@@ -69,6 +69,22 @@ public:
                       Type *Ty, TTI::TargetCostKind CostKind) const override {
     return getIntImmCost(Imm, Ty, CostKind);
   }
+
+  void getUnrollingPreferences(Loop *L, ScalarEvolution &SE,
+                               TTI::UnrollingPreferences &UP,
+                               OptimizationRemarkEmitter *ORE) const override {
+    BaseT::getUnrollingPreferences(L, SE, UP, ORE);
+
+    // UC3-class AVR32 firmware is usually flash constrained, and the backend
+    // still lacks enough compact idioms to win back aggressive IR unrolling.
+    UP.Threshold = 0;
+    UP.PartialThreshold = 0;
+    UP.MaxCount = 1;
+    UP.FullUnrollMaxCount = 1;
+    UP.Partial = false;
+    UP.Runtime = false;
+    UP.UpperBound = false;
+  }
 };
 
 } // namespace llvm

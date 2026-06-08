@@ -14,6 +14,14 @@
   define i32 @fold_compare_imm(i32 %x) {
     ret i32 %x
   }
+
+  define i32 @fold_narrow_compare_imm(i32 %x) {
+    ret i32 %x
+  }
+
+  define i32 @keep_signed_user_for_unsigned_cast(i32 %x) {
+    ret i32 %x
+  }
 ...
 ---
 name:            fold_redundant_cast
@@ -59,5 +67,51 @@ body:             |
     ; CHECK: CPri6 $r12, 7
     $r8 = MOVri21 7
     CPrr $r12, killed $r8
+    RETR12 implicit $r12
+...
+---
+name:            fold_narrow_compare_imm
+tracksRegLiveness: true
+body:             |
+  bb.0:
+    liveins: $r12
+    successors: %bb.1
+
+    ; CHECK-LABEL: name: fold_narrow_compare_imm
+    ; CHECK: $r8 = MOVri8 32
+    ; CHECK-NEXT: CP_Brr $r12, killed $r8
+    ; CHECK-NOT: CASTU_Bcg
+    $r8 = MOVrr $r12
+    $r8 = CASTU_Bcg killed $r8
+    CP_Wri21 killed $r8, 32
+    BRHIbb %bb.1
+    RETR12 implicit $r12
+
+  bb.1:
+    liveins: $r12
+
+    RETR12 implicit $r12
+...
+---
+name:            keep_signed_user_for_unsigned_cast
+tracksRegLiveness: true
+body:             |
+  bb.0:
+    liveins: $r12
+    successors: %bb.1
+
+    ; CHECK-LABEL: name: keep_signed_user_for_unsigned_cast
+    ; CHECK: $r8 = MOVrr $r12
+    ; CHECK-NEXT: $r8 = CASTU_Bcg killed $r8
+    ; CHECK-NEXT: CP_Wri21 killed $r8, 32
+    $r8 = MOVrr $r12
+    $r8 = CASTU_Bcg killed $r8
+    CP_Wri21 killed $r8, 32
+    BRGTbb %bb.1
+    RETR12 implicit $r12
+
+  bb.1:
+    liveins: $r12
+
     RETR12 implicit $r12
 ...
