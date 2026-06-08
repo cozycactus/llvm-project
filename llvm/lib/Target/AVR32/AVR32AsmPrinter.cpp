@@ -254,36 +254,62 @@ static bool endsWithConstantPoolBoundary(const MachineBasicBlock &MBB) {
   return false;
 }
 
-static bool isCompactBranchOpcode(unsigned Opcode) {
+static bool getCompactBranchRange(unsigned Opcode, int64_t &MinDisp,
+                                  int64_t &MaxDisp) {
   switch (Opcode) {
   case AVR32::RJMPbb:
+    MinDisp = -1000;
+    MaxDisp = 998;
+    return true;
   case AVR32::BREQcbb:
   case AVR32::BRNEcbb:
   case AVR32::BRCCcbb:
   case AVR32::BRCScbb:
   case AVR32::BRGEcbb:
   case AVR32::BRLTcbb:
+    MinDisp = -248;
+    MaxDisp = 246;
     return true;
   default:
     return false;
   }
 }
 
-static bool compactBranchCrossesBoundary(
+struct PlannedPool {
+  uint64_t Offset;
+  uint64_t Bytes;
+};
+
+static uint64_t poolShiftBefore(ArrayRef<PlannedPool> Pools, uint64_t Offset) {
+  uint64_t Shift = 0;
+  for (const PlannedPool &Pool : Pools)
+    if (Offset >= Pool.Offset)
+      Shift += Pool.Bytes;
+  return Shift;
+}
+
+static bool compactBranchOutOfRangeWithPools(
     const MachineFunction &MF,
     const DenseMap<const MachineBasicBlock *, uint64_t> &BlockOffsets,
     const DenseMap<const MachineInstr *, uint64_t> &InstrOffsets,
-    uint64_t BoundaryOffset) {
+    ArrayRef<PlannedPool> Pools) {
   for (const MachineBasicBlock &MBB : MF) {
     for (const MachineInstr &MI : MBB) {
-      if (!isCompactBranchOpcode(MI.getOpcode()) || MI.getNumOperands() != 1 ||
-          !MI.getOperand(0).isMBB())
+      int64_t MinDisp = 0;
+      int64_t MaxDisp = 0;
+      if (!getCompactBranchRange(MI.getOpcode(), MinDisp, MaxDisp) ||
+          MI.getNumOperands() != 1 || !MI.getOperand(0).isMBB())
         continue;
 
       uint64_t BranchOffset = InstrOffsets.lookup(&MI);
       uint64_t TargetOffset = BlockOffsets.lookup(MI.getOperand(0).getMBB());
-      if ((BranchOffset < BoundaryOffset && BoundaryOffset <= TargetOffset) ||
-          (TargetOffset < BoundaryOffset && BoundaryOffset <= BranchOffset))
+      int64_t NewBranchOffset = static_cast<int64_t>(
+          BranchOffset + poolShiftBefore(Pools, BranchOffset));
+      int64_t NewTargetOffset = static_cast<int64_t>(
+          TargetOffset + poolShiftBefore(Pools, TargetOffset));
+
+      int64_t Disp = NewTargetOffset - NewBranchOffset;
+      if (Disp < MinDisp || Disp > MaxDisp || (Disp & 1))
         return true;
     }
   }
@@ -296,9 +322,16 @@ struct LdaWUse {
 };
 
 static bool compactLdaWFits(uint64_t PoolOffset, const LdaWUse &Use,
-                            unsigned LiteralIndex) {
-  uint64_t MaxDistance =
-      align4(PoolOffset) - Use.Offset + uint64_t(LiteralIndex + 1) * 4;
+                            unsigned LiteralIndex,
+                            ArrayRef<PlannedPool> Pools = {}) {
+  uint64_t ShiftedPoolOffset =
+      PoolOffset + poolShiftBefore(Pools, PoolOffset);
+  uint64_t ShiftedUseOffset = Use.Offset + poolShiftBefore(Pools, Use.Offset);
+  if (ShiftedPoolOffset < ShiftedUseOffset)
+    return false;
+
+  uint64_t MaxDistance = align4(ShiftedPoolOffset) - ShiftedUseOffset +
+                         uint64_t(LiteralIndex + 1) * 4;
   return MaxDistance <= 508;
 }
 
@@ -335,13 +368,9 @@ void AVR32AsmPrinter::buildLdaWPoolPlan(const MachineFunction &MF) {
       }
     }
 
-    DenseSet<const MachineInstr *> NextCompactLdaWs = CompactLdaWs;
-    DenseSet<const MachineBasicBlock *> NextPoolBeforeBlocks =
-        PoolBeforeBlocks;
-
-    for (auto [Index, Use] : enumerate(AllLoads))
-      if (compactLdaWFits(CodeBytes, Use, Index))
-        NextCompactLdaWs.insert(Use.MI);
+    DenseSet<const MachineInstr *> NextCompactLdaWs;
+    DenseSet<const MachineBasicBlock *> NextPoolBeforeBlocks;
+    SmallVector<PlannedPool, 16> PlannedPools;
 
     SmallVector<LdaWUse, 32> Pending;
     unsigned NextLoad = 0;
@@ -368,13 +397,20 @@ void AVR32AsmPrinter::buildLdaWPoolPlan(const MachineFunction &MF) {
       if (NextMBB == MF.end())
         continue;
 
-      if (compactBranchCrossesBoundary(MF, BlockOffsets, InstrOffsets, BlockEnd))
+      uint64_t ShiftedBlockEnd =
+          BlockEnd + poolShiftBefore(PlannedPools, BlockEnd);
+      uint64_t PoolBytes = align4(ShiftedBlockEnd) - ShiftedBlockEnd +
+                           uint64_t(Pending.size()) * 4;
+      SmallVector<PlannedPool, 16> CandidatePools(PlannedPools);
+      CandidatePools.push_back({BlockEnd, PoolBytes});
+      if (compactBranchOutOfRangeWithPools(MF, BlockOffsets, InstrOffsets,
+                                           CandidatePools))
         continue;
 
       unsigned NewCompactLoads = 0;
       for (auto [Index, Use] : enumerate(Pending))
         if (!CompactLdaWs.contains(Use.MI) &&
-            compactLdaWFits(BlockEnd, Use, Index))
+            compactLdaWFits(BlockEnd, Use, Index, PlannedPools))
           ++NewCompactLoads;
 
       bool KeepExistingPool = PoolBeforeBlocks.contains(&*NextMBB);
@@ -382,12 +418,17 @@ void AVR32AsmPrinter::buildLdaWPoolPlan(const MachineFunction &MF) {
         continue;
 
       for (auto [Index, Use] : enumerate(Pending))
-        if (compactLdaWFits(BlockEnd, Use, Index))
+        if (compactLdaWFits(BlockEnd, Use, Index, PlannedPools))
           NextCompactLdaWs.insert(Use.MI);
 
+      PlannedPools.push_back({BlockEnd, PoolBytes});
       NextPoolBeforeBlocks.insert(&*NextMBB);
       Pending.clear();
     }
+
+    for (auto [Index, Use] : enumerate(Pending))
+      if (compactLdaWFits(CodeBytes, Use, Index, PlannedPools))
+        NextCompactLdaWs.insert(Use.MI);
 
     bool Changed = NextCompactLdaWs.size() != CompactLdaWs.size() ||
                    NextPoolBeforeBlocks.size() != PoolBeforeBlocks.size();
