@@ -3342,6 +3342,20 @@ def CASTS_Hr : CompactReg<0b010111001000, "casts.h">;
 def CASTU_Br : CompactReg<0b010111000101, "castu.b">;
 def CASTU_Hr : CompactReg<0b010111000111, "castu.h">;
 let isCodeGenOnly = 1, Constraints = "$Rd = $Old" in {
+def CASTS_Bcg : AVR32Inst<0, (outs GPR:$Rd), (ins GPR:$Old),
+                          "casts.b\t$Rd"> {
+  bits<4> Rd;
+
+  let Inst{15-4} = 0b010111000110;
+  let Inst{3-0} = Rd;
+}
+def CASTS_Hcg : AVR32Inst<0, (outs GPR:$Rd), (ins GPR:$Old),
+                          "casts.h\t$Rd"> {
+  bits<4> Rd;
+
+  let Inst{15-4} = 0b010111001000;
+  let Inst{3-0} = Rd;
+}
 def CASTU_Bcg : AVR32Inst<0, (outs GPR:$Rd), (ins GPR:$Old),
                           "castu.b\t$Rd"> {
   bits<4> Rd;
@@ -4007,9 +4021,9 @@ def : Pat<(mul GPR:$LHS, GPR:$RHS), (MULrrr GPR:$LHS, GPR:$RHS)>;
 def : Pat<(sdiv GPR:$LHS, GPR:$RHS), (DIVSrrr GPR:$LHS, GPR:$RHS)>;
 def : Pat<(udiv GPR:$LHS, GPR:$RHS), (DIVUrrr GPR:$LHS, GPR:$RHS)>;
 def : Pat<(sext_inreg GPR:$Src, i8),
-          (BFEXTS GPR:$Src, (i32 0), (i32 8))>;
+          (CASTS_Bcg GPR:$Src)>;
 def : Pat<(sext_inreg GPR:$Src, i16),
-          (BFEXTS GPR:$Src, (i32 0), (i32 16))>;
+          (CASTS_Hcg GPR:$Src)>;
 
 def : Pat<(AVR32cmp GPR:$LHS, GPR:$RHS), (CPrr GPR:$LHS, GPR:$RHS)>;
 def : Pat<(AVR32cmp GPR:$LHS, simm21:$RHS), (CPri21 GPR:$LHS, simm21:$RHS)>;
