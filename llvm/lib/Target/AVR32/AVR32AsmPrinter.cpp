@@ -308,73 +308,93 @@ void AVR32AsmPrinter::buildLdaWPoolPlan(const MachineFunction &MF) {
   HasLdaWPoolPlan = false;
   PendingLdaW = 0;
 
-  DenseMap<const MachineBasicBlock *, uint64_t> BlockOffsets;
-  DenseMap<const MachineInstr *, uint64_t> InstrOffsets;
-  SmallVector<LdaWUse, 64> AllLoads;
-  uint64_t CodeBytes = 0;
+  for (unsigned Iter = 0; Iter != 8; ++Iter) {
+    DenseMap<const MachineBasicBlock *, uint64_t> BlockOffsets;
+    DenseMap<const MachineInstr *, uint64_t> InstrOffsets;
+    SmallVector<LdaWUse, 64> AllLoads;
+    uint64_t CodeBytes = 0;
 
-  for (const MachineBasicBlock &MBB : MF) {
-    BlockOffsets[&MBB] = CodeBytes;
-    for (const MachineInstr &MI : MBB) {
-      if (MI.isInlineAsm())
-        return;
-      if (MI.isDebugInstr() || MI.isMetaInstruction())
-        continue;
+    for (const MachineBasicBlock &MBB : MF) {
+      BlockOffsets[&MBB] = CodeBytes;
+      for (const MachineInstr &MI : MBB) {
+        if (MI.isInlineAsm())
+          return;
+        if (MI.isDebugInstr() || MI.isMetaInstruction())
+          continue;
 
-      unsigned Size = MI.getDesc().getSize();
-      if (Size == 0)
-        return;
+        unsigned Size = MI.getDesc().getSize();
+        if (Size == 0)
+          return;
+        if (MI.getOpcode() == AVR32::LDA_W && CompactLdaWs.contains(&MI))
+          Size = 2;
 
-      InstrOffsets[&MI] = CodeBytes;
-      if (MI.getOpcode() == AVR32::LDA_W)
-        AllLoads.push_back({&MI, CodeBytes});
-      CodeBytes += Size;
-    }
-  }
-
-  for (auto [Index, Use] : enumerate(AllLoads))
-    if (compactLdaWFits(CodeBytes, Use, Index))
-      CompactLdaWs.insert(Use.MI);
-
-  SmallVector<LdaWUse, 32> Pending;
-  unsigned NextLoad = 0;
-
-  for (const MachineBasicBlock &MBB : MF) {
-    uint64_t BlockEnd = BlockOffsets.lookup(&MBB);
-    for (const MachineInstr &MI : MBB) {
-      if (MI.isDebugInstr() || MI.isMetaInstruction())
-        continue;
-      if (MI.getOpcode() == AVR32::LDA_W)
-        Pending.push_back(AllLoads[NextLoad++]);
-      BlockEnd += MI.getDesc().getSize();
+        InstrOffsets[&MI] = CodeBytes;
+        if (MI.getOpcode() == AVR32::LDA_W)
+          AllLoads.push_back({&MI, CodeBytes});
+        CodeBytes += Size;
+      }
     }
 
-    if (Pending.empty() || !endsWithConstantPoolBoundary(MBB))
-      continue;
+    DenseSet<const MachineInstr *> NextCompactLdaWs = CompactLdaWs;
+    DenseSet<const MachineBasicBlock *> NextPoolBeforeBlocks =
+        PoolBeforeBlocks;
 
-    auto MBBI = MBB.getIterator();
-    auto NextMBB = MBBI;
-    ++NextMBB;
-    if (NextMBB == MF.end())
-      continue;
+    for (auto [Index, Use] : enumerate(AllLoads))
+      if (compactLdaWFits(CodeBytes, Use, Index))
+        NextCompactLdaWs.insert(Use.MI);
 
-    if (compactBranchCrossesBoundary(MF, BlockOffsets, InstrOffsets, BlockEnd))
-      continue;
+    SmallVector<LdaWUse, 32> Pending;
+    unsigned NextLoad = 0;
 
-    unsigned NewCompactLoads = 0;
-    for (auto [Index, Use] : enumerate(Pending))
-      if (!CompactLdaWs.contains(Use.MI) && compactLdaWFits(BlockEnd, Use, Index))
-        ++NewCompactLoads;
+    for (const MachineBasicBlock &MBB : MF) {
+      uint64_t BlockEnd = BlockOffsets.lookup(&MBB);
+      for (const MachineInstr &MI : MBB) {
+        if (MI.isDebugInstr() || MI.isMetaInstruction())
+          continue;
+        if (MI.getOpcode() == AVR32::LDA_W)
+          Pending.push_back(AllLoads[NextLoad++]);
+        unsigned Size = MI.getDesc().getSize();
+        if (MI.getOpcode() == AVR32::LDA_W && CompactLdaWs.contains(&MI))
+          Size = 2;
+        BlockEnd += Size;
+      }
 
-    if (NewCompactLoads < 4)
-      continue;
+      if (Pending.empty() || !endsWithConstantPoolBoundary(MBB))
+        continue;
 
-    for (auto [Index, Use] : enumerate(Pending))
-      if (compactLdaWFits(BlockEnd, Use, Index))
-        CompactLdaWs.insert(Use.MI);
+      auto MBBI = MBB.getIterator();
+      auto NextMBB = MBBI;
+      ++NextMBB;
+      if (NextMBB == MF.end())
+        continue;
 
-    PoolBeforeBlocks.insert(&*NextMBB);
-    Pending.clear();
+      if (compactBranchCrossesBoundary(MF, BlockOffsets, InstrOffsets, BlockEnd))
+        continue;
+
+      unsigned NewCompactLoads = 0;
+      for (auto [Index, Use] : enumerate(Pending))
+        if (!CompactLdaWs.contains(Use.MI) &&
+            compactLdaWFits(BlockEnd, Use, Index))
+          ++NewCompactLoads;
+
+      bool KeepExistingPool = PoolBeforeBlocks.contains(&*NextMBB);
+      if (!KeepExistingPool && NewCompactLoads < 4)
+        continue;
+
+      for (auto [Index, Use] : enumerate(Pending))
+        if (compactLdaWFits(BlockEnd, Use, Index))
+          NextCompactLdaWs.insert(Use.MI);
+
+      NextPoolBeforeBlocks.insert(&*NextMBB);
+      Pending.clear();
+    }
+
+    bool Changed = NextCompactLdaWs.size() != CompactLdaWs.size() ||
+                   NextPoolBeforeBlocks.size() != PoolBeforeBlocks.size();
+    CompactLdaWs = std::move(NextCompactLdaWs);
+    PoolBeforeBlocks = std::move(NextPoolBeforeBlocks);
+    if (!Changed)
+      break;
   }
 
   HasLdaWPoolPlan = true;

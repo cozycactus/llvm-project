@@ -1,0 +1,156 @@
+# RUN: llc -mtriple=avr32 -filetype=obj -o %t.o %s
+# RUN: llvm-readobj --hex-dump=.text %t.o | FileCheck %s
+
+# The first LDA_W is 510 bytes away from the end pool when every LDA_W is
+# assumed to be full size. The two later loads fit in compact form immediately;
+# after they shrink, the first load also becomes compact. This catches the
+# fixed-point pool planner instead of a single pre-shrink layout pass.
+# CHECK: 0x00000000 d4014fec
+# CHECK: 0x000001f0 483b484a d802
+
+--- |
+  target triple = "avr32"
+
+  declare void @side()
+
+  @g0 = external global i32
+  @g1 = external global i32
+  @g2 = external global i32
+
+  define i32 @cascade_lda_w() {
+    ret i32 0
+  }
+...
+---
+name: cascade_lda_w
+tracksRegLiveness: false
+body: |
+  bb.0:
+    $r12 = LDA_W @g0
+    RCALLeCG @side, implicit-def $lr, implicit $sp, implicit-def $sp
+    RCALLeCG @side, implicit-def $lr, implicit $sp, implicit-def $sp
+    RCALLeCG @side, implicit-def $lr, implicit $sp, implicit-def $sp
+    RCALLeCG @side, implicit-def $lr, implicit $sp, implicit-def $sp
+    RCALLeCG @side, implicit-def $lr, implicit $sp, implicit-def $sp
+    RCALLeCG @side, implicit-def $lr, implicit $sp, implicit-def $sp
+    RCALLeCG @side, implicit-def $lr, implicit $sp, implicit-def $sp
+    RCALLeCG @side, implicit-def $lr, implicit $sp, implicit-def $sp
+    RCALLeCG @side, implicit-def $lr, implicit $sp, implicit-def $sp
+    RCALLeCG @side, implicit-def $lr, implicit $sp, implicit-def $sp
+    RCALLeCG @side, implicit-def $lr, implicit $sp, implicit-def $sp
+    RCALLeCG @side, implicit-def $lr, implicit $sp, implicit-def $sp
+    RCALLeCG @side, implicit-def $lr, implicit $sp, implicit-def $sp
+    RCALLeCG @side, implicit-def $lr, implicit $sp, implicit-def $sp
+    RCALLeCG @side, implicit-def $lr, implicit $sp, implicit-def $sp
+    RCALLeCG @side, implicit-def $lr, implicit $sp, implicit-def $sp
+    RCALLeCG @side, implicit-def $lr, implicit $sp, implicit-def $sp
+    RCALLeCG @side, implicit-def $lr, implicit $sp, implicit-def $sp
+    RCALLeCG @side, implicit-def $lr, implicit $sp, implicit-def $sp
+    RCALLeCG @side, implicit-def $lr, implicit $sp, implicit-def $sp
+    RCALLeCG @side, implicit-def $lr, implicit $sp, implicit-def $sp
+    RCALLeCG @side, implicit-def $lr, implicit $sp, implicit-def $sp
+    RCALLeCG @side, implicit-def $lr, implicit $sp, implicit-def $sp
+    RCALLeCG @side, implicit-def $lr, implicit $sp, implicit-def $sp
+    RCALLeCG @side, implicit-def $lr, implicit $sp, implicit-def $sp
+    RCALLeCG @side, implicit-def $lr, implicit $sp, implicit-def $sp
+    RCALLeCG @side, implicit-def $lr, implicit $sp, implicit-def $sp
+    RCALLeCG @side, implicit-def $lr, implicit $sp, implicit-def $sp
+    RCALLeCG @side, implicit-def $lr, implicit $sp, implicit-def $sp
+    RCALLeCG @side, implicit-def $lr, implicit $sp, implicit-def $sp
+    RCALLeCG @side, implicit-def $lr, implicit $sp, implicit-def $sp
+    RCALLeCG @side, implicit-def $lr, implicit $sp, implicit-def $sp
+    RCALLeCG @side, implicit-def $lr, implicit $sp, implicit-def $sp
+    RCALLeCG @side, implicit-def $lr, implicit $sp, implicit-def $sp
+    RCALLeCG @side, implicit-def $lr, implicit $sp, implicit-def $sp
+    RCALLeCG @side, implicit-def $lr, implicit $sp, implicit-def $sp
+    RCALLeCG @side, implicit-def $lr, implicit $sp, implicit-def $sp
+    RCALLeCG @side, implicit-def $lr, implicit $sp, implicit-def $sp
+    RCALLeCG @side, implicit-def $lr, implicit $sp, implicit-def $sp
+    RCALLeCG @side, implicit-def $lr, implicit $sp, implicit-def $sp
+    RCALLeCG @side, implicit-def $lr, implicit $sp, implicit-def $sp
+    RCALLeCG @side, implicit-def $lr, implicit $sp, implicit-def $sp
+    RCALLeCG @side, implicit-def $lr, implicit $sp, implicit-def $sp
+    RCALLeCG @side, implicit-def $lr, implicit $sp, implicit-def $sp
+    RCALLeCG @side, implicit-def $lr, implicit $sp, implicit-def $sp
+    RCALLeCG @side, implicit-def $lr, implicit $sp, implicit-def $sp
+    RCALLeCG @side, implicit-def $lr, implicit $sp, implicit-def $sp
+    RCALLeCG @side, implicit-def $lr, implicit $sp, implicit-def $sp
+    RCALLeCG @side, implicit-def $lr, implicit $sp, implicit-def $sp
+    RCALLeCG @side, implicit-def $lr, implicit $sp, implicit-def $sp
+    RCALLeCG @side, implicit-def $lr, implicit $sp, implicit-def $sp
+    RCALLeCG @side, implicit-def $lr, implicit $sp, implicit-def $sp
+    RCALLeCG @side, implicit-def $lr, implicit $sp, implicit-def $sp
+    RCALLeCG @side, implicit-def $lr, implicit $sp, implicit-def $sp
+    RCALLeCG @side, implicit-def $lr, implicit $sp, implicit-def $sp
+    RCALLeCG @side, implicit-def $lr, implicit $sp, implicit-def $sp
+    RCALLeCG @side, implicit-def $lr, implicit $sp, implicit-def $sp
+    RCALLeCG @side, implicit-def $lr, implicit $sp, implicit-def $sp
+    RCALLeCG @side, implicit-def $lr, implicit $sp, implicit-def $sp
+    RCALLeCG @side, implicit-def $lr, implicit $sp, implicit-def $sp
+    RCALLeCG @side, implicit-def $lr, implicit $sp, implicit-def $sp
+    RCALLeCG @side, implicit-def $lr, implicit $sp, implicit-def $sp
+    RCALLeCG @side, implicit-def $lr, implicit $sp, implicit-def $sp
+    RCALLeCG @side, implicit-def $lr, implicit $sp, implicit-def $sp
+    RCALLeCG @side, implicit-def $lr, implicit $sp, implicit-def $sp
+    RCALLeCG @side, implicit-def $lr, implicit $sp, implicit-def $sp
+    RCALLeCG @side, implicit-def $lr, implicit $sp, implicit-def $sp
+    RCALLeCG @side, implicit-def $lr, implicit $sp, implicit-def $sp
+    RCALLeCG @side, implicit-def $lr, implicit $sp, implicit-def $sp
+    RCALLeCG @side, implicit-def $lr, implicit $sp, implicit-def $sp
+    RCALLeCG @side, implicit-def $lr, implicit $sp, implicit-def $sp
+    RCALLeCG @side, implicit-def $lr, implicit $sp, implicit-def $sp
+    RCALLeCG @side, implicit-def $lr, implicit $sp, implicit-def $sp
+    RCALLeCG @side, implicit-def $lr, implicit $sp, implicit-def $sp
+    RCALLeCG @side, implicit-def $lr, implicit $sp, implicit-def $sp
+    RCALLeCG @side, implicit-def $lr, implicit $sp, implicit-def $sp
+    RCALLeCG @side, implicit-def $lr, implicit $sp, implicit-def $sp
+    RCALLeCG @side, implicit-def $lr, implicit $sp, implicit-def $sp
+    RCALLeCG @side, implicit-def $lr, implicit $sp, implicit-def $sp
+    RCALLeCG @side, implicit-def $lr, implicit $sp, implicit-def $sp
+    RCALLeCG @side, implicit-def $lr, implicit $sp, implicit-def $sp
+    RCALLeCG @side, implicit-def $lr, implicit $sp, implicit-def $sp
+    RCALLeCG @side, implicit-def $lr, implicit $sp, implicit-def $sp
+    RCALLeCG @side, implicit-def $lr, implicit $sp, implicit-def $sp
+    RCALLeCG @side, implicit-def $lr, implicit $sp, implicit-def $sp
+    RCALLeCG @side, implicit-def $lr, implicit $sp, implicit-def $sp
+    RCALLeCG @side, implicit-def $lr, implicit $sp, implicit-def $sp
+    RCALLeCG @side, implicit-def $lr, implicit $sp, implicit-def $sp
+    RCALLeCG @side, implicit-def $lr, implicit $sp, implicit-def $sp
+    RCALLeCG @side, implicit-def $lr, implicit $sp, implicit-def $sp
+    RCALLeCG @side, implicit-def $lr, implicit $sp, implicit-def $sp
+    RCALLeCG @side, implicit-def $lr, implicit $sp, implicit-def $sp
+    RCALLeCG @side, implicit-def $lr, implicit $sp, implicit-def $sp
+    RCALLeCG @side, implicit-def $lr, implicit $sp, implicit-def $sp
+    RCALLeCG @side, implicit-def $lr, implicit $sp, implicit-def $sp
+    RCALLeCG @side, implicit-def $lr, implicit $sp, implicit-def $sp
+    RCALLeCG @side, implicit-def $lr, implicit $sp, implicit-def $sp
+    RCALLeCG @side, implicit-def $lr, implicit $sp, implicit-def $sp
+    RCALLeCG @side, implicit-def $lr, implicit $sp, implicit-def $sp
+    RCALLeCG @side, implicit-def $lr, implicit $sp, implicit-def $sp
+    RCALLeCG @side, implicit-def $lr, implicit $sp, implicit-def $sp
+    RCALLeCG @side, implicit-def $lr, implicit $sp, implicit-def $sp
+    RCALLeCG @side, implicit-def $lr, implicit $sp, implicit-def $sp
+    RCALLeCG @side, implicit-def $lr, implicit $sp, implicit-def $sp
+    RCALLeCG @side, implicit-def $lr, implicit $sp, implicit-def $sp
+    RCALLeCG @side, implicit-def $lr, implicit $sp, implicit-def $sp
+    RCALLeCG @side, implicit-def $lr, implicit $sp, implicit-def $sp
+    RCALLeCG @side, implicit-def $lr, implicit $sp, implicit-def $sp
+    RCALLeCG @side, implicit-def $lr, implicit $sp, implicit-def $sp
+    RCALLeCG @side, implicit-def $lr, implicit $sp, implicit-def $sp
+    RCALLeCG @side, implicit-def $lr, implicit $sp, implicit-def $sp
+    RCALLeCG @side, implicit-def $lr, implicit $sp, implicit-def $sp
+    RCALLeCG @side, implicit-def $lr, implicit $sp, implicit-def $sp
+    RCALLeCG @side, implicit-def $lr, implicit $sp, implicit-def $sp
+    RCALLeCG @side, implicit-def $lr, implicit $sp, implicit-def $sp
+    RCALLeCG @side, implicit-def $lr, implicit $sp, implicit-def $sp
+    RCALLeCG @side, implicit-def $lr, implicit $sp, implicit-def $sp
+    RCALLeCG @side, implicit-def $lr, implicit $sp, implicit-def $sp
+    RCALLeCG @side, implicit-def $lr, implicit $sp, implicit-def $sp
+    RCALLeCG @side, implicit-def $lr, implicit $sp, implicit-def $sp
+    RCALLeCG @side, implicit-def $lr, implicit $sp, implicit-def $sp
+    RCALLeCG @side, implicit-def $lr, implicit $sp, implicit-def $sp
+    RCALLeCG @side, implicit-def $lr, implicit $sp, implicit-def $sp
+    $r11 = LDA_W @g1
+    $r10 = LDA_W @g2
+    RETR12 implicit $r12
+...
