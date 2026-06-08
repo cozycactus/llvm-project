@@ -60,6 +60,22 @@
 // RUN:   -c %s 2>&1 | FileCheck --check-prefix=OPT-RELAX-CC1 %s
 // OPT-RELAX-CC1: "-target-feature" "+relax"
 
+// RUN: %clang -### --target=avr32 -mpart=uc3a3256 -O2 \
+// RUN:   -c %s 2>&1 | FileCheck --check-prefix=O2-INLINE %s
+// O2-INLINE: "-mllvm" "-inline-threshold=10"
+
+// RUN: %clang -### --target=avr32 -mpart=uc3a3256 -Os \
+// RUN:   -c %s 2>&1 \
+// RUN:   | FileCheck --check-prefix=OS-INLINE \
+// RUN:     --implicit-check-not="-inline-threshold=10" %s
+// OS-INLINE: "-cc1"
+
+// RUN: %clang -### --target=avr32 -mpart=uc3a3256 -O2 \
+// RUN:   -mllvm -inline-threshold=45 -c %s 2>&1 \
+// RUN:   | FileCheck --check-prefix=O2-INLINE-OVERRIDE \
+// RUN:     --implicit-check-not="-inline-threshold=10" %s
+// O2-INLINE-OVERRIDE: "-mllvm" "-inline-threshold=45"
+
 // RUN: %clang -### --target=avr32 -mpart=uc3a3256 -mno-relax \
 // RUN:   -c %s 2>&1 | FileCheck --check-prefix=NORELAX-CC1 %s
 // NORELAX-CC1-NOT: warning: argument unused

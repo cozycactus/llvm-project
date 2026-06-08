@@ -129,6 +129,34 @@ bool shouldEnableAVR32LinkRelax(const Driver &D, const ArgList &Args) {
   return getOptimizationLevel(Args, InputKind(), D.getDiags()) > 1;
 }
 
+bool hasAVR32InlineThresholdOverride(const ArgList &Args) {
+  for (const Arg *A : Args.filtered(options::OPT_mllvm)) {
+    StringRef Value = A->getValue(0);
+    if (Value == "-inline-threshold" || Value == "--inline-threshold" ||
+        Value.starts_with("-inline-threshold=") ||
+        Value.starts_with("--inline-threshold="))
+      return true;
+  }
+  return false;
+}
+
+bool isAVR32SizeOptLevel(const Arg &A) {
+  if (!A.getOption().matches(options::OPT_O))
+    return false;
+
+  StringRef Value = A.getValue();
+  return Value == "s" || Value == "z";
+}
+
+bool shouldUseAVR32O2InlineThreshold(const Driver &D, const ArgList &Args) {
+  const Arg *OptLevel = Args.getLastArg(options::OPT_O_Group);
+  if (!OptLevel || isAVR32SizeOptLevel(*OptLevel) ||
+      hasAVR32InlineThresholdOverride(Args))
+    return false;
+
+  return getOptimizationLevel(Args, InputKind(), D.getDiags()) > 1;
+}
+
 } // end anonymous namespace
 
 AVR32ToolChain::AVR32ToolChain(const Driver &D, const llvm::Triple &Triple,
@@ -193,6 +221,13 @@ void AVR32ToolChain::addClangTargetOptions(
   DriverArgs.ClaimAllArgs(options::OPT_mrelax);
   DriverArgs.ClaimAllArgs(options::OPT_mno_relax);
   DriverArgs.ClaimAllArgs(options::OPT_rodata_writable);
+
+  // The generic -O2 inliner budget grows AVR32 firmware quickly; keep the
+  // speed-optimized default closer to what fits in microcontroller flash.
+  if (shouldUseAVR32O2InlineThreshold(getDriver(), DriverArgs)) {
+    CC1Args.push_back("-mllvm");
+    CC1Args.push_back("-inline-threshold=10");
+  }
 }
 
 Tool *AVR32ToolChain::buildLinker() const {
