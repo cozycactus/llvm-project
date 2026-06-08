@@ -36,7 +36,13 @@ public:
       return;
     }
 
+    if (selectJumpTableBranch(Node))
+      return;
+
     if (selectGlobalAddress(Node))
+      return;
+
+    if (selectJumpTableAddress(Node))
       return;
 
     if (selectConstant(Node))
@@ -416,6 +422,44 @@ public:
     SDValue Sym = CurDAG->getTargetGlobalAddress(GA->getGlobal(), DL, MVT::i32,
                                                   Offset);
     return SDValue(CurDAG->getMachineNode(AVR32::LDA_W, DL, MVT::i32, Sym), 0);
+  }
+
+  SDValue materializeJumpTableAddress(const JumpTableSDNode *JT,
+                                      const SDLoc &DL) {
+    SDValue Sym =
+        CurDAG->getTargetJumpTable(JT->getIndex(), MVT::i32,
+                                   JT->getTargetFlags());
+    return SDValue(CurDAG->getMachineNode(AVR32::LDA_W, DL, MVT::i32, Sym), 0);
+  }
+
+  bool selectJumpTableAddress(SDNode *Node) {
+    if (Node->getOpcode() != ISD::JumpTable &&
+        Node->getOpcode() != ISD::TargetJumpTable)
+      return false;
+
+    SDLoc DL(Node);
+    SDValue Result = materializeJumpTableAddress(cast<JumpTableSDNode>(Node),
+                                                 DL);
+    ReplaceNode(Node, Result.getNode());
+    return true;
+  }
+
+  bool selectJumpTableBranch(SDNode *Node) {
+    if (Node->getOpcode() != ISD::BR_JT)
+      return false;
+
+    SDLoc DL(Node);
+    SDValue Chain = Node->getOperand(0);
+    SDValue Table = Node->getOperand(1);
+    SDValue Index = Node->getOperand(2);
+    SDValue Base = isa<JumpTableSDNode>(Table)
+                       ? materializeJumpTableAddress(
+                             cast<JumpTableSDNode>(Table), DL)
+                       : Table;
+    SDValue Shift = CurDAG->getTargetConstant(2, DL, MVT::i32);
+    SDValue Ops[] = {Base, Index, Shift, Chain};
+    CurDAG->SelectNodeTo(Node, AVR32::LD_W_JT, MVT::Other, Ops);
+    return true;
   }
 
   bool selectConstant(SDNode *Node) {

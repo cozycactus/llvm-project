@@ -148,7 +148,8 @@ void AVR32FrameLowering::emitEpilogue(MachineFunction &MF,
       } else {
         BuildMI(MBB, MBBI, DL, TII.get(AVR32::POPM_RET))
             .addImm(RetMask)
-            .setMIFlag(MachineInstr::FrameDestroy);
+            .setMIFlag(MachineInstr::FrameDestroy)
+            ->copyImplicitOps(MF, *MBBI);
       }
       MBBI->eraseFromParent();
     } else {

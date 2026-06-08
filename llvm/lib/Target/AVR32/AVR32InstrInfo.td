@@ -1025,6 +1025,30 @@ class FullLoadIndexShift<bits<10> Op, string Mnemonic>
   let Inst{3-0} = Rd;
 }
 
+class FullLoadIndexShiftPC<bits<10> Op, string Mnemonic>
+    : AVR32Inst32<(outs), (ins GPR:$Rb, GPR:$Ri, uimm2:$Shift),
+                  Mnemonic#"\tpc, ${Rb}[$Ri << $Shift]"> {
+  let mayLoad = 1;
+  let isBranch = 1;
+  let isIndirectBranch = 1;
+  let isTerminator = 1;
+  let isBarrier = 1;
+  let isCodeGenOnly = 1;
+  let Defs = [PC];
+
+  bits<4> Rb;
+  bits<4> Ri;
+  bits<2> Shift;
+
+  let Inst{31-29} = 0b111;
+  let Inst{28-25} = Rb;
+  let Inst{24-20} = 0b00000;
+  let Inst{19-16} = Ri;
+  let Inst{15-6} = Op;
+  let Inst{5-4} = Shift;
+  let Inst{3-0} = 0b1111;
+}
+
 class FullLoadIndexPart<string Mnemonic>
     : AVR32Inst32<(outs GPR:$Rd), (ins GPR:$Rb, GPR:$Ri, bytepart:$Part,
                                        fixedshift2:$Shift),
@@ -2520,6 +2544,7 @@ def LD_W_PreDec : CompactLoadPreDec<0b10100, "ld.w">;
 def LD_W_Disp5 : CompactLoadDisp5Shift2<"ld.w">;
 def LD_W_Disp16 : FullLoadDisp16<0b01111, "ld.w">;
 def LD_W_IndexShift : FullLoadIndexShift<0b0000001100, "ld.w">;
+def LD_W_JT : FullLoadIndexShiftPC<0b0000001100, "ld.w">;
 def LD_W_IndexPart : FullLoadIndexPart<"ld.w">;
 def LD_W_AL_Disp9 : FullLoadCondDisp9Shift2<0b1111, "ld.wal">;
 def LD_W_EQ_Disp9 : FullLoadCondDisp9Shift2<0b0000, "ld.weq">;

@@ -8,6 +8,7 @@
 
 #include "AVR32ISelLowering.h"
 #include "AVR32Subtarget.h"
+#include "llvm/ADT/StringRef.h"
 #include "llvm/CodeGen/MachineBasicBlock.h"
 #include "llvm/CodeGen/MachineFrameInfo.h"
 #include "llvm/CodeGen/MachineFunction.h"
@@ -28,7 +29,7 @@ AVR32TargetLowering::AVR32TargetLowering(const TargetMachine &TM,
     : TargetLowering(TM, STI) {
   addRegisterClass(MVT::i32, &AVR32::GPRRegClass);
   setOperationAction(ISD::BR_CC, MVT::i32, Custom);
-  setOperationAction(ISD::BR_JT, MVT::Other, Expand);
+  setOperationAction(ISD::BR_JT, MVT::Other, Legal);
   setOperationAction(ISD::BRCOND, MVT::Other, Expand);
   setOperationAction(ISD::BSWAP, MVT::i32, Expand);
   setOperationAction(ISD::CTLZ, MVT::i32, Legal);
@@ -59,7 +60,9 @@ AVR32TargetLowering::AVR32TargetLowering(const TargetMachine &TM,
   setBooleanVectorContents(ZeroOrOneBooleanContent);
   setIndexedLoadAction(ISD::POST_INC, {MVT::i8, MVT::i16, MVT::i32}, Legal);
   setIndexedStoreAction(ISD::POST_INC, {MVT::i8, MVT::i16, MVT::i32}, Legal);
-  setMinimumJumpTableEntries(UINT_MAX);
+  // AVR32 jump tables use full-width table entries plus a materialized table
+  // base, so very small switches are usually smaller as compare chains.
+  setMinimumJumpTableEntries(7);
   computeRegisterProperties(STI.getRegisterInfo());
   setStackPointerRegisterToSaveRestore(AVR32::SP);
 }
@@ -113,6 +116,30 @@ static ArrayRef<MCPhysReg> getIntArgRegs() {
   static const MCPhysReg Regs[] = {AVR32::R12, AVR32::R11, AVR32::R10,
                                    AVR32::R9, AVR32::R8};
   return Regs;
+}
+
+static StringRef getCalleeName(SDValue Callee) {
+  if (auto *G = dyn_cast<GlobalAddressSDNode>(Callee))
+    return G->getGlobal()->getName();
+  if (auto *E = dyn_cast<ExternalSymbolSDNode>(Callee))
+    return E->getSymbol();
+  return StringRef();
+}
+
+static bool hasAVR32F64InputABI(StringRef Name) {
+  return Name == "__avr32_f64_add" || Name == "__avr32_f64_sub" ||
+         Name == "__avr32_f64_mul" || Name == "__avr32_f64_div" ||
+         Name == "__avr32_f64_to_s32" || Name == "__avr32_f64_to_u32" ||
+         Name == "__eqdf2" || Name == "__nedf2" || Name == "__gedf2" ||
+         Name == "__ltdf2" || Name == "__ledf2" || Name == "__gtdf2" ||
+         Name == "__unorddf2";
+}
+
+static bool hasAVR32F64ReturnABI(StringRef Name) {
+  return Name == "__avr32_f64_add" || Name == "__avr32_f64_sub" ||
+         Name == "__avr32_f64_mul" || Name == "__avr32_f64_div" ||
+         Name == "__avr32_s32_to_f64" || Name == "__avr32_u32_to_f64" ||
+         Name == "__extendsfdf2";
 }
 
 static SDValue extendToI32(SDValue Value, const ISD::ArgFlagsTy &Flags,
@@ -445,16 +472,29 @@ SDValue AVR32TargetLowering::LowerFormalArguments(
 SDValue
 AVR32TargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
                                SmallVectorImpl<SDValue> &InVals) const {
-  ArrayRef<MCPhysReg> ArgRegs = getIntArgRegs();
   SelectionDAG &DAG = CLI.DAG;
   SDLoc DL = CLI.DL;
   SDValue Chain = CLI.Chain;
   SDValue Callee = CLI.Callee;
+  StringRef CalleeName = getCalleeName(Callee);
   CLI.IsTailCall = false;
 
+  SmallVector<MCPhysReg, 5> ArgRegs(getIntArgRegs());
+  if (hasAVR32F64InputABI(CalleeName)) {
+    ArgRegs.clear();
+    if (CLI.Outs.size() >= 2) {
+      ArgRegs.push_back(AVR32::R11);
+      ArgRegs.push_back(AVR32::R10);
+    }
+    if (CLI.Outs.size() >= 4) {
+      ArgRegs.push_back(AVR32::R9);
+      ArgRegs.push_back(AVR32::R8);
+    }
+  }
+
   unsigned StackBytes =
-      CLI.Outs.size() > std::size(ArgRegs)
-          ? alignTo((CLI.Outs.size() - std::size(ArgRegs)) * 4, 4)
+      CLI.Outs.size() > ArgRegs.size()
+          ? alignTo((CLI.Outs.size() - ArgRegs.size()) * 4, 4)
           : 0;
   Chain = DAG.getCALLSEQ_START(Chain, StackBytes, 0, DL);
 
@@ -471,7 +511,7 @@ AVR32TargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
     }
 
     SDValue Arg = extendToI32(CLI.OutVals[I], CLI.Outs[I].Flags, DL, DAG);
-    if (I < std::size(ArgRegs)) {
+    if (I < ArgRegs.size()) {
       RegsToPass.push_back({ArgRegs[I], Arg});
       continue;
     }
@@ -479,7 +519,7 @@ AVR32TargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
     if (!StackPtr)
       StackPtr = DAG.getCopyFromReg(Chain, DL, AVR32::SP, MVT::i32);
 
-    unsigned Offset = (I - std::size(ArgRegs)) * 4;
+    unsigned Offset = (I - ArgRegs.size()) * 4;
     SDValue Ptr =
         DAG.getNode(ISD::ADD, DL, MVT::i32, StackPtr,
                     DAG.getIntPtrConstant(Offset, DL, MVT::i32));
@@ -518,7 +558,14 @@ AVR32TargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
   Chain = DAG.getCALLSEQ_END(Chain, StackBytes, 0, Glue, DL);
   Glue = Chain.getValue(1);
 
-  if (CLI.Ins.size() > ArgRegs.size()) {
+  SmallVector<MCPhysReg, 5> RetRegs(getIntArgRegs());
+  if (hasAVR32F64ReturnABI(CalleeName) && CLI.Ins.size() >= 2) {
+    RetRegs.clear();
+    RetRegs.push_back(AVR32::R11);
+    RetRegs.push_back(AVR32::R10);
+  }
+
+  if (CLI.Ins.size() > RetRegs.size()) {
     diagnoseUnsupported(DAG, DL,
                         "AVR32 multi-value call returns are not implemented "
                         "yet");
@@ -534,7 +581,7 @@ AVR32TargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
       continue;
     }
 
-    SDValue Result = DAG.getCopyFromReg(Chain, DL, ArgRegs[I], MVT::i32, Glue);
+    SDValue Result = DAG.getCopyFromReg(Chain, DL, RetRegs[I], MVT::i32, Glue);
     Chain = Result.getValue(1);
     Glue = Result.getNode()->getNumValues() > 2 ? Result.getValue(2) : SDValue();
     if (CLI.Ins[I].VT != MVT::i32)
