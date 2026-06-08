@@ -13,6 +13,8 @@ AVR32_GDB=${AVR32_GDB:-/tmp/avr32-gdb-build/gdb/gdb}
 AVR32_QEMU=${AVR32_QEMU:-/tmp/qemu-avr32-build/qemu-system-avr32}
 AVR32_GDB_PORT=${AVR32_GDB_PORT:-1234}
 AVR32_FLASH_BASE=${AVR32_FLASH_BASE:-0x80000000}
+AVR32_SRAM_BASE=${AVR32_SRAM_BASE:-0x00000000}
+AVR32_SRAM_TOP=${AVR32_SRAM_TOP:-0x00010000}
 
 require_executable() {
   local path=$1
@@ -63,6 +65,8 @@ SECTIONS
     *(.rodata*)
   }
 
+  . = ${AVR32_SRAM_BASE};
+
   .data : {
     *(.data*)
   }
@@ -77,6 +81,19 @@ SECTIONS
   }
 }
 EOF
+}
+
+symbol_address_from_objdump() {
+  local symbol=$1
+  local objdump=$2
+  local address
+  address=$(awk -v sym="$symbol" \
+    'index($0, "<" sym ">:") { print "0x" $1; exit }' "$objdump")
+  if [[ -z "$address" ]]; then
+    echo "could not find symbol ${symbol} in ${objdump}" >&2
+    exit 1
+  fi
+  echo "$address"
 }
 
 start_qemu() {
@@ -180,7 +197,6 @@ run_llvm_c_smoke() {
   local dir="$tmpdir/llvm-c"
   local done_pc
   mkdir -p "$dir"
-  done_pc=$(printf "0x%x" "$((AVR32_FLASH_BASE + 8))")
 
   cat > "$dir/answer.c" <<'C'
 int answer(int a, int b) {
@@ -210,6 +226,7 @@ ASM
   "$AVR32_LD" -T "$dir/smoke.ld" \
     -o "$dir/smoke.elf" "$dir/start.o" "$dir/answer.o"
   "$AVR32_OBJDUMP" -dr "$dir/smoke.elf" > "$dir/objdump.txt"
+  done_pc=$(symbol_address_from_objdump done "$dir/objdump.txt")
 
   start_qemu "$dir/smoke.elf" "$dir/qemu.log"
   run_gdb "$dir/smoke.elf" "$dir/gdb.log" \
@@ -241,5 +258,95 @@ ASM
   echo "AVR32 LLVM C smoke passed: answer(7,26) returned 42 at ${done_pc}"
 }
 
+run_llvm_memory_smoke() {
+  local dir="$tmpdir/llvm-memory"
+  local done_pc
+  local sram_top_hi
+  local -a step_args=()
+  mkdir -p "$dir"
+
+  if (( (AVR32_SRAM_TOP & 0xffff) != 0 )); then
+    echo "AVR32_SRAM_TOP must be 64 KiB aligned for the current start shim" >&2
+    exit 1
+  fi
+  sram_top_hi=$(printf "0x%x" "$((AVR32_SRAM_TOP >> 16))")
+
+  cat > "$dir/memory.c" <<'C'
+volatile int sink;
+
+__attribute__((noinline)) static int fill(int *p, int x) {
+  p[0] = x + 1;
+  p[1] = p[0] * 2;
+  p[2] = p[1] + x;
+  return p[2];
+}
+
+int memory_test(int x) {
+  int local[3];
+  int y = fill(local, x);
+  sink = y + local[0];
+  return sink - 1;
+}
+C
+
+  cat > "$dir/start.S" <<ASM
+        .section .text
+        .global _start
+        .type _start, @function
+_start:
+        movh    sp, ${sram_top_hi}
+        mov     r12, 10
+        rcall   memory_test
+done:
+        rjmp    done
+
+        .section .data
+ASM
+
+  write_linker_script "$dir/smoke.ld"
+  "$AVR32_CLANG" --target=avr32 -mpart=uc3a3256 -Oz \
+    -ffreestanding -fno-builtin \
+    -c "$dir/memory.c" -o "$dir/memory.o"
+  "$AVR32_AS" -o "$dir/start.o" "$dir/start.S"
+  "$AVR32_LD" -T "$dir/smoke.ld" \
+    -o "$dir/smoke.elf" "$dir/start.o" "$dir/memory.o"
+  "$AVR32_OBJDUMP" -dr "$dir/smoke.elf" > "$dir/objdump.txt"
+  done_pc=$(symbol_address_from_objdump done "$dir/objdump.txt")
+
+  for _ in {1..60}; do
+    step_args+=(-ex "si")
+  done
+
+  start_qemu "$dir/smoke.elf" "$dir/qemu.log"
+  run_gdb "$dir/smoke.elf" "$dir/gdb.log" \
+    -ex "x/20i \$pc" \
+    "${step_args[@]}" \
+    -ex "info registers pc sp r8 r9 r11 r12" \
+    -ex "x/wx ${AVR32_SRAM_BASE}" \
+    -ex "detach"
+  stop_qemu
+
+  if ! grep -Eq "r12[[:space:]]+0x2a[[:space:]]+42" "$dir/gdb.log"; then
+    dump_failure "AVR32 LLVM memory smoke failed: r12 did not become 42" \
+      "$dir/gdb.log" "$dir/qemu.log" "$dir/objdump.txt"
+    exit 1
+  fi
+
+  if ! grep -Eq "pc[[:space:]]+${done_pc}[[:space:]]" "$dir/gdb.log"; then
+    dump_failure "AVR32 LLVM memory smoke failed: PC did not reach done loop ${done_pc}" \
+      "$dir/gdb.log" "$dir/qemu.log" "$dir/objdump.txt"
+    exit 1
+  fi
+
+  if ! grep -Eq "0x0000002b" "$dir/gdb.log"; then
+    dump_failure "AVR32 LLVM memory smoke failed: SRAM sink did not become 43" \
+      "$dir/gdb.log" "$dir/qemu.log" "$dir/objdump.txt"
+    exit 1
+  fi
+
+  echo "AVR32 LLVM memory smoke passed: stack, call, lddpc, and SRAM sink at ${AVR32_SRAM_BASE}"
+}
+
 run_asm_smoke
 run_llvm_c_smoke
+run_llvm_memory_smoke

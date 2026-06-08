@@ -27,51 +27,6 @@ using namespace llvm;
 #define GET_REGINFO_TARGET_DESC
 #include "AVR32GenRegisterInfo.inc"
 
-static unsigned getPushmMask(const MachineFunction &MF) {
-  const MachineFrameInfo &MFI = MF.getFrameInfo();
-  const MachineRegisterInfo &MRI = MF.getRegInfo();
-  bool IsInterrupt = MF.getFunction().hasFnAttribute("interrupt");
-  unsigned Mask = 0;
-  if (MRI.isPhysRegModified(AVR32::R0) || MRI.isPhysRegModified(AVR32::R1) ||
-      MRI.isPhysRegModified(AVR32::R2) || MRI.isPhysRegModified(AVR32::R3))
-    Mask |= 1 << 0;
-  if (MRI.isPhysRegModified(AVR32::R4) || MRI.isPhysRegModified(AVR32::R5) ||
-      MRI.isPhysRegModified(AVR32::R6) || MRI.isPhysRegModified(AVR32::R7) ||
-      MFI.hasVarSizedObjects())
-    Mask |= 1 << 1;
-  if (IsInterrupt &&
-      (MRI.isPhysRegModified(AVR32::R8) || MRI.isPhysRegModified(AVR32::R9)))
-    Mask |= 1 << 2;
-  if (IsInterrupt && MRI.isPhysRegModified(AVR32::R10))
-    Mask |= 1 << 3;
-  if (IsInterrupt && MRI.isPhysRegModified(AVR32::R11))
-    Mask |= 1 << 4;
-  if (IsInterrupt && MRI.isPhysRegModified(AVR32::R12))
-    Mask |= 1 << 5;
-  if (MFI.hasCalls())
-    Mask |= 1 << 6;
-  return Mask;
-}
-
-static unsigned getPushmStackSize(unsigned Mask) {
-  unsigned Size = 0;
-  if (Mask & (1 << 0))
-    Size += 16;
-  if (Mask & (1 << 1))
-    Size += 16;
-  if (Mask & (1 << 2))
-    Size += 8;
-  if (Mask & (1 << 3))
-    Size += 4;
-  if (Mask & (1 << 4))
-    Size += 4;
-  if (Mask & (1 << 5))
-    Size += 4;
-  if (Mask & (1 << 6))
-    Size += 4;
-  return Size;
-}
-
 AVR32RegisterInfo::AVR32RegisterInfo() : AVR32GenRegisterInfo(AVR32::LR) {}
 
 const MCPhysReg *
@@ -117,7 +72,6 @@ bool AVR32RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
 
   int FrameIndex = MI.getOperand(FIOperandNum).getIndex();
   int64_t Offset = MFI.getObjectOffset(FrameIndex) + MFI.getStackSize();
-  Offset += getPushmStackSize(getPushmMask(MF));
 
   Offset += MI.getOperand(FIOperandNum + 1).getImm();
   if (!isInt<16>(Offset))
