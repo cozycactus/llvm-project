@@ -137,7 +137,9 @@ void AVR32FrameLowering::emitEpilogue(MachineFunction &MF,
         .setMIFlag(MachineInstr::FrameDestroy);
 
   if (PushmMask != 0) {
-    if (MBBI != MBB.end() && MBBI->getOpcode() == AVR32::RETR12) {
+    bool CanPopmReturn = PushmMask & (1 << 6);
+    if (CanPopmReturn && MBBI != MBB.end() &&
+        MBBI->getOpcode() == AVR32::RETR12) {
       unsigned RetMask = (PushmMask & ~(1 << 6)) | (1 << 7);
       if (HasPopmRetVal && (RetMask & ((1 << 5) | (1 << 6))) == 0) {
         BuildMI(MBB, MBBI, DL, TII.get(AVR32::POPM_RETVAL))
