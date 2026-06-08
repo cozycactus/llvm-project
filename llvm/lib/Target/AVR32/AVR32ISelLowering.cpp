@@ -314,6 +314,33 @@ static unsigned getBranchOpcodeForCC(AVR32CC::CondCodes CC) {
   }
 }
 
+static unsigned getMoveRegOpcodeForCC(AVR32CC::CondCodes CC) {
+  switch (CC) {
+  default:
+    return 0;
+  case AVR32CC::COND_EQ:
+    return AVR32::MOVEQrrCG;
+  case AVR32CC::COND_NE:
+    return AVR32::MOVNErrCG;
+  case AVR32CC::COND_CC:
+    return AVR32::MOVCCrrCG;
+  case AVR32CC::COND_CS:
+    return AVR32::MOVCSrrCG;
+  case AVR32CC::COND_GE:
+    return AVR32::MOVGErrCG;
+  case AVR32CC::COND_LT:
+    return AVR32::MOVLTrrCG;
+  case AVR32CC::COND_LS:
+    return AVR32::MOVLSrrCG;
+  case AVR32CC::COND_GT:
+    return AVR32::MOVGTrrCG;
+  case AVR32CC::COND_LE:
+    return AVR32::MOVLErrCG;
+  case AVR32CC::COND_HI:
+    return AVR32::MOVHIrrCG;
+  }
+}
+
 MachineBasicBlock *AVR32TargetLowering::EmitInstrWithCustomInserter(
     MachineInstr &MI, MachineBasicBlock *BB) const {
   assert((MI.getOpcode() == AVR32::SETCCrr ||
@@ -337,6 +364,21 @@ MachineBasicBlock *AVR32TargetLowering::EmitInstrWithCustomInserter(
 
     BuildMI(*BB, MI, DL, TII.get(AVR32::CPrr)).addReg(LHS).addReg(RHS);
     BuildMI(*BB, MI, DL, TII.get(SrOpc), Dst);
+    MI.eraseFromParent();
+    return BB;
+  }
+
+  if (MF->getFunction().hasOptSize() && !MF->getFunction().hasMinSize()) {
+    unsigned MovOpc = getMoveRegOpcodeForCC(CC);
+    if (!MovOpc)
+      report_fatal_error("AVR32 condition code is not implemented yet");
+
+    Register TrueReg = MI.getOperand(3).getReg();
+    Register FalseReg = MI.getOperand(4).getReg();
+    BuildMI(*BB, MI, DL, TII.get(AVR32::CPrr)).addReg(LHS).addReg(RHS);
+    BuildMI(*BB, MI, DL, TII.get(MovOpc), Dst)
+        .addReg(FalseReg)
+        .addReg(TrueReg);
     MI.eraseFromParent();
     return BB;
   }

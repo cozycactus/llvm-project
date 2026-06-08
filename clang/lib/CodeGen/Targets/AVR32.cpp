@@ -28,11 +28,17 @@ public:
     if (!FD)
       return;
 
+    auto *Fn = dyn_cast<llvm::Function>(GV);
+    if (!Fn)
+      return;
+
+    if (CGM.getCodeGenOpts().OptimizeSize == 1)
+      Fn->addFnAttr("function-inline-threshold", "5");
+
     const AVR32InterruptAttr *Attr = FD->getAttr<AVR32InterruptAttr>();
     if (!Attr)
       return;
 
-    auto *Fn = cast<llvm::Function>(GV);
     switch (Attr->getInterrupt()) {
     case AVR32InterruptAttr::Default:
     case AVR32InterruptAttr::None:

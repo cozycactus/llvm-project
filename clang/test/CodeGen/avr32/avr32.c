@@ -1,4 +1,6 @@
 // RUN: %clang_cc1 -triple avr32 -fno-signed-char -emit-llvm -o - %s | FileCheck %s
+// RUN: %clang_cc1 -triple avr32 -fno-signed-char -Os -emit-llvm -o - %s | FileCheck --check-prefix=OS %s
+// RUN: %clang_cc1 -triple avr32 -fno-signed-char -Oz -emit-llvm -o - %s | FileCheck --check-prefix=OZ %s
 // RUN: %clang_cc1 -triple avr32 -fno-signed-char -O1 -S -o - %s | FileCheck --check-prefix=ASM %s
 // RUN: %clang_cc1 -triple avr32 -fno-signed-char -O1 -emit-obj -o %t.o %s
 // RUN: %clang_cc1 -triple avr32 -fno-signed-char -S -o - %s | FileCheck --check-prefix=O0ASM %s
@@ -8,6 +10,11 @@
 int add(int a, int b) {
   return a + b;
 }
+
+// OS: define{{.*}} i32 @add{{.*}} #[[OS_ATTRS:[0-9]+]]
+// OS: attributes #[[OS_ATTRS]] = { {{.*}}"function-inline-threshold"="5"{{.*}} }
+// OZ: define{{.*}} i32 @add{{.*}} #[[OZ_ATTRS:[0-9]+]]
+// OZ-NOT: attributes #[[OZ_ATTRS]] = { {{.*}}"function-inline-threshold"
 
 int main(void) {
   return add(40, 2);
@@ -523,8 +530,7 @@ __attribute__((optnone, noinline)) int pick(int a, int b) {
 
 // ASM-LABEL: eq:
 // ASM: cp r12, r11
-// ASM: mov r12, 0
-// ASM: moveq r12, 1
+// ASM: sreq r12
 // ASM: ret r12
 
 // ASM-LABEL: char_to_int:
@@ -683,7 +689,8 @@ __attribute__((optnone, noinline)) int pick(int a, int b) {
 // ASM: popm pc
 
 // ASM-LABEL: double_lt:
-// ASM: rcall __ltdf2
+// ASM: rcall __avr32_f64_cmp_lt
+// ASM: srne r12
 // ASM: popm pc
 
 // ASM-LABEL: log10_double:

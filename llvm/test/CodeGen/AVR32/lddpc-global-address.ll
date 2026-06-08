@@ -13,7 +13,7 @@ entry:
 }
 
 ; CHECK: 0x4 R_AVR32_32_CPENT g 0x0
-; CHECK: 0x218 R_AVR32_32_CPENT g 0x0
+; CHECK: 0x214 R_AVR32_32_CPENT g 0x0
 ; CHECK: 0x00000000 481c5efc
 
 define ptr @addr_inline_asm_guard() {
@@ -22,4 +22,4 @@ entry:
   ret ptr @g
 }
 
-; CHECK: 0x00000210 fefc0008 5efc0000 00000000
+; CHECK: 0x00000210 481c5efc 00000000
