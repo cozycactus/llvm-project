@@ -9,6 +9,7 @@ AVR32_AS=${AVR32_AS:-${AVR32_GNU_PREFIX}as}
 AVR32_LD=${AVR32_LD:-${AVR32_GNU_PREFIX}ld}
 AVR32_OBJDUMP=${AVR32_OBJDUMP:-${AVR32_GNU_PREFIX}objdump}
 AVR32_CLANG=${AVR32_CLANG:-${repo_root}/build-avr32/bin/clang}
+AVR32_GCC=${AVR32_GCC:-${AVR32_GNU_PREFIX}gcc}
 AVR32_GDB=${AVR32_GDB:-/tmp/avr32-gdb-build/gdb/gdb}
 AVR32_QEMU=${AVR32_QEMU:-/tmp/qemu-avr32-build/qemu-system-avr32}
 AVR32_GDB_PORT=${AVR32_GDB_PORT:-1234}
@@ -28,6 +29,7 @@ require_executable "$AVR32_AS"
 require_executable "$AVR32_LD"
 require_executable "$AVR32_OBJDUMP"
 require_executable "$AVR32_CLANG"
+require_executable "$AVR32_GCC"
 require_executable "$AVR32_GDB"
 require_executable "$AVR32_QEMU"
 
@@ -94,6 +96,28 @@ symbol_address_from_objdump() {
     exit 1
   fi
   echo "$address"
+}
+
+compile_memory_c() {
+  local compiler=$1
+  local dir=$2
+
+  case "$compiler" in
+  llvm)
+    "$AVR32_CLANG" --target=avr32 -mpart=uc3a3256 -Oz \
+      -ffreestanding -fno-builtin \
+      -c "$dir/memory.c" -o "$dir/memory.o"
+    ;;
+  gcc)
+    "$AVR32_GCC" -mpart=uc3a3256 -Os \
+      -ffreestanding -fno-builtin \
+      -c "$dir/memory.c" -o "$dir/memory.o"
+    ;;
+  *)
+    echo "unknown memory smoke compiler: $compiler" >&2
+    exit 1
+    ;;
+  esac
 }
 
 start_qemu() {
@@ -258,8 +282,10 @@ ASM
   echo "AVR32 LLVM C smoke passed: answer(7,26) returned 42 at ${done_pc}"
 }
 
-run_llvm_memory_smoke() {
-  local dir="$tmpdir/llvm-memory"
+run_memory_smoke_variant() {
+  local compiler=$1
+  local label=$2
+  local dir="$tmpdir/${compiler}-memory"
   local done_pc
   local sram_top_hi
   local -a step_args=()
@@ -304,9 +330,7 @@ done:
 ASM
 
   write_linker_script "$dir/smoke.ld"
-  "$AVR32_CLANG" --target=avr32 -mpart=uc3a3256 -Oz \
-    -ffreestanding -fno-builtin \
-    -c "$dir/memory.c" -o "$dir/memory.o"
+  compile_memory_c "$compiler" "$dir"
   "$AVR32_AS" -o "$dir/start.o" "$dir/start.S"
   "$AVR32_LD" -T "$dir/smoke.ld" \
     -o "$dir/smoke.elf" "$dir/start.o" "$dir/memory.o"
@@ -327,26 +351,32 @@ ASM
   stop_qemu
 
   if ! grep -Eq "r12[[:space:]]+0x2a[[:space:]]+42" "$dir/gdb.log"; then
-    dump_failure "AVR32 LLVM memory smoke failed: r12 did not become 42" \
+    dump_failure "AVR32 ${label} memory smoke failed: r12 did not become 42" \
       "$dir/gdb.log" "$dir/qemu.log" "$dir/objdump.txt"
     exit 1
   fi
 
   if ! grep -Eq "pc[[:space:]]+${done_pc}[[:space:]]" "$dir/gdb.log"; then
-    dump_failure "AVR32 LLVM memory smoke failed: PC did not reach done loop ${done_pc}" \
+    dump_failure "AVR32 ${label} memory smoke failed: PC did not reach done loop ${done_pc}" \
       "$dir/gdb.log" "$dir/qemu.log" "$dir/objdump.txt"
     exit 1
   fi
 
   if ! grep -Eq "0x0000002b" "$dir/gdb.log"; then
-    dump_failure "AVR32 LLVM memory smoke failed: SRAM sink did not become 43" \
+    dump_failure "AVR32 ${label} memory smoke failed: SRAM sink did not become 43" \
       "$dir/gdb.log" "$dir/qemu.log" "$dir/objdump.txt"
     exit 1
   fi
 
-  echo "AVR32 LLVM memory smoke passed: stack, call, lddpc, and SRAM sink at ${AVR32_SRAM_BASE}"
+  echo "AVR32 ${label} memory smoke passed: stack, call, lddpc, and SRAM sink at ${AVR32_SRAM_BASE}"
+}
+
+run_memory_comparison_smoke() {
+  run_memory_smoke_variant llvm LLVM
+  run_memory_smoke_variant gcc GCC
+  echo "AVR32 LLVM/GCC memory comparison passed: both returned 42 and stored 43 in SRAM"
 }
 
 run_asm_smoke
 run_llvm_c_smoke
-run_llvm_memory_smoke
+run_memory_comparison_smoke
