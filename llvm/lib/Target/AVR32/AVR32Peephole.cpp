@@ -28,6 +28,7 @@ using namespace llvm;
 #include "AVR32GenRegisterInfo.inc"
 
 STATISTIC(NumCompactForms, "Number of compact instruction forms selected");
+STATISTIC(NumPredicatedStores, "Number of predicated stores selected");
 
 namespace {
 
@@ -66,6 +67,7 @@ private:
   bool foldRedundantCastBeforeCompare(MachineInstr &MI,
                                       const TargetRegisterInfo &TRI);
   bool foldNearBranches(MachineFunction &MF, const TargetInstrInfo &TII);
+  bool foldPredicatedStores(MachineFunction &MF, const TargetInstrInfo &TII);
 };
 
 } // end anonymous namespace
@@ -453,6 +455,152 @@ static std::optional<unsigned> getCompactBranchOpcode(unsigned Opcode) {
     return AVR32::BRGEcbb;
   case AVR32::BRLTbb:
     return AVR32::BRLTcbb;
+  default:
+    return std::nullopt;
+  }
+}
+
+enum class AVR32Cond {
+  EQ,
+  NE,
+  CC,
+  CS,
+  GE,
+  LT,
+  LS,
+  GT,
+  LE,
+  HI,
+};
+
+static std::optional<AVR32Cond> getStoreConditionForSkippedBranch(
+    unsigned Opcode) {
+  switch (Opcode) {
+  case AVR32::BREQbb:
+  case AVR32::BREQcbb:
+    return AVR32Cond::NE;
+  case AVR32::BRNEbb:
+  case AVR32::BRNEcbb:
+    return AVR32Cond::EQ;
+  case AVR32::BRCCbb:
+  case AVR32::BRCCcbb:
+    return AVR32Cond::CS;
+  case AVR32::BRCSbb:
+  case AVR32::BRCScbb:
+    return AVR32Cond::CC;
+  case AVR32::BRGEbb:
+  case AVR32::BRGEcbb:
+    return AVR32Cond::LT;
+  case AVR32::BRLTbb:
+  case AVR32::BRLTcbb:
+    return AVR32Cond::GE;
+  case AVR32::BRLSbb:
+    return AVR32Cond::HI;
+  case AVR32::BRGTbb:
+    return AVR32Cond::LE;
+  case AVR32::BRLEbb:
+    return AVR32Cond::GT;
+  case AVR32::BRHIbb:
+    return AVR32Cond::LS;
+  default:
+    return std::nullopt;
+  }
+}
+
+static bool fitsPredicatedStoreDisp(unsigned StoreOpcode, int64_t Disp) {
+  switch (StoreOpcode) {
+  case AVR32::ST_B_Disp3:
+  case AVR32::ST_B_Disp16:
+    return isCompactDisp(Disp, 511, 1);
+  case AVR32::ST_H_Disp3:
+  case AVR32::ST_H_Disp16:
+    return isCompactDisp(Disp, 1022, 2);
+  case AVR32::ST_W_Disp4:
+  case AVR32::ST_W_Disp16:
+    return isCompactDisp(Disp, 2044, 4);
+  default:
+    return false;
+  }
+}
+
+static std::optional<unsigned> getPredicatedStoreOpcode(unsigned StoreOpcode,
+                                                        AVR32Cond Cond) {
+  switch (StoreOpcode) {
+  case AVR32::ST_B_Disp3:
+  case AVR32::ST_B_Disp16:
+    switch (Cond) {
+    case AVR32Cond::EQ:
+      return AVR32::ST_B_EQ_Disp9;
+    case AVR32Cond::NE:
+      return AVR32::ST_B_NE_Disp9;
+    case AVR32Cond::CC:
+      return AVR32::ST_B_CC_Disp9;
+    case AVR32Cond::CS:
+      return AVR32::ST_B_CS_Disp9;
+    case AVR32Cond::GE:
+      return AVR32::ST_B_GE_Disp9;
+    case AVR32Cond::LT:
+      return AVR32::ST_B_LT_Disp9;
+    case AVR32Cond::LS:
+      return AVR32::ST_B_LS_Disp9;
+    case AVR32Cond::GT:
+      return AVR32::ST_B_GT_Disp9;
+    case AVR32Cond::LE:
+      return AVR32::ST_B_LE_Disp9;
+    case AVR32Cond::HI:
+      return AVR32::ST_B_HI_Disp9;
+    }
+    llvm_unreachable("unknown AVR32 condition");
+  case AVR32::ST_H_Disp3:
+  case AVR32::ST_H_Disp16:
+    switch (Cond) {
+    case AVR32Cond::EQ:
+      return AVR32::ST_H_EQ_Disp9;
+    case AVR32Cond::NE:
+      return AVR32::ST_H_NE_Disp9;
+    case AVR32Cond::CC:
+      return AVR32::ST_H_CC_Disp9;
+    case AVR32Cond::CS:
+      return AVR32::ST_H_CS_Disp9;
+    case AVR32Cond::GE:
+      return AVR32::ST_H_GE_Disp9;
+    case AVR32Cond::LT:
+      return AVR32::ST_H_LT_Disp9;
+    case AVR32Cond::LS:
+      return AVR32::ST_H_LS_Disp9;
+    case AVR32Cond::GT:
+      return AVR32::ST_H_GT_Disp9;
+    case AVR32Cond::LE:
+      return AVR32::ST_H_LE_Disp9;
+    case AVR32Cond::HI:
+      return AVR32::ST_H_HI_Disp9;
+    }
+    llvm_unreachable("unknown AVR32 condition");
+  case AVR32::ST_W_Disp4:
+  case AVR32::ST_W_Disp16:
+    switch (Cond) {
+    case AVR32Cond::EQ:
+      return AVR32::ST_W_EQ_Disp9;
+    case AVR32Cond::NE:
+      return AVR32::ST_W_NE_Disp9;
+    case AVR32Cond::CC:
+      return AVR32::ST_W_CC_Disp9;
+    case AVR32Cond::CS:
+      return AVR32::ST_W_CS_Disp9;
+    case AVR32Cond::GE:
+      return AVR32::ST_W_GE_Disp9;
+    case AVR32Cond::LT:
+      return AVR32::ST_W_LT_Disp9;
+    case AVR32Cond::LS:
+      return AVR32::ST_W_LS_Disp9;
+    case AVR32Cond::GT:
+      return AVR32::ST_W_GT_Disp9;
+    case AVR32Cond::LE:
+      return AVR32::ST_W_LE_Disp9;
+    case AVR32Cond::HI:
+      return AVR32::ST_W_HI_Disp9;
+    }
+    llvm_unreachable("unknown AVR32 condition");
   default:
     return std::nullopt;
   }
@@ -1184,6 +1332,94 @@ bool AVR32Peephole::foldNearBranches(MachineFunction &MF,
   return Changed;
 }
 
+bool AVR32Peephole::foldPredicatedStores(MachineFunction &MF,
+                                         const TargetInstrInfo &TII) {
+  for (MachineBasicBlock &MBB : MF) {
+    if (MBB.empty())
+      continue;
+
+    MachineInstr *Branch = nullptr;
+    for (MachineInstr &MI : llvm::reverse(MBB)) {
+      if (MI.isDebugInstr())
+        continue;
+      Branch = &MI;
+      break;
+    }
+    if (!Branch || Branch->getNumOperands() != 1 ||
+        !Branch->getOperand(0).isMBB())
+      continue;
+
+    std::optional<AVR32Cond> StoreCond =
+        getStoreConditionForSkippedBranch(Branch->getOpcode());
+    if (!StoreCond)
+      continue;
+
+    MachineBasicBlock::iterator Prev = prevNonDebug(Branch->getIterator());
+    if (Prev == MBB.end() || !isCompareOpcode(Prev->getOpcode()))
+      continue;
+
+    MachineBasicBlock *SkipBB = Branch->getOperand(0).getMBB();
+    MachineFunction::iterator StoreIt = std::next(MBB.getIterator());
+    if (StoreIt == MF.end())
+      continue;
+    MachineBasicBlock *StoreBB = &*StoreIt;
+    if (std::next(StoreIt) == MF.end() || &*std::next(StoreIt) != SkipBB)
+      continue;
+    if (StoreBB->succ_size() != 1 || *StoreBB->succ_begin() != SkipBB)
+      continue;
+    if (!MBB.isSuccessor(StoreBB) || !MBB.isSuccessor(SkipBB))
+      continue;
+    if (!SkipBB->empty() && SkipBB->begin()->isPHI())
+      continue;
+
+    MachineInstr *Store = nullptr;
+    bool HasOtherNonDebug = false;
+    for (MachineInstr &MI : *StoreBB) {
+      if (MI.isDebugInstr())
+        continue;
+      if (!Store)
+        Store = &MI;
+      else
+        HasOtherNonDebug = true;
+    }
+    if (!Store || HasOtherNonDebug || Store->getNumOperands() != 3)
+      continue;
+
+    const MachineOperand &Base = Store->getOperand(0);
+    const MachineOperand &Disp = Store->getOperand(1);
+    const MachineOperand &Src = Store->getOperand(2);
+    if (!isRegOperand(Base) || !Disp.isImm() || !isRegOperand(Src) ||
+        !fitsPredicatedStoreDisp(Store->getOpcode(), Disp.getImm()))
+      continue;
+
+    std::optional<unsigned> CondStoreOpc =
+        getPredicatedStoreOpcode(Store->getOpcode(), *StoreCond);
+    if (!CondStoreOpc)
+      continue;
+    if (!Store->mayStore() || Store->mayLoad())
+      continue;
+
+    MachineInstrBuilder MIB =
+        BuildMI(MBB, *Branch, Store->getDebugLoc(), TII.get(*CondStoreOpc))
+            .addReg(Base.getReg(), getKillRegState(Base.isKill()))
+            .addImm(Disp.getImm())
+            .addReg(Src.getReg(), getKillRegState(Src.isKill()));
+    MIB->copyImplicitOps(MF, *Store);
+    MIB.setMIFlags(Store->getFlags());
+    MIB.setMemRefs(Store->memoperands());
+
+    Branch->eraseFromParent();
+    MBB.removeSuccessor(StoreBB);
+    StoreBB->removeSuccessor(SkipBB);
+    StoreBB->eraseFromParent();
+
+    ++NumPredicatedStores;
+    return true;
+  }
+
+  return false;
+}
+
 bool AVR32Peephole::foldLoadDisp(MachineInstr &MI, unsigned CompactOpc,
                                  unsigned MaxDisp, unsigned Align,
                                  const TargetInstrInfo &TII) {
@@ -1438,6 +1674,9 @@ bool AVR32Peephole::runOnMachineFunction(MachineFunction &MF) {
   } while (LocalChanged);
 
   while (foldNearBranches(MF, TII))
+    Changed = true;
+
+  while (foldPredicatedStores(MF, TII))
     Changed = true;
 
   return Changed;

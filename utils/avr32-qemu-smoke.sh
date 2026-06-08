@@ -822,6 +822,37 @@ int test_entry(void) {
 C
   cases=$((cases + 1))
 
+  run_compare_case widget_cond_store 42 43 420 <<'C'
+typedef unsigned int u32;
+
+volatile int sink;
+static int control_words[4];
+
+__attribute__((noinline)) static void control_write_eq(
+    int *slot, int lhs, int rhs, int value) {
+  if (lhs == rhs)
+    *slot = value;
+}
+
+__attribute__((noinline)) static void control_write_ugt(
+    u32 *slot, u32 lhs, u32 rhs, u32 value) {
+  if (lhs > rhs)
+    *slot = value;
+}
+
+int test_entry(void) {
+  control_write_eq(&control_words[0], 3, 3, 11);
+  control_write_eq(&control_words[1], 3, 4, 99);
+  control_write_ugt((u32 *)&control_words[2], 5, 2, 17);
+  control_write_ugt((u32 *)&control_words[3], 1, 9, 99);
+
+  sink = control_words[0] + control_words[1] +
+         control_words[2] + control_words[3] + 15;
+  return sink - 1;
+}
+C
+  cases=$((cases + 1))
+
   echo "AVR32 LLVM/GCC widget-shaped comparison passed: ${cases} cases returned 42 and stored 43 in SRAM"
 }
 
