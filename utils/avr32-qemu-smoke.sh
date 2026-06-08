@@ -13,10 +13,13 @@ AVR32_CLANG=${AVR32_CLANG:-${repo_root}/build-avr32/bin/clang}
 AVR32_GCC=${AVR32_GCC:-${AVR32_GNU_PREFIX}gcc}
 AVR32_GDB=${AVR32_GDB:-/tmp/avr32-gdb-build/gdb/gdb}
 AVR32_QEMU=${AVR32_QEMU:-/tmp/qemu-avr32-build/qemu-system-avr32}
+AVR32_LLVM_OPT=${AVR32_LLVM_OPT:--Oz}
+AVR32_GCC_OPT=${AVR32_GCC_OPT:--Os}
 AVR32_GDB_PORT=${AVR32_GDB_PORT:-1234}
 AVR32_FLASH_BASE=${AVR32_FLASH_BASE:-0x80000000}
 AVR32_SRAM_BASE=${AVR32_SRAM_BASE:-0x00000000}
 AVR32_SRAM_TOP=${AVR32_SRAM_TOP:-0x00010000}
+AVR32_KEEP_TMP=${AVR32_KEEP_TMP:-0}
 
 require_executable() {
   local path=$1
@@ -48,7 +51,11 @@ stop_qemu() {
 
 cleanup() {
   stop_qemu
-  rm -rf "$tmpdir"
+  if [[ "$AVR32_KEEP_TMP" == 1 ]]; then
+    echo "Keeping AVR32 QEMU smoke artifacts in ${tmpdir}" >&2
+  else
+    rm -rf "$tmpdir"
+  fi
 }
 trap cleanup EXIT
 
@@ -118,12 +125,12 @@ compile_case_c() {
 
   case "$compiler" in
   llvm)
-    "$AVR32_CLANG" --target=avr32 -mpart=uc3a3256 -Oz \
+    "$AVR32_CLANG" --target=avr32 -mpart=uc3a3256 "$AVR32_LLVM_OPT" \
       -ffreestanding -fno-builtin \
       -c "$dir/case.c" -o "$dir/case.o"
     ;;
   gcc)
-    "$AVR32_GCC" -mpart=uc3a3256 -Os \
+    "$AVR32_GCC" -mpart=uc3a3256 "$AVR32_GCC_OPT" \
       -ffreestanding -fno-builtin \
       -c "$dir/case.c" -o "$dir/case.o"
     ;;
@@ -531,6 +538,213 @@ C
   echo "AVR32 LLVM/GCC differential comparison passed: ${cases} cases returned 42 and stored 43 in SRAM"
 }
 
+run_synthesized_comparison_smoke() {
+  local cases=0
+
+  run_compare_case synth_cond_matrix 42 43 520 <<'C'
+typedef unsigned int u32;
+
+volatile int sink;
+static int slots[12];
+
+__attribute__((noinline)) static void store_eq(
+    int *p, int lhs, int rhs, int value) {
+  if (lhs == rhs)
+    *p = value;
+}
+
+__attribute__((noinline)) static void store_ne(
+    int *p, int lhs, int rhs, int value) {
+  if (lhs != rhs)
+    *p = value;
+}
+
+__attribute__((noinline)) static void store_slt(
+    int *p, int lhs, int rhs, int value) {
+  if (lhs < rhs)
+    *p = value;
+}
+
+__attribute__((noinline)) static void store_sge(
+    int *p, int lhs, int rhs, int value) {
+  if (lhs >= rhs)
+    *p = value;
+}
+
+__attribute__((noinline)) static void store_ugt(
+    int *p, u32 lhs, u32 rhs, int value) {
+  if (lhs > rhs)
+    *p = value;
+}
+
+__attribute__((noinline)) static void store_ule(
+    int *p, u32 lhs, u32 rhs, int value) {
+  if (lhs <= rhs)
+    *p = value;
+}
+
+int test_entry(void) {
+  int acc;
+
+  store_eq(&slots[0], 4, 4, 3);
+  store_eq(&slots[1], 4, 5, 99);
+  store_ne(&slots[2], 4, 5, 5);
+  store_ne(&slots[3], 4, 4, 99);
+  store_slt(&slots[4], -2, 3, 7);
+  store_slt(&slots[5], 5, 1, 99);
+  store_sge(&slots[6], 6, 6, 11);
+  store_sge(&slots[7], -1, 8, 99);
+  store_ugt(&slots[8], 9U, 2U, 13);
+  store_ugt(&slots[9], 1U, 4U, 99);
+  store_ule(&slots[10], 3U, 3U, 17);
+  store_ule(&slots[11], 8U, 2U, 99);
+
+  acc = slots[0] + slots[1] + slots[2] + slots[3];
+  acc += slots[4] + slots[5] + slots[6] + slots[7];
+  acc += slots[8] + slots[9] + slots[10] + slots[11];
+  sink = acc - 13;
+  return sink - 1;
+}
+C
+  cases=$((cases + 1))
+
+  run_compare_case synth_stack_args 42 43 360 <<'C'
+volatile int sink;
+static volatile int inputs[8];
+
+__attribute__((noinline)) static int mix8(
+    int a, int b, int c, int d, int e, int f, int g, int h) {
+  int local[4];
+
+  local[0] = a + b;
+  local[1] = c + d;
+  local[2] = e + f;
+  local[3] = g + h;
+  return local[0] + local[1] + local[2] + local[3] + f;
+}
+
+int test_entry(void) {
+  int v;
+
+  inputs[0] = 1;
+  inputs[1] = 2;
+  inputs[2] = 3;
+  inputs[3] = 4;
+  inputs[4] = 5;
+  inputs[5] = 6;
+  inputs[6] = 7;
+  inputs[7] = 8;
+  v = mix8(inputs[0], inputs[1], inputs[2], inputs[3],
+           inputs[4], inputs[5], inputs[6], inputs[7]);
+  sink = v + 1;
+  return sink - 1;
+}
+C
+  cases=$((cases + 1))
+
+  run_compare_case synth_struct_lanes 42 43 280 <<'C'
+typedef unsigned char u8;
+typedef unsigned short u16;
+typedef unsigned int u32;
+
+struct packet {
+  u8 tag;
+  u16 code;
+  u8 flags;
+  u32 count;
+};
+
+volatile int sink;
+static struct packet pkt;
+
+__attribute__((noinline)) static void fill_packet(struct packet *p) {
+  p->tag = 7;
+  p->code = 11;
+  p->flags = 13;
+  p->count = 17;
+}
+
+__attribute__((noinline)) static int checksum_packet(const struct packet *p) {
+  return p->tag + p->code + p->flags + (int)p->count;
+}
+
+int test_entry(void) {
+  int v;
+
+  fill_packet(&pkt);
+  v = checksum_packet(&pkt);
+  sink = v - 5;
+  return sink - 1;
+}
+C
+  cases=$((cases + 1))
+
+  run_compare_case synth_switch_dispatch 42 43 320 <<'C'
+volatile int sink;
+static volatile int selector;
+
+__attribute__((noinline)) static int dispatch(int x) {
+  switch (x) {
+  case 0:
+    return 3;
+  case 1:
+    return 7;
+  case 2:
+    return 11;
+  case 3:
+    return 17;
+  case 4:
+    return 23;
+  case 5:
+    return 31;
+  case 6:
+    return 37;
+  default:
+    return 1;
+  }
+}
+
+int test_entry(void) {
+  int v;
+
+  selector = 5;
+  v = dispatch(selector);
+  sink = v + 12;
+  return sink - 1;
+}
+C
+  cases=$((cases + 1))
+
+  run_compare_case synth_global_index 42 43 360 <<'C'
+volatile int sink;
+static volatile int index_seed;
+static const int table[6] = { 4, 8, 15, 16, 23, 42 };
+static int out[3];
+
+__attribute__((noinline)) static int gather(int index) {
+  const int *p;
+
+  p = table + index;
+  out[0] = p[-1];
+  out[1] = p[0];
+  out[2] = p[2];
+  return out[0] + out[1] + out[2];
+}
+
+int test_entry(void) {
+  int v;
+
+  index_seed = 2;
+  v = gather(index_seed);
+  sink = v - 3;
+  return sink - 1;
+}
+C
+  cases=$((cases + 1))
+
+  echo "AVR32 LLVM/GCC synthesized comparison passed: ${cases} cases returned 42 and stored 43 in SRAM"
+}
+
 run_widget_shape_comparison_smoke() {
   local cases=0
 
@@ -859,4 +1073,5 @@ C
 run_asm_smoke
 run_llvm_c_smoke
 run_memory_comparison_smoke
+run_synthesized_comparison_smoke
 run_widget_shape_comparison_smoke

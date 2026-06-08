@@ -72,6 +72,8 @@ bool AVR32RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
 
   int FrameIndex = MI.getOperand(FIOperandNum).getIndex();
   int64_t Offset = MFI.getObjectOffset(FrameIndex) + MFI.getStackSize();
+  if (MFI.isFixedObjectIndex(FrameIndex))
+    Offset += AVR32FrameLowering::getPushmByteSize(MF);
 
   Offset += MI.getOperand(FIOperandNum + 1).getImm();
   if (!isInt<16>(Offset))

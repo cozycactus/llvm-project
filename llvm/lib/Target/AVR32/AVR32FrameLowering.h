@@ -18,6 +18,9 @@ class AVR32FrameLowering : public TargetFrameLowering {
 public:
   explicit AVR32FrameLowering(const AVR32Subtarget &STI);
 
+  static unsigned getPushmMask(const MachineFunction &MF);
+  static unsigned getPushmByteSize(const MachineFunction &MF);
+
   void emitPrologue(MachineFunction &MF, MachineBasicBlock &MBB) const override;
   void emitEpilogue(MachineFunction &MF, MachineBasicBlock &MBB) const override;
 

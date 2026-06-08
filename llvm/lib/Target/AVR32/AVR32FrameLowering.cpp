@@ -23,7 +23,7 @@ using namespace llvm;
 #define GET_REGINFO_ENUM
 #include "AVR32GenRegisterInfo.inc"
 
-static unsigned getPushmMask(const MachineFunction &MF) {
+unsigned AVR32FrameLowering::getPushmMask(const MachineFunction &MF) {
   const MachineFrameInfo &MFI = MF.getFrameInfo();
   const MachineRegisterInfo &MRI = MF.getRegInfo();
   bool IsInterrupt = MF.getFunction().hasFnAttribute("interrupt");
@@ -47,6 +47,28 @@ static unsigned getPushmMask(const MachineFunction &MF) {
   if (MFI.hasCalls())
     Mask |= 1 << 6;
   return Mask;
+}
+
+unsigned AVR32FrameLowering::getPushmByteSize(const MachineFunction &MF) {
+  unsigned Mask = getPushmMask(MF);
+  unsigned RegCount = 0;
+  if (Mask & (1 << 0))
+    RegCount += 4; // r0-r3
+  if (Mask & (1 << 1))
+    RegCount += 4; // r4-r7
+  if (Mask & (1 << 2))
+    RegCount += 2; // r8-r9
+  if (Mask & (1 << 3))
+    RegCount += 1; // r10
+  if (Mask & (1 << 4))
+    RegCount += 1; // r11
+  if (Mask & (1 << 5))
+    RegCount += 1; // r12
+  if (Mask & (1 << 6))
+    RegCount += 1; // lr
+  if (Mask & (1 << 7))
+    RegCount += 1; // pc, used by popm-return forms.
+  return RegCount * 4;
 }
 
 AVR32FrameLowering::AVR32FrameLowering(const AVR32Subtarget &STI)

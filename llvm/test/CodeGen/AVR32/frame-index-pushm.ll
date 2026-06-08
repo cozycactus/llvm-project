@@ -19,3 +19,26 @@ entry:
   store volatile i32 %sum, ptr @sink, align 4
   ret i32 %sum
 }
+
+define i32 @stack_args_after_pushm(i32 %a, i32 %b, i32 %c, i32 %d,
+                                   i32 %e, i32 %f, i32 %g, i32 %h) {
+; CHECK-LABEL: stack_args_after_pushm:
+; CHECK: pushm r0-r3
+; CHECK-NOT: lddsp {{r[0-9]+}}, sp[0]
+; CHECK: lddsp {{r[0-9]+}}, sp[16]
+; CHECK: lddsp {{r[0-9]+}}, sp[20]
+; CHECK: lddsp {{r[0-9]+}}, sp[24]
+; CHECK: popm r0-r3
+entry:
+  call void asm sideeffect "", "~{r0},~{r1},~{r2},~{r3}"()
+  %ab = add i32 %a, %b
+  %abc = add i32 %ab, %c
+  %abcd = add i32 %abc, %d
+  %abcde = add i32 %abcd, %e
+  %with_f = add i32 %abcde, %f
+  %with_g = add i32 %with_f, %g
+  %with_h = add i32 %with_g, %h
+  %twice_f = shl i32 %f, 1
+  %sum = add i32 %with_h, %twice_f
+  ret i32 %sum
+}
