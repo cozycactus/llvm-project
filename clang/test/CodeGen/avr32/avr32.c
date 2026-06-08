@@ -636,13 +636,11 @@ __attribute__((optnone, noinline)) int pick(int a, int b) {
 // ASM: popm r0-r3, pc
 
 // ASM-LABEL: sign_byte:
-// ASM: lsl
-// ASM: asr
+// ASM: bfexts r12, r12, 0, 8
 // ASM: ret r12
 
 // ASM-LABEL: sign_half:
-// ASM: lsl
-// ASM: asr
+// ASM: bfexts r12, r12, 0, 16
 // ASM: ret r12
 
 // ASM-LABEL: arith_ops:

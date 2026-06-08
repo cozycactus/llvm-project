@@ -4007,9 +4007,9 @@ def : Pat<(mul GPR:$LHS, GPR:$RHS), (MULrrr GPR:$LHS, GPR:$RHS)>;
 def : Pat<(sdiv GPR:$LHS, GPR:$RHS), (DIVSrrr GPR:$LHS, GPR:$RHS)>;
 def : Pat<(udiv GPR:$LHS, GPR:$RHS), (DIVUrrr GPR:$LHS, GPR:$RHS)>;
 def : Pat<(sext_inreg GPR:$Src, i8),
-          (ASRrrr (LSLrrr GPR:$Src, (MOVri21 24)), (MOVri21 24))>;
+          (BFEXTS GPR:$Src, (i32 0), (i32 8))>;
 def : Pat<(sext_inreg GPR:$Src, i16),
-          (ASRrrr (LSLrrr GPR:$Src, (MOVri21 16)), (MOVri21 16))>;
+          (BFEXTS GPR:$Src, (i32 0), (i32 16))>;
 
 def : Pat<(AVR32cmp GPR:$LHS, GPR:$RHS), (CPrr GPR:$LHS, GPR:$RHS)>;
 def : Pat<(AVR32cmp GPR:$LHS, simm21:$RHS), (CPri21 GPR:$LHS, simm21:$RHS)>;
