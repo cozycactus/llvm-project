@@ -13,6 +13,7 @@ AVR32_CLANG=${AVR32_CLANG:-${repo_root}/build-avr32/bin/clang}
 AVR32_GCC=${AVR32_GCC:-${AVR32_GNU_PREFIX}gcc}
 AVR32_GDB=${AVR32_GDB:-/tmp/avr32-gdb-build/gdb/gdb}
 AVR32_QEMU=${AVR32_QEMU:-/tmp/qemu-avr32-build/qemu-system-avr32}
+SDR_WIDGET_ROOT=${SDR_WIDGET_ROOT:-/Users/cozy/cozycactus/sdr-widget}
 AVR32_LLVM_OPT=${AVR32_LLVM_OPT:--Oz}
 AVR32_GCC_OPT=${AVR32_GCC_OPT:--Os}
 AVR32_GDB_PORT=${AVR32_GDB_PORT:-1234}
@@ -37,6 +38,7 @@ require_executable "$AVR32_CLANG"
 require_executable "$AVR32_GCC"
 require_executable "$AVR32_GDB"
 require_executable "$AVR32_QEMU"
+AVR32_SYSROOT=${AVR32_SYSROOT:-$("$AVR32_GCC" -print-sysroot)}
 
 tmpdir=$(mktemp -d "${TMPDIR:-/tmp}/avr32-qemu-smoke.XXXXXX")
 qemu_pid=
@@ -402,6 +404,969 @@ run_compare_case() {
   run_compare_case_variant llvm LLVM "$name" "$source" \
     "$expected_return" "$expected_sink" "$step_count"
   run_compare_case_variant gcc GCC "$name" "$source" \
+    "$expected_return" "$expected_sink" "$step_count"
+}
+
+compile_real_sdr_c() {
+  local compiler=$1
+  local dir=$2
+  local source=$3
+  local object=$4
+  local -a common_flags=(
+    -std=gnu89
+    -fcommon
+    -ffreestanding
+    -fno-builtin
+    -Wno-expansion-to-defined
+    -I "$dir/include"
+  )
+
+  if [[ -n "$AVR32_SYSROOT" ]]; then
+    common_flags+=("--sysroot=$AVR32_SYSROOT")
+  fi
+
+  case "$compiler" in
+  llvm)
+    "$AVR32_CLANG" --target=avr32 -mpart=uc3a3256 "$AVR32_LLVM_OPT" \
+      "${common_flags[@]}" -c "$source" -o "$object"
+    ;;
+  gcc)
+    "$AVR32_GCC" -mpart=uc3a3256 "$AVR32_GCC_OPT" \
+      "${common_flags[@]}" -c "$source" -o "$object"
+    ;;
+  *)
+    echo "unknown real SDR smoke compiler: $compiler" >&2
+    exit 1
+    ;;
+  esac
+}
+
+write_real_sdr_headers() {
+  local dir=$1
+  local include="$dir/include"
+  mkdir -p "$include"
+
+  for header in wdt.h taskLCD.h usb_standard_request.h preprocessor.h usbb.h conf_usb.h; do
+    : > "$include/$header"
+  done
+
+  cat > "$include/compiler.h" <<'C'
+#ifndef QEMU_SDR_COMPILER_H
+#define QEMU_SDR_COMPILER_H
+
+#include <stddef.h>
+#include <stdint.h>
+
+typedef unsigned char Bool;
+#ifndef __cplusplus
+#if !defined(__bool_true_false_are_defined)
+typedef unsigned char bool;
+#endif
+#endif
+typedef signed char S8;
+typedef unsigned char U8;
+typedef signed short S16;
+typedef unsigned short U16;
+typedef signed long S32;
+typedef unsigned long U32;
+typedef signed long long S64;
+typedef unsigned long long U64;
+typedef Bool Status_bool_t;
+typedef U8 Status_t;
+
+typedef union {
+  S16 s16;
+  U16 u16;
+  S8 s8[2];
+  U8 u8[2];
+} Union16;
+
+typedef union {
+  S32 s32;
+  U32 u32;
+  S16 s16[2];
+  U16 u16[2];
+  S8 s8[4];
+  U8 u8[4];
+} Union32;
+
+typedef union {
+  S64 s64;
+  U64 u64;
+  S32 s32[2];
+  U32 u32[2];
+  S16 s16[4];
+  U16 u16[4];
+  S8 s8[8];
+  U8 u8[8];
+} Union64;
+
+typedef union {
+  S64 *s64ptr;
+  U64 *u64ptr;
+  S32 *s32ptr;
+  U32 *u32ptr;
+  S16 *s16ptr;
+  U16 *u16ptr;
+  S8 *s8ptr;
+  U8 *u8ptr;
+} UnionPtr;
+
+typedef union {
+  volatile S64 *s64ptr;
+  volatile U64 *u64ptr;
+  volatile S32 *s32ptr;
+  volatile U32 *u32ptr;
+  volatile S16 *s16ptr;
+  volatile U16 *u16ptr;
+  volatile S8 *s8ptr;
+  volatile U8 *u8ptr;
+} UnionVPtr;
+
+typedef union {
+  const S64 *s64ptr;
+  const U64 *u64ptr;
+  const S32 *s32ptr;
+  const U32 *u32ptr;
+  const S16 *s16ptr;
+  const U16 *u16ptr;
+  const S8 *s8ptr;
+  const U8 *u8ptr;
+} UnionCPtr;
+
+typedef union {
+  const volatile S64 *s64ptr;
+  const volatile U64 *u64ptr;
+  const volatile S32 *s32ptr;
+  const volatile U32 *u32ptr;
+  const volatile S16 *s16ptr;
+  const volatile U16 *u16ptr;
+  const volatile S8 *s8ptr;
+  const volatile U8 *u8ptr;
+} UnionCVPtr;
+
+typedef struct {
+  S64 *s64ptr;
+  U64 *u64ptr;
+  S32 *s32ptr;
+  U32 *u32ptr;
+  S16 *s16ptr;
+  U16 *u16ptr;
+  S8 *s8ptr;
+  U8 *u8ptr;
+} StructPtr;
+
+typedef struct {
+  volatile S64 *s64ptr;
+  volatile U64 *u64ptr;
+  volatile S32 *s32ptr;
+  volatile U32 *u32ptr;
+  volatile S16 *s16ptr;
+  volatile U16 *u16ptr;
+  volatile S8 *s8ptr;
+  volatile U8 *u8ptr;
+} StructVPtr;
+
+typedef struct {
+  const S64 *s64ptr;
+  const U64 *u64ptr;
+  const S32 *s32ptr;
+  const U32 *u32ptr;
+  const S16 *s16ptr;
+  const U16 *u16ptr;
+  const S8 *s8ptr;
+  const U8 *u8ptr;
+} StructCPtr;
+
+typedef struct {
+  const volatile S64 *s64ptr;
+  const volatile U64 *u64ptr;
+  const volatile S32 *s32ptr;
+  const volatile U32 *u32ptr;
+  const volatile S16 *s16ptr;
+  const volatile U16 *u16ptr;
+  const volatile S8 *s8ptr;
+  const volatile U8 *u8ptr;
+} StructCVPtr;
+
+#define DISABLED 0
+#define ENABLED 1
+#define FALSE 0
+#define TRUE 1
+#define KO 0
+#define OK 1
+
+#ifndef false
+#define false FALSE
+#endif
+#ifndef true
+#define true TRUE
+#endif
+
+#define Rd_bits(value, mask) ((value) & (mask))
+#define Tst_bits(value, mask) (Rd_bits((value), (mask)) != 0)
+#define Test_align(value, align) (!Tst_bits((uintptr_t)(value), (uintptr_t)((align) - 1U)))
+#define Get_align(value, align) (Rd_bits((uintptr_t)(value), (uintptr_t)((align) - 1U)))
+#define Align_down(value, align) ((uintptr_t)(value) & ~(uintptr_t)((align) - 1U))
+#define min(a, b) ((a) < (b) ? (a) : (b))
+
+#endif
+C
+
+  cat > "$include/usb_drv.h" <<'C'
+#ifndef QEMU_SDR_USB_DRV_H
+#define QEMU_SDR_USB_DRV_H
+
+#include "compiler.h"
+
+#define USB_DEVICE_FEATURE ENABLED
+#define USB_HOST_FEATURE DISABLED
+#define MAX_PEP_NB 8
+
+#define EP_CONTROL 0
+#define TYPE_CONTROL 0
+#define DIRECTION_OUT 0
+#define SINGLE_BANK 0
+
+extern UnionVPtr pep_fifo[MAX_PEP_NB];
+extern U32 qemu_usb_endpoint_size[MAX_PEP_NB];
+extern U32 qemu_usb_byte_count[MAX_PEP_NB];
+
+#define Usb_get_endpoint_size(ep) (qemu_usb_endpoint_size[(ep)])
+#define Usb_byte_count(ep) (qemu_usb_byte_count[(ep)])
+#define Is_usb_id_device() TRUE
+#define Is_usb_endpoint_enabled(ep) FALSE
+static inline Status_bool_t qemu_usb_configure_endpoint(
+    U8 ep, U8 type, U8 dir, U16 size, U8 banks, U8 flags) {
+  (void)ep;
+  (void)type;
+  (void)dir;
+  (void)size;
+  (void)banks;
+  (void)flags;
+  return TRUE;
+}
+#define Usb_configure_endpoint(ep, type, dir, size, banks, flags) \
+  qemu_usb_configure_endpoint((ep), (type), (dir), (size), (banks), (flags))
+
+Status_bool_t usb_init_device(void);
+U32 usb_set_ep_txpacket(U8 ep, U8 txbyte, U32 data_length);
+U32 usb_write_ep_txpacket(U8 ep, const void *txbuf, U32 data_length, const void **ptxbuf);
+U32 usb_read_ep_rxpacket(U8 ep, void *rxbuf, U32 data_length, void **prxbuf);
+
+#endif
+C
+
+  cat > "$include/usb_descriptors.h" <<'C'
+#ifndef QEMU_SDR_USB_DESCRIPTORS_H
+#define QEMU_SDR_USB_DESCRIPTORS_H
+#define EP_CONTROL_LENGTH 64
+#endif
+C
+
+  cat > "$include/flashc.h" <<'C'
+#ifndef QEMU_SDR_FLASHC_H
+#define QEMU_SDR_FLASHC_H
+
+#include <stddef.h>
+#include "compiler.h"
+
+volatile void *flashc_memset8(volatile void *dst, U8 src, size_t nbytes, Bool erase);
+volatile void *flashc_memset16(volatile void *dst, U16 src, size_t nbytes, Bool erase);
+volatile void *flashc_memset32(volatile void *dst, U32 src, size_t nbytes, Bool erase);
+
+#endif
+C
+
+  cat > "$include/gpio.h" <<'C'
+#ifndef QEMU_SDR_GPIO_H
+#define QEMU_SDR_GPIO_H
+
+#define GPIO_CW_KEY_1 0
+#define GPIO_CW_KEY_2 1
+#define GPIO_PTT_INPUT 2
+#define PTT_1 3
+#define PTT_2 4
+#define PTT_3 5
+
+int gpio_get_pin_value(unsigned int pin);
+
+#endif
+C
+
+  cat > "$include/Si570.h" <<'C'
+#ifndef QEMU_SDR_SI570_H
+#define QEMU_SDR_SI570_H
+
+#include "compiler.h"
+
+extern U8 si570reg[6];
+void GetRegFromSi570(U8 addr);
+
+#endif
+C
+
+  cat > "$include/AD7991.h" <<'C'
+#ifndef QEMU_SDR_AD7991_H
+#define QEMU_SDR_AD7991_H
+
+#include "compiler.h"
+
+extern U16 ad7991_adc[4];
+
+#endif
+C
+
+  cat > "$include/TMP100.h" <<'C'
+#ifndef QEMU_SDR_TMP100_H
+#define QEMU_SDR_TMP100_H
+
+#include "compiler.h"
+
+extern S16 tmp100_data;
+
+#endif
+C
+
+  cat > "$include/features.h" <<'C'
+#ifndef QEMU_SDR_FEATURES_H
+#define QEMU_SDR_FEATURES_H
+
+#include "compiler.h"
+
+typedef enum {
+  feature_major_index = 0,
+  feature_minor_index,
+  feature_board_index,
+  feature_image_index,
+  feature_in_index,
+  feature_out_index,
+  feature_adc_index,
+  feature_dac_index,
+  feature_lcd_index,
+  feature_log_index,
+  feature_end_index
+} feature_index_t;
+
+typedef enum {
+  feature_board_none = 0,
+  feature_board_widget,
+  feature_board_usbi2s,
+  feature_board_usbdac,
+  feature_board_test,
+  feature_end_board,
+  feature_image_flashyblinky,
+  feature_image_uac1_audio,
+  feature_image_uac1_dg8saq,
+  feature_image_uac2_audio,
+  feature_image_uac2_dg8saq,
+  feature_image_hpsdr,
+  feature_image_test,
+  feature_end_image,
+  feature_in_normal,
+  feature_in_swapped,
+  feature_end_in,
+  feature_out_normal,
+  feature_out_swapped,
+  feature_end_out,
+  feature_adc_none,
+  feature_adc_ak5394a,
+  feature_end_adc,
+  feature_dac_none,
+  feature_dac_cs4344,
+  feature_dac_es9022,
+  feature_end_dac,
+  feature_lcd_none,
+  feature_lcd_hd44780,
+  feature_lcd_ks0073,
+  feature_end_lcd,
+  feature_log_none,
+  feature_log_250ms,
+  feature_log_500ms,
+  feature_log_1sec,
+  feature_log_2sec,
+  feature_end_log,
+  feature_end_values
+} feature_values_t;
+
+typedef U8 features_t[feature_end_index];
+
+extern features_t features_nvram;
+extern features_t features;
+extern const features_t features_default;
+extern const char * const feature_value_names[];
+extern const char * const feature_index_names[];
+
+U8 feature_set(U8 index, U8 value);
+U8 feature_get(U8 index);
+U8 feature_set_nvram(U8 index, U8 value);
+U8 feature_get_nvram(U8 index);
+U8 feature_get_default(U8 index);
+
+void qemu_feature_reset(void);
+
+#endif
+C
+
+  cat > "$include/usb_specific_request.h" <<'C'
+#ifndef QEMU_SDR_USB_SPECIFIC_REQUEST_H
+#define QEMU_SDR_USB_SPECIFIC_REQUEST_H
+
+#include "compiler.h"
+
+typedef union {
+  U32 frequency;
+  U8 freq_bytes[4];
+} S_freq;
+
+extern S_freq current_freq;
+extern Bool freq_changed;
+
+#endif
+C
+
+  cat > "$include/widget.h" <<'C'
+#ifndef QEMU_SDR_WIDGET_H
+#define QEMU_SDR_WIDGET_H
+
+void widget_reset(void);
+void widget_factory_reset(void);
+
+#endif
+C
+
+  cat > "$include/Mobo_config.h" <<'C'
+#ifndef QEMU_SDR_MOBO_CONFIG_H
+#define QEMU_SDR_MOBO_CONFIG_H
+
+#include <stdint.h>
+#include "compiler.h"
+
+#define VERSION_MAJOR 16
+#define VERSION_MINOR 100
+
+#define CALC_FREQ_MUL_ADD 0
+#define CALC_BAND_MUL_ADD 0
+#define SCRAMBLED_FILTERS 1
+#define PCF_LPF 0
+#define PCF_16LPF 0
+#define PCF_FILTER_IO 0
+#define M0RZF_FILTER_IO 0
+#define TXF 16
+
+#define REG_CWSHORT (1 << 5)
+#define REG_CWLONG (1 << 1)
+#define REG_PTT_1 (1 << 2)
+#define REG_PTT_2 (1 << 3)
+#define REG_PTT_3 (1 << 4)
+#define REG_TX_state (1 << 6)
+#define REG_PTT_INPUT (1 << 7)
+
+extern volatile bool MENU_mode;
+extern bool TX_state;
+extern bool TX_flag;
+extern bool SWR_alarm;
+extern bool TMP_alarm;
+extern bool PA_cal_lo;
+extern bool PA_cal_hi;
+extern bool PA_cal;
+
+typedef struct {
+  bool si570;
+  bool tmp100;
+  bool ad5301;
+  bool ad7991;
+  bool pcfmobo;
+  bool pcflpf1;
+  bool pcflpf2;
+  bool pcfext;
+  bool pcf0x20;
+  bool pcf0x21;
+  bool pcf0x22;
+  bool pcf0x23;
+  bool pcf0x24;
+  bool pcf0x25;
+  bool pcf0x26;
+  bool pcf0x27;
+  bool pcf0x38;
+  bool pcf0x39;
+  bool pcf0x3a;
+  bool pcf0x3b;
+  bool pcf0x3c;
+  bool pcf0x3d;
+  bool pcf0x3e;
+  bool pcf0x3f;
+} i2c_avail;
+
+extern i2c_avail i2c;
+
+typedef struct {
+  U8 EEPROM_init_check;
+  U8 UAC2_Audio;
+  U8 Si570_I2C_addr;
+  U8 TMP100_I2C_addr;
+  U8 AD5301_I2C_addr;
+  U8 AD7991_I2C_addr;
+  U8 PCF_I2C_Mobo_addr;
+  U8 PCF_I2C_lpf1_addr;
+  U8 PCF_I2C_lpf2_addr;
+  U8 PCF_I2C_Ext_addr;
+  U8 hi_tmp_trigger;
+  U16 P_Min_Trigger;
+  U16 SWR_Protect_Timer;
+  U16 SWR_Trigger;
+  U16 PWR_Calibrate;
+  U8 Bias_Select;
+  U8 Bias_LO;
+  U8 Bias_HI;
+  U8 cal_LO;
+  U8 cal_HI;
+  U32 FreqXtal;
+  U16 SmoothTunePPM;
+  U32 Freq[10];
+  U8 SwitchFreq;
+  U16 FilterCrossOver[8];
+  U16 TXFilterCrossOver[TXF];
+  U8 PWR_fullscale;
+  U8 SWR_fullscale;
+  U8 PEP_samples;
+  U16 Resolvable_States;
+  U8 VFO_resolution;
+  S8 LCD_RX_Offset;
+  U8 Fan_On;
+  U8 Fan_Off;
+  U8 PCF_fan_bit;
+  U8 FilterNumber[8];
+  U8 TXFilterNumber[16];
+} mobo_data_t;
+
+extern mobo_data_t cdata;
+extern mobo_data_t nvram_cdata;
+
+U8 pcf8574_out_byte(U8 i2c_address, U8 data);
+U8 pcf8574_in_byte(U8 i2c_address, U8 *data_to_return);
+
+#endif
+C
+
+  cat > "$include/DG8SAQ_cmd.h" <<'C'
+#ifndef QEMU_SDR_DG8SAQ_CMD_H
+#define QEMU_SDR_DG8SAQ_CMD_H
+
+#include <stdint.h>
+#include "compiler.h"
+
+void dg8saqFunctionWrite(U8 type, U16 wValue, U16 wIndex, U8 *Buffer, U8 len);
+uint8_t dg8saqFunctionSetup(uint8_t type, uint16_t wValue, uint16_t wIndex, U8 *Buffer);
+
+extern volatile uint32_t freq_from_usb;
+extern volatile bool FRQ_fromusbreg;
+extern volatile bool FRQ_fromusb;
+extern volatile bool FRQ_lcdupdate;
+
+#endif
+C
+}
+
+write_real_sdr_stubs() {
+  local dir=$1
+
+  cat > "$dir/stubs.c" <<'C'
+#include <stddef.h>
+#include "compiler.h"
+#include "Mobo_config.h"
+#include "Si570.h"
+#include "AD7991.h"
+#include "TMP100.h"
+#include "usb_drv.h"
+#include "usb_specific_request.h"
+#include "features.h"
+#include "DG8SAQ_cmd.h"
+
+volatile int sink;
+
+mobo_data_t cdata;
+mobo_data_t nvram_cdata;
+i2c_avail i2c;
+volatile bool MENU_mode;
+bool TX_state;
+bool TX_flag;
+bool SWR_alarm;
+bool TMP_alarm;
+bool PA_cal_lo;
+bool PA_cal_hi;
+bool PA_cal;
+
+U8 si570reg[6];
+U16 ad7991_adc[4];
+S16 tmp100_data;
+S_freq current_freq;
+Bool freq_changed;
+
+U32 qemu_usb_endpoint_size[MAX_PEP_NB];
+U32 qemu_usb_byte_count[MAX_PEP_NB];
+U8 qemu_gpio_state[32];
+U8 qemu_pcf_latch[16];
+unsigned qemu_widget_resets;
+unsigned qemu_factory_resets;
+
+features_t features;
+features_t features_nvram;
+const features_t features_default = {
+  feature_end_index,
+  feature_end_values,
+  feature_board_widget,
+  feature_image_uac1_dg8saq,
+  feature_in_normal,
+  feature_out_normal,
+  feature_adc_ak5394a,
+  feature_dac_cs4344,
+  feature_lcd_hd44780,
+  feature_log_500ms
+};
+const char * const feature_index_names[] = {
+  "major", "minor", "board", "image", "in", "out",
+  "adc", "dac", "lcd", "log", "end"
+};
+const char * const feature_value_names[] = {
+  "none", "widget", "usbi2s", "usbdac", "test", "end",
+  "flashyblinky", "uac1_audio", "uac1_dg8saq", "uac2_audio",
+  "uac2_dg8saq", "hpsdr", "test", "end", "normal", "swapped",
+  "end", "normal", "swapped", "end", "none", "ak5394a", "end",
+  "none", "cs4344", "es9022", "end", "none", "hd44780", "ks0073",
+  "end", "none", "250ms", "500ms", "1sec", "2sec", "end", "end"
+};
+
+void *memset(void *dst, int value, size_t n) {
+  U8 *p = (U8 *)dst;
+  while (n-- != 0)
+    *p++ = (U8)value;
+  return dst;
+}
+
+void *memcpy(void *dst, const void *src, size_t n) {
+  U8 *d = (U8 *)dst;
+  const U8 *s = (const U8 *)src;
+  while (n-- != 0)
+    *d++ = *s++;
+  return dst;
+}
+
+char *strcpy(char *dst, const char *src) {
+  char *ret = dst;
+  while ((*dst++ = *src++) != '\0')
+    ;
+  return ret;
+}
+
+size_t strlen(const char *s) {
+  const char *p = s;
+  while (*p != '\0')
+    ++p;
+  return (size_t)(p - s);
+}
+
+__attribute__((noinline)) U64 __avr32_mul64(U64 a, U64 b) {
+  volatile U64 lhs = a;
+  volatile U64 rhs = b;
+  U64 result = 0;
+
+  while (rhs != 0) {
+    if (((U32)rhs & 1U) != 0)
+      result += lhs;
+    lhs += lhs;
+    rhs >>= 1;
+  }
+  return result;
+}
+
+static void qemu_zero_bytes(volatile U8 *p, unsigned n) {
+  unsigned i;
+  for (i = 0; i < n; ++i)
+    p[i] = 0;
+}
+
+void qemu_feature_reset(void) {
+  int i;
+  for (i = 0; i < feature_end_index; ++i) {
+    features[i] = features_default[i];
+    features_nvram[i] = features_default[i];
+  }
+}
+
+void qemu_sdr_reset_state(void) {
+  int i;
+
+  qemu_zero_bytes((volatile U8 *)&cdata, sizeof(cdata));
+  qemu_zero_bytes((volatile U8 *)&nvram_cdata, sizeof(nvram_cdata));
+  qemu_zero_bytes((volatile U8 *)&i2c, sizeof(i2c));
+  qemu_zero_bytes(si570reg, sizeof(si570reg));
+  qemu_zero_bytes((volatile U8 *)ad7991_adc, sizeof(ad7991_adc));
+  qemu_zero_bytes((volatile U8 *)&tmp100_data, sizeof(tmp100_data));
+  qemu_zero_bytes((volatile U8 *)&current_freq, sizeof(current_freq));
+  qemu_zero_bytes((volatile U8 *)qemu_usb_endpoint_size, sizeof(qemu_usb_endpoint_size));
+  qemu_zero_bytes((volatile U8 *)qemu_usb_byte_count, sizeof(qemu_usb_byte_count));
+  qemu_zero_bytes(qemu_gpio_state, sizeof(qemu_gpio_state));
+  qemu_zero_bytes(qemu_pcf_latch, sizeof(qemu_pcf_latch));
+
+  sink = 0;
+  MENU_mode = FALSE;
+  TX_state = FALSE;
+  TX_flag = FALSE;
+  SWR_alarm = FALSE;
+  TMP_alarm = FALSE;
+  PA_cal_lo = FALSE;
+  PA_cal_hi = FALSE;
+  PA_cal = FALSE;
+  freq_changed = FALSE;
+  qemu_widget_resets = 0;
+  qemu_factory_resets = 0;
+
+  freq_from_usb = 0;
+  FRQ_fromusbreg = FALSE;
+  FRQ_fromusb = FALSE;
+  FRQ_lcdupdate = FALSE;
+
+  cdata.Si570_I2C_addr = 0x55;
+  cdata.FreqXtal = 114285000U;
+  cdata.Freq[0] = 14000000U;
+  cdata.SmoothTunePPM = 3500;
+  cdata.P_Min_Trigger = 49;
+  cdata.SWR_Protect_Timer = 200;
+  cdata.SWR_Trigger = 30;
+  cdata.PWR_Calibrate = 1000;
+  cdata.PWR_fullscale = 4;
+  cdata.SWR_fullscale = 4;
+  cdata.PEP_samples = 10;
+  cdata.Resolvable_States = 96;
+  cdata.LCD_RX_Offset = 0;
+  cdata.Fan_On = 45;
+  cdata.Fan_Off = 40;
+  cdata.PCF_fan_bit = 1;
+  for (i = 0; i < 8; ++i) {
+    cdata.FilterCrossOver[i] = (U16)((i + 1) * 3);
+    cdata.FilterNumber[i] = (U8)(i + 1);
+  }
+  for (i = 0; i < TXF; ++i) {
+    cdata.TXFilterCrossOver[i] = (U16)(20 + i);
+    cdata.TXFilterNumber[i] = (U8)(15 - i);
+  }
+  nvram_cdata = cdata;
+
+  i2c.pcf0x21 = TRUE;
+  i2c.pcf0x3a = TRUE;
+  current_freq.frequency = 48000;
+  qemu_feature_reset();
+}
+
+volatile void *flashc_memset8(volatile void *dst, U8 src, size_t nbytes, Bool erase) {
+  volatile U8 *p = (volatile U8 *)dst;
+  (void)erase;
+  while (nbytes-- != 0)
+    *p++ = src;
+  return dst;
+}
+
+volatile void *flashc_memset16(volatile void *dst, U16 src, size_t nbytes, Bool erase) {
+  volatile U16 *p = (volatile U16 *)dst;
+  (void)erase;
+  while (nbytes >= sizeof(U16)) {
+    *p++ = src;
+    nbytes -= sizeof(U16);
+  }
+  return dst;
+}
+
+volatile void *flashc_memset32(volatile void *dst, U32 src, size_t nbytes, Bool erase) {
+  volatile U32 *p = (volatile U32 *)dst;
+  (void)erase;
+  while (nbytes >= sizeof(U32)) {
+    *p++ = src;
+    nbytes -= sizeof(U32);
+  }
+  return dst;
+}
+
+int gpio_get_pin_value(unsigned int pin) {
+  return pin < 32 ? qemu_gpio_state[pin] != 0 : 0;
+}
+
+void GetRegFromSi570(U8 addr) {
+  int i;
+  for (i = 0; i < 6; ++i)
+    si570reg[i] = (U8)(addr + i + 1);
+}
+
+static int qemu_pcf_index(U8 addr) {
+  switch (addr) {
+  case 0x20: return i2c.pcf0x20 ? 0 : -1;
+  case 0x21: return i2c.pcf0x21 ? 1 : -1;
+  case 0x22: return i2c.pcf0x22 ? 2 : -1;
+  case 0x23: return i2c.pcf0x23 ? 3 : -1;
+  case 0x24: return i2c.pcf0x24 ? 4 : -1;
+  case 0x25: return i2c.pcf0x25 ? 5 : -1;
+  case 0x26: return i2c.pcf0x26 ? 6 : -1;
+  case 0x27: return i2c.pcf0x27 ? 7 : -1;
+  case 0x38: return i2c.pcf0x38 ? 8 : -1;
+  case 0x39: return i2c.pcf0x39 ? 9 : -1;
+  case 0x3a: return i2c.pcf0x3a ? 10 : -1;
+  case 0x3b: return i2c.pcf0x3b ? 11 : -1;
+  case 0x3c: return i2c.pcf0x3c ? 12 : -1;
+  case 0x3d: return i2c.pcf0x3d ? 13 : -1;
+  case 0x3e: return i2c.pcf0x3e ? 14 : -1;
+  case 0x3f: return i2c.pcf0x3f ? 15 : -1;
+  default: return -1;
+  }
+}
+
+U8 pcf8574_out_byte(U8 i2c_address, U8 data) {
+  int index = qemu_pcf_index(i2c_address);
+  if (index >= 0)
+    qemu_pcf_latch[index] = data;
+  return index >= 0 ? OK : KO;
+}
+
+U8 pcf8574_in_byte(U8 i2c_address, U8 *data_to_return) {
+  int index = qemu_pcf_index(i2c_address);
+  if (index >= 0)
+    *data_to_return = (U8)(qemu_pcf_latch[index] + i2c_address);
+  else
+    *data_to_return = 42;
+  return index >= 0 ? OK : KO;
+}
+
+U8 feature_set(U8 index, U8 value) {
+  if (index > feature_minor_index && index < feature_end_index &&
+      value < feature_end_values) {
+    features[index] = value;
+    return features[index];
+  }
+  return 0xff;
+}
+
+U8 feature_get(U8 index) {
+  return index < feature_end_index ? features[index] : 0xff;
+}
+
+U8 feature_set_nvram(U8 index, U8 value) {
+  if (index > feature_minor_index && index < feature_end_index &&
+      value < feature_end_values) {
+    features_nvram[index] = value;
+    return features_nvram[index];
+  }
+  return 0xff;
+}
+
+U8 feature_get_nvram(U8 index) {
+  return index < feature_end_index ? features_nvram[index] : 0xff;
+}
+
+U8 feature_get_default(U8 index) {
+  return index < feature_end_index ? features_default[index] : 0xff;
+}
+
+void widget_reset(void) {
+  ++qemu_widget_resets;
+}
+
+void widget_factory_reset(void) {
+  ++qemu_factory_resets;
+}
+C
+}
+
+run_real_sdr_case_variant() {
+  local compiler=$1
+  local label=$2
+  local name=$3
+  local source=$4
+  local expected_return=$5
+  local expected_sink=$6
+  local step_count=$7
+  local dir="$tmpdir/${compiler}-${name}"
+  local done_pc
+  local sink_addr
+  local expected_return_hex
+  local expected_sink_hex
+  local -a step_args=()
+  local -a objects=()
+  mkdir -p "$dir"
+
+  if [[ ! -f "$SDR_WIDGET_ROOT/src/DG8SAQ_cmd.c" ]]; then
+    echo "missing SDR-widget source: $SDR_WIDGET_ROOT/src/DG8SAQ_cmd.c" >&2
+    exit 1
+  fi
+  if [[ ! -f "$SDR_WIDGET_ROOT/src/SOFTWARE_FRAMEWORK/DRIVERS/USBB/usb_drv.c" ]]; then
+    echo "missing SDR-widget source: $SDR_WIDGET_ROOT/src/SOFTWARE_FRAMEWORK/DRIVERS/USBB/usb_drv.c" >&2
+    exit 1
+  fi
+
+  cp "$source" "$dir/case.c"
+  cp "$SDR_WIDGET_ROOT/src/DG8SAQ_cmd.c" "$dir/DG8SAQ_cmd.c"
+  cp "$SDR_WIDGET_ROOT/src/SOFTWARE_FRAMEWORK/DRIVERS/USBB/usb_drv.c" "$dir/usb_drv.c"
+  write_real_sdr_headers "$dir"
+  write_real_sdr_stubs "$dir"
+  write_linker_script "$dir/smoke.ld"
+  write_start_shim "$dir/start.S" test_entry
+
+  compile_real_sdr_c "$compiler" "$dir" "$dir/case.c" "$dir/case.o"
+  compile_real_sdr_c "$compiler" "$dir" "$dir/stubs.c" "$dir/stubs.o"
+  compile_real_sdr_c "$compiler" "$dir" "$dir/DG8SAQ_cmd.c" "$dir/DG8SAQ_cmd.o"
+  compile_real_sdr_c "$compiler" "$dir" "$dir/usb_drv.c" "$dir/usb_drv.o"
+  "$AVR32_AS" -o "$dir/start.o" "$dir/start.S"
+  objects=("$dir/start.o" "$dir/case.o" "$dir/stubs.o" "$dir/DG8SAQ_cmd.o" "$dir/usb_drv.o")
+  "$AVR32_LD" -T "$dir/smoke.ld" -o "$dir/smoke.elf" "${objects[@]}"
+  "$AVR32_OBJDUMP" -dr "$dir/smoke.elf" > "$dir/objdump.txt"
+  done_pc=$(symbol_address_from_objdump done "$dir/objdump.txt")
+  sink_addr=$(symbol_address_from_nm sink "$dir/smoke.elf")
+  expected_return_hex=$(printf "0x%x" "$expected_return")
+  expected_sink_hex=$(printf "0x%08x" "$expected_sink")
+
+  for ((i = 0; i < step_count; ++i)); do
+    step_args+=(-ex "si")
+  done
+
+  start_qemu "$dir/smoke.elf" "$dir/qemu.log"
+  run_gdb "$dir/smoke.elf" "$dir/gdb.log" \
+    -ex "x/32i \$pc" \
+    "${step_args[@]}" \
+    -ex "info registers pc sp r8 r9 r10 r11 r12" \
+    -ex "x/wx ${sink_addr}" \
+    -ex "detach"
+  stop_qemu
+
+  if ! grep -Eq "r12[[:space:]]+${expected_return_hex}[[:space:]]+${expected_return}" "$dir/gdb.log"; then
+    dump_failure "AVR32 ${label} ${name} failed: r12 did not become ${expected_return}" \
+      "$dir/gdb.log" "$dir/qemu.log" "$dir/objdump.txt"
+    exit 1
+  fi
+
+  if ! grep -Eq "pc[[:space:]]+${done_pc}[[:space:]]" "$dir/gdb.log"; then
+    dump_failure "AVR32 ${label} ${name} failed: PC did not reach done loop ${done_pc}" \
+      "$dir/gdb.log" "$dir/qemu.log" "$dir/objdump.txt"
+    exit 1
+  fi
+
+  if ! grep -Eq "${expected_sink_hex}" "$dir/gdb.log"; then
+    dump_failure "AVR32 ${label} ${name} failed: sink did not become ${expected_sink}" \
+      "$dir/gdb.log" "$dir/qemu.log" "$dir/objdump.txt"
+    exit 1
+  fi
+
+  echo "AVR32 ${label} ${name} passed: r12=${expected_return}, sink=${expected_sink}"
+}
+
+run_real_sdr_case() {
+  local name=$1
+  local expected_return=$2
+  local expected_sink=$3
+  local step_count=$4
+  local source="$tmpdir/${name}.c"
+
+  cat > "$source"
+  run_real_sdr_case_variant llvm LLVM "$name" "$source" \
+    "$expected_return" "$expected_sink" "$step_count"
+  run_real_sdr_case_variant gcc GCC "$name" "$source" \
     "$expected_return" "$expected_sink" "$step_count"
 }
 
@@ -1623,8 +2588,178 @@ C
   echo "AVR32 LLVM/GCC widget-shaped comparison passed: ${cases} cases returned 42 and stored 43 in SRAM"
 }
 
+run_real_sdr_widget_source_smoke() {
+  local cases=0
+
+  run_real_sdr_case real_sdr_dg8saq_source 42 43 10000 <<'C'
+#include <stdint.h>
+#include "compiler.h"
+#include "DG8SAQ_cmd.h"
+#include "Mobo_config.h"
+#include "features.h"
+#include "gpio.h"
+#include "Si570.h"
+#include "usb_specific_request.h"
+
+extern volatile int sink;
+extern U8 qemu_gpio_state[32];
+extern void qemu_sdr_reset_state(void);
+
+static U8 buffer[64] __attribute__((aligned(4)));
+
+int test_entry(void) {
+  U8 ret;
+  U8 feature_value;
+  int acc;
+  int i;
+
+  qemu_sdr_reset_state();
+  for (i = 0; i < 64; ++i)
+    buffer[i] = 0;
+
+  for (i = 0; i < 6; ++i)
+    buffer[i] = (U8)(i + 1);
+  dg8saqFunctionWrite(0x30, 0, 0, buffer, 6);
+  acc = 0;
+  if (si570reg[0] == 6 && si570reg[5] == 1 && FRQ_fromusbreg)
+    acc += 3;
+
+  ((U32 *)buffer)[0] = 0x00123456U;
+  dg8saqFunctionWrite(0x32, 0, 0, buffer, 4);
+  if (freq_from_usb == 0x00123456U && FRQ_fromusb)
+    acc += 4;
+
+  ret = dg8saqFunctionSetup(0x17, 44, 3, buffer);
+  if (ret == 16 && ((U16 *)buffer)[4] == 44 &&
+      nvram_cdata.FilterCrossOver[3] == 44)
+    acc += 5;
+
+  ret = dg8saqFunctionSetup(0x17, 55, 0x0105, buffer);
+  if (ret == 32 && ((U16 *)buffer)[10] == 55 &&
+      nvram_cdata.TXFilterCrossOver[5] == 55)
+    acc += 4;
+
+  ret = dg8saqFunctionSetup(0x18, 9, 2, buffer);
+  if (ret == 8 && buffer[5] == 9 && nvram_cdata.FilterNumber[2] == 9)
+    acc += 4;
+
+  ret = dg8saqFunctionSetup(0x6e, 12, 0x21, buffer);
+  if (ret == 1 && buffer[0] == 45)
+    acc += 4;
+
+  ret = dg8saqFunctionSetup(0x6f, 0, 0x27, buffer);
+  if (ret == 1 && buffer[0] == 42)
+    acc += 4;
+
+  ret = dg8saqFunctionSetup(0x71, 0, 1, buffer);
+  if (ret == 1 && current_freq.frequency == 96000 && freq_changed)
+    acc += 5;
+
+  dg8saqFunctionSetup(0x71, 5,
+                      (U16)((feature_log_1sec << 8) | feature_log_index),
+                      buffer);
+  dg8saqFunctionSetup(0x71, 6, feature_log_index, buffer);
+  feature_value = buffer[0];
+  if (feature_value == feature_log_1sec)
+    acc += 4;
+
+  qemu_gpio_state[GPIO_CW_KEY_1] = 1;
+  qemu_gpio_state[GPIO_PTT_INPUT] = 1;
+  qemu_gpio_state[PTT_2] = 1;
+  TX_state = TRUE;
+  ret = dg8saqFunctionSetup(0x50, 1, 0, buffer);
+  if (ret == 1 && TX_flag && FRQ_lcdupdate &&
+      (buffer[0] & (REG_CWSHORT | REG_PTT_INPUT | REG_PTT_2 | REG_TX_state)) ==
+          (REG_CWSHORT | REG_PTT_INPUT | REG_PTT_2 | REG_TX_state))
+    acc += 6;
+
+  sink = acc;
+  return sink - 1;
+}
+C
+  cases=$((cases + 1))
+
+  run_real_sdr_case real_sdr_usb_drv_source 42 43 2200 <<'C'
+#include "compiler.h"
+#include "usb_drv.h"
+
+extern volatile int sink;
+
+static volatile U8 fifo[128] __attribute__((aligned(8)));
+static U8 captured[32] __attribute__((aligned(8)));
+static const U8 packet[24] __attribute__((aligned(8))) = {
+  1, 2, 3, 4, 5, 6, 7, 8,
+  9, 10, 11, 12, 13, 14, 15, 16,
+  17, 18, 19, 20, 21, 22, 23, 24
+};
+
+int test_entry(void) {
+  const void *txpos;
+  void *rxpos;
+  U32 unwritten;
+  U32 unread;
+  U32 unwritten_set;
+  int i;
+  int acc;
+
+  pep_fifo[1].u8ptr = fifo + 1;
+  qemu_usb_endpoint_size[1] = 21;
+  qemu_usb_byte_count[1] = 3;
+  unwritten = usb_write_ep_txpacket(1, packet + 1, 20, &txpos);
+
+  for (i = 0; i < 24; ++i)
+    fifo[32 + i] = (U8)(50 + i);
+  pep_fifo[0].u8ptr = fifo + 33;
+  qemu_usb_byte_count[0] = 17;
+  unread = usb_read_ep_rxpacket(0, captured + 1, 19, &rxpos);
+
+  pep_fifo[2].u8ptr = fifo + 65;
+  qemu_usb_endpoint_size[2] = 16;
+  qemu_usb_byte_count[2] = 5;
+  unwritten_set = usb_set_ep_txpacket(2, 0xa5, 13);
+
+  acc = 0;
+  if (unwritten == 2)
+    acc += 4;
+  if (txpos == packet + 19)
+    acc += 5;
+  if (fifo[1] == 2)
+    acc += 7;
+  if ((pep_fifo[1].u8ptr == fifo + 19 && fifo[4] == 5) ||
+      (pep_fifo[1].u8ptr == fifo + 7 && fifo[4] == 17))
+    acc += 10;
+
+  if (unread == 2)
+    acc += 3;
+  if (rxpos == captured + 18)
+    acc += 4;
+  if (captured[1] == 51)
+    acc += 2;
+  if ((pep_fifo[0].u8ptr == fifo + 50 && captured[8] == 58) ||
+      (pep_fifo[0].u8ptr == fifo + 38 && captured[8] == 54))
+    acc += 4;
+
+  if (unwritten_set == 2)
+    acc += 1;
+  if (pep_fifo[2].u8ptr == fifo + 76)
+    acc += 1;
+  if (fifo[65] == 0xa5)
+    acc += 1;
+  if (fifo[72] == 0xa5)
+    acc += 1;
+
+  sink = acc;
+  return sink - 1;
+}
+C
+  cases=$((cases + 1))
+
+  echo "AVR32 LLVM/GCC real SDR-widget source comparison passed: ${cases} cases returned 42 and stored 43 in SRAM"
+}
+
 run_asm_smoke
 run_llvm_c_smoke
 run_memory_comparison_smoke
 run_synthesized_comparison_smoke
 run_widget_shape_comparison_smoke
+run_real_sdr_widget_source_smoke
