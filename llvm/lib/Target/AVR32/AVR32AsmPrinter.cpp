@@ -19,12 +19,15 @@
 #include "llvm/CodeGen/MachineBasicBlock.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineInstr.h"
+#include "llvm/CodeGen/TargetInstrInfo.h"
+#include "llvm/MC/MCAsmInfo.h"
 #include "llvm/MC/MCExpr.h"
 #include "llvm/MC/MCInst.h"
 #include "llvm/MC/MCStreamer.h"
 #include "llvm/MC/TargetRegistry.h"
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/ErrorHandling.h"
+#include "llvm/Target/TargetMachine.h"
 
 using namespace llvm;
 
@@ -335,6 +338,28 @@ static bool compactLdaWFits(uint64_t PoolOffset, const LdaWUse &Use,
   return MaxDistance <= 508;
 }
 
+static bool getKnownInstSize(const MachineFunction &MF, const MachineInstr &MI,
+                             unsigned &Size) {
+  if (MI.isDebugInstr() || MI.isMetaInstruction()) {
+    Size = 0;
+    return true;
+  }
+
+  if (MI.isInlineAsm()) {
+    const TargetInstrInfo *TII = MF.getSubtarget().getInstrInfo();
+    const MCAsmInfo *MAI = MF.getTarget().getMCAsmInfo();
+    if (!TII || !MAI || MI.getNumOperands() == 0 ||
+        !MI.getOperand(0).isSymbol())
+      return false;
+    Size = TII->getInlineAsmLength(MI.getOperand(0).getSymbolName(), *MAI,
+                                   &MF.getSubtarget());
+    return true;
+  }
+
+  Size = MI.getDesc().getSize();
+  return Size != 0;
+}
+
 void AVR32AsmPrinter::buildLdaWPoolPlan(const MachineFunction &MF) {
   CompactLdaWs.clear();
   PoolBeforeBlocks.clear();
@@ -350,13 +375,11 @@ void AVR32AsmPrinter::buildLdaWPoolPlan(const MachineFunction &MF) {
     for (const MachineBasicBlock &MBB : MF) {
       BlockOffsets[&MBB] = CodeBytes;
       for (const MachineInstr &MI : MBB) {
-        if (MI.isInlineAsm())
-          return;
         if (MI.isDebugInstr() || MI.isMetaInstruction())
           continue;
 
-        unsigned Size = MI.getDesc().getSize();
-        if (Size == 0)
+        unsigned Size = 0;
+        if (!getKnownInstSize(MF, MI, Size))
           return;
         if (MI.getOpcode() == AVR32::LDA_W && CompactLdaWs.contains(&MI))
           Size = 2;
@@ -382,7 +405,9 @@ void AVR32AsmPrinter::buildLdaWPoolPlan(const MachineFunction &MF) {
           continue;
         if (MI.getOpcode() == AVR32::LDA_W)
           Pending.push_back(AllLoads[NextLoad++]);
-        unsigned Size = MI.getDesc().getSize();
+        unsigned Size = 0;
+        if (!getKnownInstSize(MF, MI, Size))
+          return;
         if (MI.getOpcode() == AVR32::LDA_W && CompactLdaWs.contains(&MI))
           Size = 2;
         BlockEnd += Size;
@@ -451,13 +476,11 @@ static bool shouldUseCompactLdaW(const MachineFunction &MF,
 
   for (const MachineBasicBlock &MBB : MF) {
     for (const MachineInstr &MI : MBB) {
-      if (MI.isInlineAsm())
-        return false;
       if (MI.isDebugInstr() || MI.isMetaInstruction())
         continue;
 
-      unsigned Size = MI.getDesc().getSize();
-      if (Size == 0)
+      unsigned Size = 0;
+      if (!getKnownInstSize(MF, MI, Size))
         return false;
       if (&MI == &LoadMI) {
         LoadOffset = CodeBytes;
