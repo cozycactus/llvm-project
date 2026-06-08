@@ -12,6 +12,8 @@
 #include "TargetInfo/AVR32TargetInfo.h"
 #include "llvm/BinaryFormat/ELF.h"
 #include "llvm/CodeGen/AsmPrinter.h"
+#include "llvm/CodeGen/MachineBasicBlock.h"
+#include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineInstr.h"
 #include "llvm/MC/MCExpr.h"
 #include "llvm/MC/MCInst.h"
@@ -28,6 +30,8 @@ using namespace llvm;
 #include "AVR32GenInstrInfo.inc"
 #define GET_REGINFO_ENUM
 #include "AVR32GenRegisterInfo.inc"
+
+static bool shouldUseCompactLdaW(const MachineFunction &MF);
 
 namespace {
 class AVR32AsmPrinter : public AsmPrinter {
@@ -143,8 +147,8 @@ void AVR32AsmPrinter::emitLdaWPseudo(const MachineInstr *MI) {
       getAVR32TargetStreamer().addCPENTConstantPoolEntry(ValueExpr, SMLoc());
 
   MCInst Load;
-  // Function-end pools can be too far for the compact lddpc form.
-  Load.setOpcode(AVR32::LDDPC_PCREL16);
+  Load.setOpcode(shouldUseCompactLdaW(*MF) ? AVR32::LDDPCcp
+                                           : AVR32::LDDPC_PCREL16);
   Load.addOperand(MCOperand::createReg(Dst.getReg()));
   Load.addOperand(MCOperand::createReg(AVR32::PC));
   Load.addOperand(MCOperand::createExpr(CPLoc));
@@ -173,6 +177,33 @@ void AVR32AsmPrinter::emitInstruction(const MachineInstr *MI) {
 }
 
 char AVR32AsmPrinter::ID = 0;
+
+static bool shouldUseCompactLdaW(const MachineFunction &MF) {
+  uint64_t CodeBytes = 0;
+  unsigned LiteralLoads = 0;
+
+  for (const MachineBasicBlock &MBB : MF) {
+    for (const MachineInstr &MI : MBB) {
+      if (MI.isInlineAsm())
+        return false;
+      if (MI.getOpcode() == AVR32::LDA_W)
+        ++LiteralLoads;
+      if (MI.isDebugInstr() || MI.isMetaInstruction())
+        continue;
+
+      unsigned Size = MI.getDesc().getSize();
+      if (Size == 0)
+        return false;
+      CodeBytes += Size;
+    }
+  }
+
+  if (LiteralLoads == 0)
+    return false;
+
+  uint64_t AlignedCodeBytes = (CodeBytes + 3) & ~uint64_t(3);
+  return AlignedCodeBytes + uint64_t(LiteralLoads) * 4 <= 508;
+}
 
 INITIALIZE_PASS(AVR32AsmPrinter, "avr32-asm-printer",
                 "AVR32 Assembly Printer", false, false)
