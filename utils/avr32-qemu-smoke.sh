@@ -1067,6 +1067,559 @@ int test_entry(void) {
 C
   cases=$((cases + 1))
 
+  run_compare_case widget_usb_aligned_packets 42 43 900 <<'C'
+typedef unsigned char u8;
+typedef unsigned short u16;
+typedef unsigned int u32;
+typedef unsigned int uptr;
+
+#define ALIGN_DOWN(value, align) ((value) & ~((align) - 1U))
+#define GET_ALIGN(value, align) ((value) & ((align) - 1U))
+#define TEST_ALIGN(value, align) (GET_ALIGN((value), (align)) == 0)
+
+typedef union {
+  volatile u8 *u8ptr;
+  volatile u16 *u16ptr;
+  volatile u32 *u32ptr;
+} UnionVPtr;
+
+typedef union {
+  volatile const u8 *u8ptr;
+  volatile const u16 *u16ptr;
+  volatile const u32 *u32ptr;
+} UnionCVPtr;
+
+typedef union {
+  const u8 *u8ptr;
+  const u16 *u16ptr;
+  const u32 *u32ptr;
+} UnionCPtr;
+
+typedef union {
+  u8 *u8ptr;
+  u16 *u16ptr;
+  u32 *u32ptr;
+} UnionPtr;
+
+typedef struct {
+  const u8 *u8ptr;
+  const u16 *u16ptr;
+  const u32 *u32ptr;
+} StructCPtr;
+
+typedef struct {
+  u8 *u8ptr;
+  u16 *u16ptr;
+  u32 *u32ptr;
+} StructPtr;
+
+volatile int sink;
+static volatile u8 ep_fifo[96] __attribute__((aligned(4)));
+static volatile u8 *pep_fifo[2];
+static volatile u16 endpoint_count[2];
+static u8 captured[24] __attribute__((aligned(4)));
+static const u16 endpoint_size[2] = { 18, 21 };
+static const u8 packet[24] __attribute__((aligned(4))) = {
+  1, 2, 3, 4, 5, 6, 7, 8,
+  9, 10, 11, 12, 13, 14, 15, 16,
+  17, 18, 19, 20, 21, 22, 23, 24
+};
+
+__attribute__((noinline)) static u32 min_u32(u32 a, u32 b) {
+  return a < b ? a : b;
+}
+
+__attribute__((noinline)) static u32 usb_get_endpoint_size_like(u8 ep) {
+  return endpoint_size[ep];
+}
+
+__attribute__((noinline)) static u32 usb_byte_count_like(u8 ep) {
+  return endpoint_count[ep];
+}
+
+__attribute__((noinline)) static u32 usb_write_ep_txpacket_like(
+    u8 ep, const void *txbuf, u32 data_length, const void **ptxbuf) {
+  UnionVPtr ep_fifo_cur;
+  UnionCPtr txbuf_cur;
+  StructCPtr txbuf_end;
+  u32 available;
+
+  ep_fifo_cur.u8ptr = pep_fifo[ep];
+  txbuf_cur.u8ptr = (const u8 *)txbuf;
+  available = usb_get_endpoint_size_like(ep) - usb_byte_count_like(ep);
+  txbuf_end.u8ptr = txbuf_cur.u8ptr + min_u32(data_length, available);
+  txbuf_end.u16ptr = (const u16 *)ALIGN_DOWN((uptr)txbuf_end.u8ptr, 2U);
+  txbuf_end.u32ptr = (const u32 *)ALIGN_DOWN((uptr)txbuf_end.u16ptr, 4U);
+
+  if (GET_ALIGN((uptr)txbuf_cur.u8ptr, 2U) ==
+      GET_ALIGN((uptr)ep_fifo_cur.u8ptr, 2U)) {
+    if (!TEST_ALIGN((uptr)txbuf_cur.u8ptr, 2U)) {
+      if (txbuf_cur.u8ptr < txbuf_end.u8ptr)
+        *ep_fifo_cur.u8ptr++ = *txbuf_cur.u8ptr++;
+    }
+
+    if (GET_ALIGN((uptr)txbuf_cur.u16ptr, 4U) ==
+        GET_ALIGN((uptr)ep_fifo_cur.u16ptr, 4U)) {
+      if (!TEST_ALIGN((uptr)txbuf_cur.u16ptr, 4U)) {
+        if (txbuf_cur.u16ptr < txbuf_end.u16ptr)
+          *ep_fifo_cur.u16ptr++ = *txbuf_cur.u16ptr++;
+      }
+
+      while (txbuf_cur.u32ptr < txbuf_end.u32ptr)
+        *ep_fifo_cur.u32ptr = *txbuf_cur.u32ptr++;
+
+      if (txbuf_cur.u16ptr < txbuf_end.u16ptr)
+        *ep_fifo_cur.u16ptr++ = *txbuf_cur.u16ptr++;
+    }
+
+    while (txbuf_cur.u16ptr < txbuf_end.u16ptr)
+      *ep_fifo_cur.u16ptr++ = *txbuf_cur.u16ptr++;
+  }
+
+  while (txbuf_cur.u8ptr < txbuf_end.u8ptr)
+    *ep_fifo_cur.u8ptr++ = *txbuf_cur.u8ptr++;
+
+  pep_fifo[ep] = ep_fifo_cur.u8ptr;
+  if (ptxbuf)
+    *ptxbuf = txbuf_cur.u8ptr;
+  return data_length - (u32)(txbuf_cur.u8ptr - (const u8 *)txbuf);
+}
+
+__attribute__((noinline)) static u32 usb_read_ep_rxpacket_like(
+    u8 ep, void *rxbuf, u32 data_length, void **prxbuf) {
+  UnionCVPtr ep_fifo_cur;
+  UnionPtr rxbuf_cur;
+  StructPtr rxbuf_end;
+
+  ep_fifo_cur.u8ptr = pep_fifo[ep];
+  rxbuf_cur.u8ptr = (u8 *)rxbuf;
+  rxbuf_end.u8ptr = rxbuf_cur.u8ptr +
+                    min_u32(data_length, usb_byte_count_like(ep));
+  rxbuf_end.u16ptr = (u16 *)ALIGN_DOWN((uptr)rxbuf_end.u8ptr, 2U);
+  rxbuf_end.u32ptr = (u32 *)ALIGN_DOWN((uptr)rxbuf_end.u16ptr, 4U);
+
+  if (GET_ALIGN((uptr)rxbuf_cur.u8ptr, 2U) ==
+      GET_ALIGN((uptr)ep_fifo_cur.u8ptr, 2U)) {
+    if (!TEST_ALIGN((uptr)rxbuf_cur.u8ptr, 2U)) {
+      if (rxbuf_cur.u8ptr < rxbuf_end.u8ptr)
+        *rxbuf_cur.u8ptr++ = *ep_fifo_cur.u8ptr++;
+    }
+
+    if (GET_ALIGN((uptr)rxbuf_cur.u16ptr, 4U) ==
+        GET_ALIGN((uptr)ep_fifo_cur.u16ptr, 4U)) {
+      if (!TEST_ALIGN((uptr)rxbuf_cur.u16ptr, 4U)) {
+        if (rxbuf_cur.u16ptr < rxbuf_end.u16ptr)
+          *rxbuf_cur.u16ptr++ = *ep_fifo_cur.u16ptr++;
+      }
+
+      while (rxbuf_cur.u32ptr < rxbuf_end.u32ptr)
+        *rxbuf_cur.u32ptr++ = *ep_fifo_cur.u32ptr;
+
+      if (rxbuf_cur.u16ptr < rxbuf_end.u16ptr)
+        *rxbuf_cur.u16ptr++ = *ep_fifo_cur.u16ptr++;
+    }
+
+    while (rxbuf_cur.u16ptr < rxbuf_end.u16ptr)
+      *rxbuf_cur.u16ptr++ = *ep_fifo_cur.u16ptr++;
+  }
+
+  while (rxbuf_cur.u8ptr < rxbuf_end.u8ptr)
+    *rxbuf_cur.u8ptr++ = *ep_fifo_cur.u8ptr++;
+
+  pep_fifo[ep] = (volatile u8 *)ep_fifo_cur.u8ptr;
+  if (prxbuf)
+    *prxbuf = rxbuf_cur.u8ptr;
+  return data_length - (u32)(rxbuf_cur.u8ptr - (u8 *)rxbuf);
+}
+
+int test_entry(void) {
+  const void *txpos;
+  void *rxpos;
+  u32 unwritten;
+  u32 unread;
+  int i;
+  int acc;
+
+  pep_fifo[1] = ep_fifo + 1;
+  endpoint_count[1] = 3;
+  unwritten = usb_write_ep_txpacket_like(1, packet + 1, 20, &txpos);
+
+  for (i = 0; i < 24; ++i)
+    ep_fifo[32 + i] = (u8)(50 + i);
+  pep_fifo[0] = ep_fifo + 33;
+  endpoint_count[0] = 17;
+  unread = usb_read_ep_rxpacket_like(0, captured + 1, 19, &rxpos);
+
+  acc = 0;
+  if (unwritten == 2)
+    acc += 4;
+  if (txpos == packet + 19)
+    acc += 5;
+  if (pep_fifo[1] == ep_fifo + 7)
+    acc += 6;
+  if (ep_fifo[1] == 2)
+    acc += 7;
+  if (ep_fifo[4] == 17)
+    acc += 8;
+  if (unread == 2)
+    acc += 3;
+  if (rxpos == captured + 18)
+    acc += 4;
+  if (pep_fifo[0] == ep_fifo + 38)
+    acc += 2;
+  if (captured[1] == 51)
+    acc += 2;
+  if (captured[8] == 54)
+    acc += 2;
+
+  sink = acc;
+  return sink - 1;
+}
+C
+  cases=$((cases + 1))
+
+  run_compare_case widget_dg8saq_requests 42 43 3200 <<'C'
+typedef unsigned char u8;
+typedef unsigned short u16;
+typedef unsigned int u32;
+
+enum {
+  feature_major_index = 0,
+  feature_minor_index,
+  feature_board_index,
+  feature_image_index,
+  feature_in_index,
+  feature_out_index,
+  feature_adc_index,
+  feature_dac_index,
+  feature_lcd_index,
+  feature_log_index,
+  feature_end_index
+};
+
+enum {
+  feature_board_none = 0,
+  feature_board_widget,
+  feature_board_usbi2s,
+  feature_board_usbdac,
+  feature_board_test,
+  feature_end_board,
+  feature_image_flashyblinky,
+  feature_image_uac1_audio,
+  feature_image_uac1_dg8saq,
+  feature_image_uac2_audio,
+  feature_image_uac2_dg8saq,
+  feature_image_hpsdr,
+  feature_image_test,
+  feature_end_image,
+  feature_in_normal,
+  feature_in_swapped,
+  feature_end_in,
+  feature_out_normal,
+  feature_out_swapped,
+  feature_end_out,
+  feature_adc_none,
+  feature_adc_ak5394a,
+  feature_end_adc,
+  feature_dac_none,
+  feature_dac_cs4344,
+  feature_dac_es9022,
+  feature_end_dac,
+  feature_lcd_none,
+  feature_lcd_hd44780,
+  feature_lcd_ks0073,
+  feature_end_lcd,
+  feature_log_none,
+  feature_log_250ms,
+  feature_log_500ms,
+  feature_log_1sec,
+  feature_log_2sec,
+  feature_end_log,
+  feature_end_values
+};
+
+#define TXF 16
+
+struct config_data {
+  u16 FilterCrossOver[8];
+  u16 TXFilterCrossOver[TXF];
+  u8 FilterNumber[8];
+  u8 TXFilterNumber[TXF];
+};
+
+volatile int sink;
+static struct config_data cdata;
+static struct config_data nvram_cdata;
+static u8 features[feature_end_index];
+static u8 features_nvram[feature_end_index];
+static u8 pcf20_present[8];
+static u8 pcf38_present[8];
+static u8 pcf_latch[16];
+static u32 current_frequency;
+static u8 freq_changed;
+static u8 buffer[40] __attribute__((aligned(4)));
+static const u8 features_default[feature_end_index] = {
+  feature_end_index,
+  feature_end_values,
+  feature_board_widget,
+  feature_image_uac1_dg8saq,
+  feature_in_normal,
+  feature_out_normal,
+  feature_adc_ak5394a,
+  feature_dac_cs4344,
+  feature_lcd_hd44780,
+  feature_log_500ms
+};
+
+__attribute__((noinline)) static void init_state(void) {
+  int i;
+
+  for (i = 0; i < 8; ++i) {
+    cdata.FilterCrossOver[i] = (u16)((i + 1) * 3);
+    cdata.FilterNumber[i] = (u8)(i + 1);
+  }
+  for (i = 0; i < TXF; ++i) {
+    cdata.TXFilterCrossOver[i] = (u16)(20 + i);
+    cdata.TXFilterNumber[i] = (u8)(15 - i);
+  }
+  for (i = 0; i < feature_end_index; ++i) {
+    features[i] = features_default[i];
+    features_nvram[i] = features_default[i];
+  }
+  pcf20_present[1] = 1;
+  pcf38_present[2] = 1;
+  current_frequency = 48000;
+  freq_changed = 0;
+}
+
+__attribute__((noinline)) static void flashc_memset16_like(
+    u16 *dst, u16 value) {
+  *dst = value;
+}
+
+__attribute__((noinline)) static void flashc_memset8_like(
+    u8 *dst, u8 value) {
+  *dst = value;
+}
+
+__attribute__((noinline)) static u8 feature_set(u8 index, u8 value) {
+  if (index > feature_minor_index && index < feature_end_index &&
+      value < feature_end_values) {
+    features[index] = value;
+    return features[index];
+  }
+  return 0xff;
+}
+
+__attribute__((noinline)) static u8 feature_get(u8 index) {
+  return index < feature_end_index ? features[index] : 0xff;
+}
+
+__attribute__((noinline)) static u8 feature_set_nvram(u8 index, u8 value) {
+  if (index > feature_minor_index && index < feature_end_index &&
+      value < feature_end_values) {
+    flashc_memset8_like(&features_nvram[index], value);
+    return features_nvram[index];
+  }
+  return 0xff;
+}
+
+__attribute__((noinline)) static u8 feature_get_nvram(u8 index) {
+  return index < feature_end_index ? features_nvram[index] : 0xff;
+}
+
+__attribute__((noinline)) static u8 feature_get_default(u8 index) {
+  return index < feature_end_index ? features_default[index] : 0xff;
+}
+
+__attribute__((noinline)) static int pcf_index(u16 addr) {
+  if (addr >= 0x20 && addr <= 0x27 && pcf20_present[addr - 0x20])
+    return (int)(addr - 0x20);
+  if (addr >= 0x38 && addr <= 0x3f && pcf38_present[addr - 0x38])
+    return (int)(8 + addr - 0x38);
+  return -1;
+}
+
+__attribute__((noinline)) static void pcf8574_out_byte(u16 addr, u16 value) {
+  int index;
+
+  index = pcf_index(addr);
+  if (index >= 0)
+    pcf_latch[index] = (u8)value;
+}
+
+__attribute__((noinline)) static void pcf8574_in_byte(u16 addr, u8 *out) {
+  int index;
+
+  index = pcf_index(addr);
+  if (index >= 0)
+    *out = (u8)(pcf_latch[index] + addr);
+  else
+    *out = 42;
+}
+
+__attribute__((noinline)) static u8 dg8saq_setup_like(
+    u8 type, u16 wValue, u16 wIndex, u8 *Buffer) {
+  int x;
+  u16 *Buf16;
+
+  Buf16 = (u16 *)Buffer;
+  *Buffer = 255;
+  switch (type) {
+  case 0x17:
+    if (wIndex < 0x100) {
+      if (wIndex < 8) {
+        cdata.FilterCrossOver[wIndex] = wValue;
+        flashc_memset16_like(&nvram_cdata.FilterCrossOver[wIndex], wValue);
+      }
+      for (x = 0; x < 8; ++x)
+        Buf16[7 - x] = cdata.FilterCrossOver[x];
+      return 8 * sizeof(u16);
+    }
+
+    wIndex = wIndex & 0xff;
+    if (wIndex < TXF) {
+      cdata.TXFilterCrossOver[wIndex] = wValue;
+      flashc_memset16_like(&nvram_cdata.TXFilterCrossOver[wIndex], wValue);
+    }
+    for (x = 0; x < TXF; ++x)
+      Buf16[(TXF - 1) - x] = cdata.TXFilterCrossOver[x];
+    return TXF * sizeof(u16);
+
+  case 0x19:
+    if (wIndex < 8) {
+      cdata.FilterNumber[wIndex] = (u8)wValue;
+      flashc_memset8_like(&nvram_cdata.FilterNumber[wIndex], (u8)wValue);
+    }
+    for (x = 0; x < 8; ++x)
+      Buffer[7 - x] = cdata.FilterNumber[x];
+    return 8 * sizeof(u8);
+
+  case 0x6e:
+    if (pcf_index(wIndex) < 0) {
+      *Buffer = 42;
+      return sizeof(u8);
+    }
+    pcf8574_out_byte(wIndex, wValue);
+
+  case 0x6f:
+    if (pcf_index(wIndex) < 0) {
+      *Buffer = 42;
+      return sizeof(u8);
+    }
+    pcf8574_in_byte(wIndex, Buffer);
+    return sizeof(u8);
+
+  case 0x71:
+    switch (wValue) {
+    case 0:
+      switch (wIndex) {
+      case 0:
+        if (current_frequency != 48000) {
+          current_frequency = 48000;
+          freq_changed = 1;
+        }
+        break;
+      case 1:
+        if (current_frequency != 96000) {
+          current_frequency = 96000;
+          freq_changed = 1;
+        }
+        break;
+      case 2:
+        if (current_frequency != 192000) {
+          current_frequency = 192000;
+          freq_changed = 1;
+        }
+        break;
+      default:
+        break;
+      }
+      *Buffer = 0;
+      return sizeof(u8);
+    case 3:
+      Buffer[0] = feature_set_nvram(wIndex & 0xff, (wIndex >> 8) & 0xff);
+      return sizeof(u8);
+    case 4:
+      Buffer[0] = feature_get_nvram(wIndex);
+      return sizeof(u8);
+    case 5:
+      Buffer[0] = feature_set(wIndex & 0xff, (wIndex >> 8) & 0xff);
+      return sizeof(u8);
+    case 6:
+      Buffer[0] = feature_get(wIndex);
+      return sizeof(u8);
+    case 9:
+      Buffer[0] = feature_get_default(wIndex);
+      return sizeof(u8);
+    default:
+      return sizeof(u8);
+    }
+
+  default:
+    return 1;
+  }
+}
+
+int test_entry(void) {
+  u8 ret;
+  u16 rx_filter;
+  u16 tx_filter;
+  u8 filter_number;
+  u8 pcf_value;
+  u8 missing_value;
+  u8 feature_value;
+  int acc;
+
+  init_state();
+
+  ret = dg8saq_setup_like(0x17, 44, 3, buffer);
+  rx_filter = ((u16 *)buffer)[4];
+  acc = ret == 16 ? 2 : 0;
+  if (rx_filter == 44)
+    acc += 3;
+
+  ret = dg8saq_setup_like(0x17, 55, 0x0105, buffer);
+  tx_filter = ((u16 *)buffer)[10];
+  if (ret == 32)
+    acc += 4;
+  if (tx_filter == 55)
+    acc += 5;
+
+  ret = dg8saq_setup_like(0x19, 9, 2, buffer);
+  filter_number = buffer[5];
+  if (ret == 8)
+    acc += 3;
+  if (filter_number == 9)
+    acc += 4;
+
+  ret = dg8saq_setup_like(0x6e, 12, 0x21, buffer);
+  pcf_value = buffer[0];
+  if (ret == 1 && pcf_value == 45)
+    acc += 5;
+
+  ret = dg8saq_setup_like(0x6f, 0, 0x27, buffer);
+  missing_value = buffer[0];
+  if (ret == 1 && missing_value == 42)
+    acc += 6;
+
+  dg8saq_setup_like(0x71, 0, 1, buffer);
+  if (current_frequency == 96000 && freq_changed)
+    acc += 7;
+
+  dg8saq_setup_like(0x71, 5,
+                    (feature_log_1sec << 8) | feature_log_index, buffer);
+  dg8saq_setup_like(0x71, 6, feature_log_index, buffer);
+  feature_value = buffer[0];
+  if (feature_value == feature_log_1sec)
+    acc += 4;
+
+  sink = acc;
+  return sink - 1;
+}
+C
+  cases=$((cases + 1))
+
   echo "AVR32 LLVM/GCC widget-shaped comparison passed: ${cases} cases returned 42 and stored 43 in SRAM"
 }
 
