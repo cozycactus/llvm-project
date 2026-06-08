@@ -260,30 +260,30 @@ SDValue AVR32TargetLowering::LowerOperation(SDValue Op,
                      DAG.getConstant(TargetCC, DL, MVT::i32), Flag);
 }
 
-static unsigned getMoveImmOpcodeForCC(AVR32CC::CondCodes CC) {
+static unsigned getSetRegOpcodeForCC(AVR32CC::CondCodes CC) {
   switch (CC) {
   default:
     return 0;
   case AVR32CC::COND_EQ:
-    return AVR32::MOVEQriCG;
+    return AVR32::SREQr;
   case AVR32CC::COND_NE:
-    return AVR32::MOVNEriCG;
+    return AVR32::SRNEr;
   case AVR32CC::COND_CC:
-    return AVR32::MOVCCriCG;
+    return AVR32::SRCCr;
   case AVR32CC::COND_CS:
-    return AVR32::MOVCSriCG;
+    return AVR32::SRCSr;
   case AVR32CC::COND_GE:
-    return AVR32::MOVGEriCG;
+    return AVR32::SRGEr;
   case AVR32CC::COND_LT:
-    return AVR32::MOVLTriCG;
+    return AVR32::SRLTr;
   case AVR32CC::COND_LS:
-    return AVR32::MOVLSriCG;
+    return AVR32::SRLSr;
   case AVR32CC::COND_GT:
-    return AVR32::MOVGTriCG;
+    return AVR32::SRGTr;
   case AVR32CC::COND_LE:
-    return AVR32::MOVLEriCG;
+    return AVR32::SRLEr;
   case AVR32CC::COND_HI:
-    return AVR32::MOVHIriCG;
+    return AVR32::SRHIr;
   }
 }
 
@@ -321,7 +321,6 @@ MachineBasicBlock *AVR32TargetLowering::EmitInstrWithCustomInserter(
          "Unexpected custom inserter");
 
   MachineFunction *MF = BB->getParent();
-  MachineRegisterInfo &MRI = MF->getRegInfo();
   const TargetInstrInfo &TII = *MF->getSubtarget().getInstrInfo();
   const DebugLoc &DL = MI.getDebugLoc();
 
@@ -332,14 +331,12 @@ MachineBasicBlock *AVR32TargetLowering::EmitInstrWithCustomInserter(
   auto CC = static_cast<AVR32CC::CondCodes>(MI.getOperand(CondOperand).getImm());
 
   if (MI.getOpcode() == AVR32::SETCCrr) {
-    unsigned MovOpc = getMoveImmOpcodeForCC(CC);
-    if (!MovOpc)
+    unsigned SrOpc = getSetRegOpcodeForCC(CC);
+    if (!SrOpc)
       report_fatal_error("AVR32 condition code is not implemented yet");
 
-    Register FalseReg = MRI.createVirtualRegister(&AVR32::GPRRegClass);
     BuildMI(*BB, MI, DL, TII.get(AVR32::CPrr)).addReg(LHS).addReg(RHS);
-    BuildMI(*BB, MI, DL, TII.get(AVR32::MOVri21), FalseReg).addImm(0);
-    BuildMI(*BB, MI, DL, TII.get(MovOpc), Dst).addReg(FalseReg).addImm(1);
+    BuildMI(*BB, MI, DL, TII.get(SrOpc), Dst);
     MI.eraseFromParent();
     return BB;
   }

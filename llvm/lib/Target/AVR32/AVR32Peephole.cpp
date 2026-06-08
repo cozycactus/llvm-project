@@ -655,6 +655,78 @@ bool AVR32Peephole::foldCompareImmediate(MachineInstr &MI,
 
 bool AVR32Peephole::foldDoubleCompareLibcall(
     MachineInstr &MI, const TargetInstrInfo &TII) {
+  if (MI.getOpcode() == AVR32::SREQr || MI.getOpcode() == AVR32::SRLTr) {
+    if (MI.getNumOperands() < 1 || !isRegOperand(MI.getOperand(0)))
+      return false;
+
+    MachineBasicBlock &MBB = *MI.getParent();
+    MachineBasicBlock::iterator Cmp = prevNonDebug(MI.getIterator());
+    if (Cmp == MBB.end())
+      return false;
+
+    auto RetargetAndEraseCmp = [&](MachineBasicBlock::iterator Call,
+                                   StringRef From, const char *To,
+                                   bool SwapArgs) {
+      if (Call == MBB.end() || !retargetDirectCall(*Call, From, To))
+        return false;
+      if (SwapArgs)
+        insertF64ArgSwapBefore(*Call, TII);
+      Cmp->eraseFromParent();
+      MI.setDesc(TII.get(AVR32::SRNEr));
+      ++NumCompactForms;
+      return true;
+    };
+
+    if (isImmediateCompareOpcode(Cmp->getOpcode()) &&
+        Cmp->getNumOperands() >= 2 && isRegOperand(Cmp->getOperand(0)) &&
+        Cmp->getOperand(0).getReg() == AVR32::R12 &&
+        Cmp->getOperand(1).isImm()) {
+      int64_t Imm = Cmp->getOperand(1).getImm();
+      MachineBasicBlock::iterator Call = prevNonDebug(Cmp);
+      if (MI.getOpcode() == AVR32::SREQr && Imm == 0)
+        return RetargetAndEraseCmp(Call, "__eqdf2", "__avr32_f64_cmp_eq",
+                                   /*SwapArgs=*/false);
+      if (MI.getOpcode() == AVR32::SRLTr && Imm == 0)
+        return RetargetAndEraseCmp(Call, "__ltdf2", "__avr32_f64_cmp_lt",
+                                   /*SwapArgs=*/false);
+      if (MI.getOpcode() == AVR32::SRLTr && Imm == 1)
+        return RetargetAndEraseCmp(Call, "__ledf2", "__avr32_f64_cmp_ge",
+                                   /*SwapArgs=*/true);
+      return false;
+    }
+
+    if (MI.getOpcode() != AVR32::SRLTr || Cmp->getOpcode() != AVR32::CPrr ||
+        Cmp->getNumOperands() < 2 || !isRegOperand(Cmp->getOperand(0)) ||
+        !isRegOperand(Cmp->getOperand(1)) ||
+        Cmp->getOperand(1).getReg() != AVR32::R12)
+      return false;
+
+    Register TestReg = Cmp->getOperand(0).getReg();
+    MachineBasicBlock::iterator Imm = prevNonDebug(Cmp);
+    if (Imm == MBB.end())
+      return false;
+
+    MachineBasicBlock::iterator Call = prevNonDebug(Imm);
+    if (isMoveImmToReg(*Imm, TestReg, 0)) {
+      if (Call == MBB.end() ||
+          !retargetDirectCall(*Call, "__gtdf2", "__avr32_f64_cmp_lt"))
+        return false;
+      insertF64ArgSwapBefore(*Call, TII);
+    } else if (isMoveImmToReg(*Imm, TestReg, -1)) {
+      if (Call == MBB.end() ||
+          !retargetDirectCall(*Call, "__gedf2", "__avr32_f64_cmp_ge"))
+        return false;
+    } else {
+      return false;
+    }
+
+    Imm->eraseFromParent();
+    Cmp->eraseFromParent();
+    MI.setDesc(TII.get(AVR32::SRNEr));
+    ++NumCompactForms;
+    return true;
+  }
+
   if ((MI.getOpcode() != AVR32::MOVEQriCG &&
        MI.getOpcode() != AVR32::MOVLTriCG) ||
       MI.getNumOperands() < 3 || !isRegOperand(MI.getOperand(0)) ||
@@ -1285,6 +1357,8 @@ bool AVR32Peephole::runOnMachineFunction(MachineFunction &MF) {
           break;
         case AVR32::MOVEQriCG:
         case AVR32::MOVLTriCG:
+        case AVR32::SREQr:
+        case AVR32::SRLTr:
           LocalChanged |= foldDoubleCompareLibcall(MI, TII);
           break;
         case AVR32::CPri21:
