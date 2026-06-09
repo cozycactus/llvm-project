@@ -36,6 +36,8 @@ AVR32TargetLowering::AVR32TargetLowering(const TargetMachine &TM,
   setOperationAction(ISD::BR_CC, MVT::i32, Custom);
   setOperationAction(ISD::BR_JT, MVT::Other, Legal);
   setOperationAction(ISD::BRCOND, MVT::Other, Expand);
+  setOperationAction({ISD::ADDC, ISD::ADDE, ISD::SUBC, ISD::SUBE}, MVT::i32,
+                     Legal);
   setOperationAction(ISD::BSWAP, MVT::i32, Legal);
   setOperationAction(ISD::CTLZ, MVT::i32, Legal);
   setOperationAction(ISD::CTLZ_ZERO_UNDEF, MVT::i32, Legal);

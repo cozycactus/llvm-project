@@ -1781,6 +1781,7 @@ bool AVR32Peephole::runOnMachineFunction(MachineFunction &MF) {
       for (MachineBasicBlock::iterator I = MBB.begin(), E = MBB.end(); I != E;) {
         MachineInstr &MI = *I++;
         switch (MI.getOpcode()) {
+        case AVR32::ADDCrrr:
         case AVR32::ADDALrrr:
           LocalChanged |= foldTwoAddressALU(MI, AVR32::ADDrrCG, true, TII);
           break;
@@ -1878,6 +1879,7 @@ bool AVR32Peephole::runOnMachineFunction(MachineFunction &MF) {
           LocalChanged |= foldSPStoreDisp(MI, TII) ||
                           foldStoreDisp(MI, AVR32::ST_W_Disp4, 60, 4, TII);
           break;
+        case AVR32::SUBCrrr:
         case AVR32::SUBALrrr:
           LocalChanged |= foldTwoAddressALU(MI, AVR32::SUBrrCG, false, TII);
           break;

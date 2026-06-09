@@ -3358,13 +3358,19 @@ class SrCond<bits<4> Cond, string Mnemonic>
   let Inst{3-0} = Rd;
 }
 
-def ADCrrr : FullRegRegReg<0b000000000100, "adc">;
+let Uses = [SREG] in
+def ADCrrr : FullRegRegReg<0b000000000100, "adc"> {
+  let Pattern = [(set GPR:$Rd, (adde GPR:$Rx, GPR:$Ry))];
+}
 def ABSr : CompactReg<0b010111000100, "abs">;
 def ACRr : CompactReg<0b010111000000, "acr">;
 def ADDABSrrr : FullRegRegReg<0b000011100100, "addabs">;
 def ADDHH_W : FullRegRegHalfRegHalf<0b0000111000, "addhh.w">;
 def ADDALrrr : CondRRR<0b1111, 0b0000, "add",
                        [(set GPR:$Rd, (add GPR:$Rx, GPR:$Ry))]>;
+let isCodeGenOnly = 1 in
+def ADDCrrr : CondRRR<0b1111, 0b0000, "add",
+                      [(set GPR:$Rd, (addc GPR:$Rx, GPR:$Ry))]>;
 def ADDEQrrr : CondRRR<0b0000, 0b0000, "addeq">;
 def ADDNErrr : CondRRR<0b0001, 0b0000, "addne">;
 def ADDCCrrr : CondRRR<0b0010, 0b0000, "addcc">;
@@ -3967,7 +3973,10 @@ def SATSUB_Wrrr : FullRegRegReg<0b000000011100, "satsub.w">;
 def SATSUB_Wrri16 : FullRegRegSImm16<0b01101, "satsub.w">;
 def SATSri : FullRegShiftBits<0b111100011011, 0b000000, "sats">;
 def SATUri : FullRegShiftBits<0b111100011011, 0b000001, "satu">;
-def SBCrrr : FullRegRegReg<0b000000010100, "sbc">;
+let Uses = [SREG] in
+def SBCrrr : FullRegRegReg<0b000000010100, "sbc"> {
+  let Pattern = [(set GPR:$Rd, (sube GPR:$Rx, GPR:$Ry))];
+}
 def SBRri : CompactRegUImm5NoOut<0b1101, "sbr">;
 def SCALL : AVR32Inst<0b1101011100110011, (outs), (ins), "scall">;
 def SSCALL : AVR32Inst<0b1101011101010011, (outs), (ins), "sscall">;
@@ -4116,6 +4125,9 @@ def PICOSTM_W_Low_PRE : PicoStoreMultipleLow<0b0010, 1, picoreglistlow,
                                              "picostm.w\t--$Rp, $Mask">;
 def SUBALrrr : CondRRR<0b1111, 0b0001, "sub",
                        [(set GPR:$Rd, (sub GPR:$Rx, GPR:$Ry))]>;
+let isCodeGenOnly = 1 in
+def SUBCrrr : CondRRR<0b1111, 0b0001, "sub",
+                      [(set GPR:$Rd, (subc GPR:$Rx, GPR:$Ry))]>;
 def SUBEQrrr : CondRRR<0b0000, 0b0001, "subeq">;
 def SUBNErrr : CondRRR<0b0001, 0b0001, "subne">;
 def SUBCCrrr : CondRRR<0b0010, 0b0001, "subcc">;
