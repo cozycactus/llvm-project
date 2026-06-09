@@ -740,6 +740,20 @@ class CompactRegReg<bits<5> Op, string Mnemonic>
   let Inst{3-0} = Rd;
 }
 
+class CompactRegRegCG<bits<5> Op, string Mnemonic>
+    : AVR32Inst<0, (outs GPR:$Rd), (ins GPR:$Old, GPR:$Rs),
+                Mnemonic#"\t$Rd, $Rs"> {
+  let Defs = [SREG];
+
+  bits<4> Rd;
+  bits<4> Rs;
+
+  let Inst{15-13} = 0b000;
+  let Inst{12-9} = Rs;
+  let Inst{8-4} = Op;
+  let Inst{3-0} = Rd;
+}
+
 class CompactRegRegNoOut<bits<5> Op, string Mnemonic>
     : AVR32Inst<0, (outs), (ins GPR:$Rd, GPR:$Rs),
                 Mnemonic#"\t$Rd, $Rs"> {
@@ -1496,6 +1510,20 @@ class CompactLoadPair<bits<5> Op, bits<1> LastBit, string AsmStr>
 class CompactRegRegWithPrefix<bits<3> Prefix, bits<5> Op, string Mnemonic>
     : AVR32Inst<0, (outs GPR:$Rd), (ins GPR:$Rs),
                 Mnemonic#"\t$Rd, $Rs"> {
+  bits<4> Rd;
+  bits<4> Rs;
+
+  let Inst{15-13} = Prefix;
+  let Inst{12-9} = Rs;
+  let Inst{8-4} = Op;
+  let Inst{3-0} = Rd;
+}
+
+class CompactRegRegWithPrefixCG<bits<3> Prefix, bits<5> Op, string Mnemonic>
+    : AVR32Inst<0, (outs GPR:$Rd), (ins GPR:$Old, GPR:$Rs),
+                Mnemonic#"\t$Rd, $Rs"> {
+  let Defs = [SREG];
+
   bits<4> Rd;
   bits<4> Rs;
 
@@ -3353,6 +3381,8 @@ def ADDVSrrr : CondRRR<0b1100, 0b0000, "addvs">;
 def ADDVCrrr : CondRRR<0b1101, 0b0000, "addvc">;
 def ADDQSrrr : CondRRR<0b1110, 0b0000, "addqs">;
 def ADDrr : CompactRegReg<0b00000, "add">;
+let isCodeGenOnly = 1, Constraints = "$Rd = $Old" in
+def ADDrrCG : CompactRegRegCG<0b00000, "add">;
 def ANDHri : FullRegUImm16<0b111001000001, "andh">;
 def ANDHri_COH : FullRegUImm16Suffix<0b111001100001, "andh", ", coh">;
 def ANDLri : FullRegUImm16<0b111000000001, "andl">;
@@ -3382,6 +3412,8 @@ def ANDVCrrr : CondRRR<0b1101, 0b0010, "andvc">;
 def ANDQSrrr : CondRRR<0b1110, 0b0010, "andqs">;
 def ANDNrr : CompactRegReg<0b01000, "andn">;
 def ANDrr : CompactRegReg<0b00110, "and">;
+let isCodeGenOnly = 1, Constraints = "$Rd = $Old" in
+def ANDrrCG : CompactRegRegCG<0b00110, "and">;
 def ASRri : CompactRegUImm5Shift<0b010, "asr">;
 def ASRrrr : FullRegRegReg<0b000010000100, "asr">;
 def BFEXTS : FullRegRegBitField<0b101100, "bfexts">;
@@ -3592,6 +3624,8 @@ def EORVSrrr : CondRRR<0b1100, 0b0100, "eorvs">;
 def EORVCrrr : CondRRR<0b1101, 0b0100, "eorvc">;
 def EORQSrrr : CondRRR<0b1110, 0b0100, "eorqs">;
 def EORrr : CompactRegReg<0b00101, "eor">;
+let isCodeGenOnly = 1, Constraints = "$Rd = $Old" in
+def EORrrCG : CompactRegRegCG<0b00101, "eor">;
 def FRS : AVR32Inst<0b1101011101000011, (outs), (ins), "frs">;
 def FADD_Srrr : FullFPURegRegReg<0b0000, "fadd.s">;
 def FCASTRS_SWrr : FullFPURegReg<0b1011, "fcastrs.sw">;
@@ -3734,6 +3768,8 @@ def MEMC : FullMemBit<0b111111000001, "memc">;
 def MEMS : FullMemBit<0b111100000001, "mems">;
 def MEMT : FullMemBit<0b111101000001, "memt">;
 def MULrr : CompactRegRegWithPrefix<0b101, 0b10011, "mul">;
+let isCodeGenOnly = 1, Constraints = "$Rd = $Old" in
+def MULrrCG : CompactRegRegWithPrefixCG<0b101, 0b10011, "mul">;
 def MULri8 : FullRegRegImm<0b00010000, "mul">;
 def MULrrr : FullRegRegReg<0b000000100100, "mul">;
 def MULHH_W : FullRegRegHalfRegHalf<0b0000011110, "mulhh.w">;
@@ -3778,6 +3814,8 @@ def ORVSrrr : CondRRR<0b1100, 0b0011, "orvs">;
 def ORVCrrr : CondRRR<0b1101, 0b0011, "orvc">;
 def ORQSrrr : CondRRR<0b1110, 0b0011, "orqs">;
 def ORrr : CompactRegReg<0b00100, "or">;
+let isCodeGenOnly = 1, Constraints = "$Rd = $Old" in
+def ORrrCG : CompactRegRegCG<0b00100, "or">;
 def PABS_SBrr : FullRegRegLow<0b001000111110, "pabs.sb">;
 def PABS_SHrr : FullRegRegLow<0b001000111111, "pabs.sh">;
 def PACKSH_UBrrr : FullRegRegReg<0b001001001100, "packsh.ub">;
@@ -4130,6 +4168,8 @@ def SUBrrrs : FullRegRegRegShift<0b0000000100, "sub">;
 def SUBrri16 : FullRegRegSImm16<0b01100, "sub">;
 def SUBri21 : FullRegImm<0b0001, "sub">;
 def SUBrr : CompactRegReg<0b00001, "sub">;
+let isCodeGenOnly = 1, Constraints = "$Rd = $Old" in
+def SUBrrCG : CompactRegRegCG<0b00001, "sub">;
 def SWAP_BHr : CompactReg<0b010111001100, "swap.bh">;
 def SWAP_Br : CompactReg<0b010111001011, "swap.b">;
 def SWAP_Hr : CompactReg<0b010111001010, "swap.h">;

@@ -691,7 +691,7 @@ static std::optional<unsigned> getPredicatedStoreOpcode(unsigned StoreOpcode,
 bool AVR32Peephole::foldTwoAddressALU(MachineInstr &MI, unsigned CompactOpc,
                                       bool Commutable,
                                       const TargetInstrInfo &TII) {
-  if (MI.getNumOperands() != 3)
+  if (MI.getNumExplicitOperands() != 3)
     return false;
 
   const MachineOperand &Dst = MI.getOperand(0);
@@ -702,18 +702,24 @@ bool AVR32Peephole::foldTwoAddressALU(MachineInstr &MI, unsigned CompactOpc,
 
   Register DstReg = Dst.getReg();
   unsigned SrcIdx = 0;
-  if (DstReg == LHS.getReg())
+  unsigned OldIdx = 0;
+  if (DstReg == LHS.getReg()) {
+    OldIdx = 1;
     SrcIdx = 2;
-  else if (Commutable && DstReg == RHS.getReg())
+  } else if (Commutable && DstReg == RHS.getReg()) {
+    OldIdx = 2;
     SrcIdx = 1;
-  else
+  } else {
     return false;
+  }
 
+  const MachineOperand &Old = MI.getOperand(OldIdx);
   const MachineOperand &Src = MI.getOperand(SrcIdx);
   MachineBasicBlock &MBB = *MI.getParent();
   MachineFunction &MF = *MBB.getParent();
   MachineInstrBuilder MIB =
       BuildMI(MBB, MI, MI.getDebugLoc(), TII.get(CompactOpc), DstReg)
+          .addReg(DstReg, getKillRegState(Old.isKill()))
           .addReg(Src.getReg(), getKillRegState(Src.isKill()));
   MIB.setMIFlags(MI.getFlags());
   MIB->copyImplicitOps(MF, MI);
@@ -1776,10 +1782,10 @@ bool AVR32Peephole::runOnMachineFunction(MachineFunction &MF) {
         MachineInstr &MI = *I++;
         switch (MI.getOpcode()) {
         case AVR32::ADDALrrr:
-          LocalChanged |= foldTwoAddressALU(MI, AVR32::ADDrr, true, TII);
+          LocalChanged |= foldTwoAddressALU(MI, AVR32::ADDrrCG, true, TII);
           break;
         case AVR32::ANDALrrr:
-          LocalChanged |= foldTwoAddressALU(MI, AVR32::ANDrr, true, TII);
+          LocalChanged |= foldTwoAddressALU(MI, AVR32::ANDrrCG, true, TII);
           break;
         case AVR32::ANDrr:
           LocalChanged |= foldBitImmediate(MI, TII);
@@ -1791,10 +1797,10 @@ bool AVR32Peephole::runOnMachineFunction(MachineFunction &MF) {
           LocalChanged |= foldBitImmediate(MI, TII);
           break;
         case AVR32::EORALrrr:
-          LocalChanged |= foldTwoAddressALU(MI, AVR32::EORrr, true, TII);
+          LocalChanged |= foldTwoAddressALU(MI, AVR32::EORrrCG, true, TII);
           break;
         case AVR32::MULrrr:
-          LocalChanged |= foldTwoAddressALU(MI, AVR32::MULrr, true, TII);
+          LocalChanged |= foldTwoAddressALU(MI, AVR32::MULrrCG, true, TII);
           break;
         case AVR32::MOVri21:
           LocalChanged |= foldSignedImmediate(MI, AVR32::MOVri8, 8, true, TII);
@@ -1816,7 +1822,7 @@ bool AVR32Peephole::runOnMachineFunction(MachineFunction &MF) {
           break;
         case AVR32::ORALrrr:
           LocalChanged |= foldMovhOr(MI, TII) ||
-                          foldTwoAddressALU(MI, AVR32::ORrr, true, TII);
+                          foldTwoAddressALU(MI, AVR32::ORrrCG, true, TII);
           break;
         case AVR32::ORrr:
           LocalChanged |= foldMovhOr(MI, TII) || foldBitImmediate(MI, TII);
@@ -1873,7 +1879,7 @@ bool AVR32Peephole::runOnMachineFunction(MachineFunction &MF) {
                           foldStoreDisp(MI, AVR32::ST_W_Disp4, 60, 4, TII);
           break;
         case AVR32::SUBALrrr:
-          LocalChanged |= foldTwoAddressALU(MI, AVR32::SUBrr, false, TII);
+          LocalChanged |= foldTwoAddressALU(MI, AVR32::SUBrrCG, false, TII);
           break;
         default:
           break;

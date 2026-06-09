@@ -621,12 +621,12 @@ __attribute__((optnone, noinline)) int pick(int a, int b) {
 
 // ASM-LABEL: or_mask:
 // ASM: mov [[MASK:r[0-9]+]], 65536
-// ASM: or r12, r12, [[MASK]]
+// ASM: or r12, [[MASK]]
 // ASM: ret r12
 
 // ASM-LABEL: clear_low_bit:
 // ASM: mov [[MASK:r[0-9]+]], -2
-// ASM: and r12, r12, [[MASK]]
+// ASM: and r12, [[MASK]]
 // ASM: ret r12
 
 // ASM-LABEL: xor_mask:

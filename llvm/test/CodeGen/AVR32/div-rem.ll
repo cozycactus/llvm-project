@@ -12,8 +12,8 @@ define i32 @sdiv_only(i32 %a, i32 %b) {
 define i32 @srem_only(i32 %a, i32 %b) {
 ; CHECK-LABEL: srem_only:
 ; CHECK: divs [[Q:r([02468]|10)]], r12, r11
-; CHECK-NEXT: mul [[PRODUCT:r[0-9]+]], [[Q]], r11
-; CHECK-NEXT: sub r12, {{(r12, )?}}[[PRODUCT]]
+; CHECK-NEXT: mul [[Q]], r11
+; CHECK-NEXT: sub r12, [[Q]]
 ; CHECK-NEXT: ret r12
   %r = srem i32 %a, %b
   ret i32 %r
@@ -35,8 +35,8 @@ define i32 @sdiv_plus_srem(i32 %a, i32 %b) {
 define i32 @urem_only(i32 %a, i32 %b) {
 ; CHECK-LABEL: urem_only:
 ; CHECK: divu [[Q:r([02468]|10)]], r12, r11
-; CHECK-NEXT: mul [[PRODUCT:r[0-9]+]], [[Q]], r11
-; CHECK-NEXT: sub r12, {{(r12, )?}}[[PRODUCT]]
+; CHECK-NEXT: mul [[Q]], r11
+; CHECK-NEXT: sub r12, [[Q]]
 ; CHECK-NEXT: ret r12
   %r = urem i32 %a, %b
   ret i32 %r

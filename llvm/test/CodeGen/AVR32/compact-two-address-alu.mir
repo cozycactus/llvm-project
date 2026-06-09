@@ -1,0 +1,31 @@
+# RUN: llc -mtriple=avr32 -run-pass=avr32-peephole -verify-machineinstrs %s -o - | FileCheck %s
+
+--- |
+  target triple = "avr32"
+
+  define i32 @compact_two_address_alu() {
+    ret i32 0
+  }
+...
+---
+name: compact_two_address_alu
+tracksRegLiveness: true
+body: |
+  bb.0:
+    liveins: $r1, $r2, $r3, $r4, $r5, $r6, $r7, $r8, $r9, $r10, $r11, $r12
+
+    ; CHECK-LABEL: name: compact_two_address_alu
+    ; CHECK: $r8 = ADDrrCG killed $r8, killed $r9, implicit-def $sreg
+    ; CHECK: $r10 = ANDrrCG killed $r10, killed $r11, implicit-def $sreg
+    ; CHECK: $r12 = EORrrCG killed $r12, killed $r7, implicit-def $sreg
+    ; CHECK: $r6 = MULrrCG killed $r6, killed $r5, implicit-def $sreg
+    ; CHECK: $r4 = ORrrCG killed $r4, killed $r3, implicit-def $sreg
+    ; CHECK: $r2 = SUBrrCG killed $r2, killed $r1, implicit-def $sreg
+    $r8 = ADDALrrr killed $r8, killed $r9, implicit-def $sreg
+    $r10 = ANDALrrr killed $r10, killed $r11, implicit-def $sreg
+    $r12 = EORALrrr killed $r12, killed $r7, implicit-def $sreg
+    $r6 = MULrrr killed $r6, killed $r5, implicit-def $sreg
+    $r4 = ORALrrr killed $r4, killed $r3, implicit-def $sreg
+    $r2 = SUBALrrr killed $r2, killed $r1, implicit-def $sreg
+    RETR12 implicit $r12
+...
