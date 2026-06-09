@@ -10,8 +10,14 @@
 #  define TARGET_BUILTIN(ID, TYPE, ATTRS, FEATURE) BUILTIN(ID, TYPE, ATTRS)
 #endif
 
-TARGET_BUILTIN(__builtin_mfsr, "UiIUi", "n", "")
-TARGET_BUILTIN(__builtin_mtsr, "vIUiUi", "n", "")
+TARGET_BUILTIN(__builtin_mfsr, "UiUi", "n", "")
+TARGET_BUILTIN(__builtin_mtsr, "vUiUi", "n", "")
+TARGET_BUILTIN(__builtin_mfdr, "UiUi", "n", "")
+TARGET_BUILTIN(__builtin_mtdr, "vUiUi", "n", "")
+TARGET_BUILTIN(__builtin_tlbr, "v", "n", "")
+TARGET_BUILTIN(__builtin_tlbs, "v", "n", "")
+TARGET_BUILTIN(__builtin_tlbw, "v", "n", "")
 TARGET_BUILTIN(__builtin_bswap_16, "UsUs", "nc", "")
+TARGET_BUILTIN(__builtin_bswap_32, "UiUi", "nc", "")
 
 #undef TARGET_BUILTIN

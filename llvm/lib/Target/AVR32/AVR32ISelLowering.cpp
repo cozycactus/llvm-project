@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "AVR32ISelLowering.h"
+#include "AVR32MachineFunctionInfo.h"
 #include "AVR32Subtarget.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/CodeGen/MachineBasicBlock.h"
@@ -28,6 +29,10 @@ AVR32TargetLowering::AVR32TargetLowering(const TargetMachine &TM,
                                          const AVR32Subtarget &STI)
     : TargetLowering(TM, STI) {
   addRegisterClass(MVT::i32, &AVR32::GPRRegClass);
+  // AVR32 uses adjacent register tuples for div/rem results. The generic
+  // register-pressure DAG scheduler can trip over those untyped tuple values
+  // before isel, while source scheduling keeps the tuple/extract shape stable.
+  setSchedulingPreference(Sched::Source);
   setOperationAction(ISD::BR_CC, MVT::i32, Custom);
   setOperationAction(ISD::BR_JT, MVT::Other, Legal);
   setOperationAction(ISD::BRCOND, MVT::Other, Expand);
@@ -40,19 +45,28 @@ AVR32TargetLowering::AVR32TargetLowering(const TargetMachine &TM,
   setOperationAction(ISD::DYNAMIC_STACKALLOC, MVT::i32, Expand);
   setOperationAction(ISD::STACKSAVE, MVT::Other, Expand);
   setOperationAction(ISD::STACKRESTORE, MVT::Other, Expand);
+  setOperationAction(ISD::VAARG, MVT::Other, Expand);
+  setOperationAction(ISD::VACOPY, MVT::Other, Expand);
+  setOperationAction(ISD::VAEND, MVT::Other, Expand);
+  setOperationAction(ISD::VASTART, MVT::Other, Custom);
   setOperationAction(ISD::MULHS, MVT::i32, Expand);
   setOperationAction(ISD::MULHU, MVT::i32, Expand);
   setOperationAction(ISD::ROTL, MVT::i32, Expand);
   setOperationAction(ISD::ROTR, MVT::i32, Expand);
+  setOperationAction(ISD::FRAMEADDR, MVT::i32, Custom);
+  setOperationAction(ISD::RETURNADDR, MVT::i32, Custom);
   setOperationAction(ISD::SELECT, MVT::i32, Custom);
-  setOperationAction(ISD::SDIVREM, MVT::i32, Expand);
+  setOperationAction(ISD::SDIV, MVT::i32, Expand);
+  setOperationAction(ISD::SDIVREM, MVT::i32, Custom);
   setOperationAction(ISD::SREM, MVT::i32, Expand);
   setOperationAction(ISD::SMUL_LOHI, MVT::i32, Expand);
-  setOperationAction(ISD::UDIVREM, MVT::i32, Expand);
+  setOperationAction(ISD::UDIV, MVT::i32, Expand);
+  setOperationAction(ISD::UDIVREM, MVT::i32, Custom);
   setOperationAction(ISD::UMUL_LOHI, MVT::i32, Expand);
   setOperationAction(ISD::UREM, MVT::i32, Expand);
   setOperationAction(ISD::SELECT_CC, MVT::i32, Custom);
   setOperationAction(ISD::SETCC, MVT::i32, Custom);
+  setOperationAction(ISD::SIGN_EXTEND_INREG, MVT::i1, Expand);
   setOperationAction(ISD::SHL_PARTS, MVT::i32, Expand);
   setOperationAction(ISD::SRA_PARTS, MVT::i32, Expand);
   setOperationAction(ISD::SRL_PARTS, MVT::i32, Expand);
@@ -76,11 +90,44 @@ AVR32TargetLowering::getRegForInlineAsmConstraint(
   return TargetLowering::getRegForInlineAsmConstraint(TRI, Constraint, VT);
 }
 
+AVR32TargetLowering::ConstraintType
+AVR32TargetLowering::getConstraintType(StringRef Constraint) const {
+  if (Constraint == "Ks21")
+    return C_Immediate;
+
+  return TargetLowering::getConstraintType(Constraint);
+}
+
+void AVR32TargetLowering::LowerAsmOperandForConstraint(
+    SDValue Op, StringRef Constraint, std::vector<SDValue> &Ops,
+    SelectionDAG &DAG) const {
+  if (Constraint == "Ks21") {
+    if (auto *C = dyn_cast<ConstantSDNode>(Op)) {
+      int64_t Value = C->getSExtValue();
+      if (isInt<21>(Value))
+        Ops.push_back(DAG.getSignedTargetConstant(Value, SDLoc(Op),
+                                                  Op.getValueType()));
+    }
+    return;
+  }
+
+  TargetLowering::LowerAsmOperandForConstraint(Op, Constraint, Ops, DAG);
+}
+
 static void diagnoseUnsupported(SelectionDAG &DAG, const SDLoc &DL,
                                 StringRef Message) {
   MachineFunction &MF = DAG.getMachineFunction();
   DAG.getContext()->diagnose(
       DiagnosticInfoUnsupported(MF.getFunction(), Message, DL.getDebugLoc()));
+}
+
+static const CondCodeSDNode *
+getCondCodeNode(SDValue Op, unsigned Operand, SelectionDAG &DAG,
+                const SDLoc &DL) {
+  const auto *CCNode = dyn_cast<CondCodeSDNode>(Op.getOperand(Operand));
+  if (!CCNode)
+    diagnoseUnsupported(DAG, DL, "AVR32 malformed condition code operand");
+  return CCNode;
 }
 
 static bool isSupportedRegValueType(EVT VT) {
@@ -110,6 +157,17 @@ static bool isSupportedPostIncLoad(EVT MemVT, ISD::LoadExtType ExtType) {
 static bool isSupportedPostIncStore(EVT MemVT) {
   return MemVT == MVT::i32 || MemVT == MVT::i16 || MemVT == MVT::i8 ||
          MemVT == MVT::i1;
+}
+
+static SDValue lowerDivRem(SDValue Op, SelectionDAG &DAG, unsigned Opcode) {
+  SDLoc DL(Op);
+  SDValue Pair = DAG.getNode(Opcode, DL, MVT::Untyped, Op.getOperand(0),
+                             Op.getOperand(1));
+  SDValue Quot =
+      DAG.getTargetExtractSubreg(sub_lo, DL, MVT::i32, Pair);
+  SDValue Product = DAG.getNode(ISD::MUL, DL, MVT::i32, Quot, Op.getOperand(1));
+  SDValue Rem = DAG.getNode(ISD::SUB, DL, MVT::i32, Op.getOperand(0), Product);
+  return DAG.getMergeValues({Quot, Rem}, DL);
 }
 
 static ArrayRef<MCPhysReg> getIntArgRegs() {
@@ -199,8 +257,77 @@ static bool commuteCondCodeForCompactBranch(ISD::CondCode &CC) {
   }
 }
 
+static bool isAlwaysTrueCondCode(ISD::CondCode CC) {
+  return CC == ISD::SETTRUE || CC == ISD::SETTRUE2;
+}
+
+static bool isAlwaysFalseCondCode(ISD::CondCode CC) {
+  return CC == ISD::SETFALSE || CC == ISD::SETFALSE2;
+}
+
+static SDValue lowerFRAMEADDR(SDValue Op, SelectionDAG &DAG) {
+  MachineFunction &MF = DAG.getMachineFunction();
+  MachineFrameInfo &MFI = MF.getFrameInfo();
+  MFI.setFrameAddressIsTaken(true);
+
+  EVT VT = Op.getValueType();
+  SDLoc DL(Op);
+  unsigned Depth = Op.getConstantOperandVal(0);
+  if (Depth != 0) {
+    diagnoseUnsupported(DAG, DL,
+                        "AVR32 frame addresses beyond depth 0 are not "
+                        "implemented yet");
+    return DAG.getUNDEF(VT);
+  }
+
+  return DAG.getCopyFromReg(DAG.getEntryNode(), DL, AVR32::R7, VT);
+}
+
+static SDValue lowerRETURNADDR(SDValue Op, SelectionDAG &DAG) {
+  MachineFunction &MF = DAG.getMachineFunction();
+  MachineFrameInfo &MFI = MF.getFrameInfo();
+  MFI.setReturnAddressIsTaken(true);
+
+  EVT VT = Op.getValueType();
+  SDLoc DL(Op);
+  unsigned Depth = Op.getConstantOperandVal(0);
+  if (Depth != 0) {
+    diagnoseUnsupported(DAG, DL,
+                        "AVR32 return addresses beyond depth 0 are not "
+                        "implemented yet");
+    return DAG.getUNDEF(VT);
+  }
+
+  Register Reg = MF.addLiveIn(AVR32::LR, &AVR32::GPRRegClass);
+  return DAG.getCopyFromReg(DAG.getEntryNode(), DL, Reg, VT);
+}
+
+static SDValue lowerVASTART(SDValue Op, SelectionDAG &DAG) {
+  MachineFunction &MF = DAG.getMachineFunction();
+  const AVR32MachineFunctionInfo *FuncInfo =
+      MF.getInfo<AVR32MachineFunctionInfo>();
+  const Value *SV = cast<SrcValueSDNode>(Op.getOperand(2))->getValue();
+  EVT PtrVT = DAG.getTargetLoweringInfo().getPointerTy(DAG.getDataLayout());
+  SDLoc DL(Op);
+
+  SDValue FI = DAG.getFrameIndex(FuncInfo->getVarArgsFrameIndex(), PtrVT);
+  return DAG.getStore(Op.getOperand(0), DL, FI, Op.getOperand(1),
+                      MachinePointerInfo(SV));
+}
+
 SDValue AVR32TargetLowering::LowerOperation(SDValue Op,
                                             SelectionDAG &DAG) const {
+  if (Op.getOpcode() == ISD::FRAMEADDR)
+    return lowerFRAMEADDR(Op, DAG);
+  if (Op.getOpcode() == ISD::RETURNADDR)
+    return lowerRETURNADDR(Op, DAG);
+  if (Op.getOpcode() == ISD::VASTART)
+    return lowerVASTART(Op, DAG);
+  if (Op.getOpcode() == ISD::SDIVREM)
+    return lowerDivRem(Op, DAG, AVR32ISD::SDIVREM);
+  if (Op.getOpcode() == ISD::UDIVREM)
+    return lowerDivRem(Op, DAG, AVR32ISD::UDIVREM);
+
   if (Op.getOpcode() != ISD::BR_CC && Op.getOpcode() != ISD::SELECT &&
       Op.getOpcode() != ISD::SETCC && Op.getOpcode() != ISD::SELECT_CC)
     llvm_unreachable("Unsupported AVR32 custom lowering");
@@ -215,13 +342,27 @@ SDValue AVR32TargetLowering::LowerOperation(SDValue Op,
 
   if (Op.getOpcode() == ISD::SETCC || Op.getOpcode() == ISD::SELECT_CC) {
     unsigned CondOperand = Op.getOpcode() == ISD::SETCC ? 2 : 4;
-    ISD::CondCode CC = cast<CondCodeSDNode>(Op.getOperand(CondOperand))->get();
+    SDLoc DL(Op);
+    const CondCodeSDNode *CCNode = getCondCodeNode(Op, CondOperand, DAG, DL);
+    if (!CCNode)
+      return DAG.getUNDEF(Op.getValueType());
+    ISD::CondCode CC = CCNode->get();
+    if (isAlwaysTrueCondCode(CC)) {
+      if (Op.getOpcode() == ISD::SETCC)
+        return DAG.getConstant(1, DL, Op.getValueType());
+      return Op.getOperand(2);
+    }
+    if (isAlwaysFalseCondCode(CC)) {
+      if (Op.getOpcode() == ISD::SETCC)
+        return DAG.getConstant(0, DL, Op.getValueType());
+      return Op.getOperand(3);
+    }
+
     SDValue LHS = Op.getOperand(0);
     SDValue RHS = Op.getOperand(1);
     if (commuteCondCodeForCompactBranch(CC))
       std::swap(LHS, RHS);
     AVR32CC::CondCodes TargetCC = intCondCodeToAVR32CC(CC);
-    SDLoc DL(Op);
     if (TargetCC == AVR32CC::COND_INVALID) {
       diagnoseUnsupported(DAG, DL,
                           "AVR32 condition code is not implemented yet");
@@ -238,11 +379,18 @@ SDValue AVR32TargetLowering::LowerOperation(SDValue Op,
   }
 
   SDValue Chain = Op.getOperand(0);
-  ISD::CondCode CC = cast<CondCodeSDNode>(Op.getOperand(1))->get();
+  SDLoc DL(Op);
+  const CondCodeSDNode *CCNode = getCondCodeNode(Op, 1, DAG, DL);
+  if (!CCNode)
+    return Chain;
+  ISD::CondCode CC = CCNode->get();
   SDValue LHS = Op.getOperand(2);
   SDValue RHS = Op.getOperand(3);
   SDValue Dest = Op.getOperand(4);
-  SDLoc DL(Op);
+  if (isAlwaysTrueCondCode(CC))
+    return DAG.getNode(ISD::BR, DL, MVT::Other, Chain, Dest);
+  if (isAlwaysFalseCondCode(CC))
+    return Chain;
 
   // Keep register-immediate branches in their original order so CPri can match.
   if (!isa<ConstantSDNode>(RHS) && commuteCondCodeForCompactBranch(CC))
@@ -314,33 +462,6 @@ static unsigned getBranchOpcodeForCC(AVR32CC::CondCodes CC) {
   }
 }
 
-static unsigned getMoveRegOpcodeForCC(AVR32CC::CondCodes CC) {
-  switch (CC) {
-  default:
-    return 0;
-  case AVR32CC::COND_EQ:
-    return AVR32::MOVEQrrCG;
-  case AVR32CC::COND_NE:
-    return AVR32::MOVNErrCG;
-  case AVR32CC::COND_CC:
-    return AVR32::MOVCCrrCG;
-  case AVR32CC::COND_CS:
-    return AVR32::MOVCSrrCG;
-  case AVR32CC::COND_GE:
-    return AVR32::MOVGErrCG;
-  case AVR32CC::COND_LT:
-    return AVR32::MOVLTrrCG;
-  case AVR32CC::COND_LS:
-    return AVR32::MOVLSrrCG;
-  case AVR32CC::COND_GT:
-    return AVR32::MOVGTrrCG;
-  case AVR32CC::COND_LE:
-    return AVR32::MOVLErrCG;
-  case AVR32CC::COND_HI:
-    return AVR32::MOVHIrrCG;
-  }
-}
-
 MachineBasicBlock *AVR32TargetLowering::EmitInstrWithCustomInserter(
     MachineInstr &MI, MachineBasicBlock *BB) const {
   assert((MI.getOpcode() == AVR32::SETCCrr ||
@@ -364,21 +485,6 @@ MachineBasicBlock *AVR32TargetLowering::EmitInstrWithCustomInserter(
 
     BuildMI(*BB, MI, DL, TII.get(AVR32::CPrr)).addReg(LHS).addReg(RHS);
     BuildMI(*BB, MI, DL, TII.get(SrOpc), Dst);
-    MI.eraseFromParent();
-    return BB;
-  }
-
-  if (MF->getFunction().hasOptSize() && !MF->getFunction().hasMinSize()) {
-    unsigned MovOpc = getMoveRegOpcodeForCC(CC);
-    if (!MovOpc)
-      report_fatal_error("AVR32 condition code is not implemented yet");
-
-    Register TrueReg = MI.getOperand(3).getReg();
-    Register FalseReg = MI.getOperand(4).getReg();
-    BuildMI(*BB, MI, DL, TII.get(AVR32::CPrr)).addReg(LHS).addReg(RHS);
-    BuildMI(*BB, MI, DL, TII.get(MovOpc), Dst)
-        .addReg(FalseReg)
-        .addReg(TrueReg);
     MI.eraseFromParent();
     return BB;
   }
@@ -468,14 +574,6 @@ SDValue AVR32TargetLowering::LowerFormalArguments(
     const SmallVectorImpl<ISD::InputArg> &Ins, const SDLoc &DL,
     SelectionDAG &DAG, SmallVectorImpl<SDValue> &InVals) const {
   ArrayRef<MCPhysReg> ArgRegs = getIntArgRegs();
-  if (IsVarArg) {
-    diagnoseUnsupported(DAG, DL,
-                        "AVR32 variadic arguments are not implemented yet");
-    for (const ISD::InputArg &In : Ins)
-      InVals.push_back(DAG.getUNDEF(In.VT));
-    return Chain;
-  }
-
   MachineFunction &MF = DAG.getMachineFunction();
   MachineFrameInfo &MFI = MF.getFrameInfo();
   MachineRegisterInfo &MRI = MF.getRegInfo();
@@ -505,6 +603,18 @@ SDValue AVR32TargetLowering::LowerFormalArguments(
       Arg = DAG.getNode(ISD::TRUNCATE, DL, Ins[I].VT, Arg);
     InVals.push_back(Arg);
   }
+
+  if (IsVarArg) {
+    AVR32MachineFunctionInfo *FuncInfo =
+        MF.getInfo<AVR32MachineFunctionInfo>();
+    // AVR32 GCC passes unnamed variadic arguments on the stack, even when
+    // integer argument registers are still available.
+    unsigned Offset = Ins.size() > ArgRegs.size()
+                          ? (Ins.size() - ArgRegs.size()) * 4
+                          : 0;
+    FuncInfo->setVarArgsFrameIndex(
+        MFI.CreateFixedObject(4, Offset, /*IsImmutable=*/true));
+  }
   return Chain;
 }
 
@@ -531,9 +641,13 @@ AVR32TargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
     }
   }
 
+  unsigned RegArgLimit = ArgRegs.size();
+  if (CLI.IsVarArg)
+    RegArgLimit = std::min<unsigned>(RegArgLimit, CLI.NumFixedArgs);
+
   unsigned StackBytes =
-      CLI.Outs.size() > ArgRegs.size()
-          ? alignTo((CLI.Outs.size() - ArgRegs.size()) * 4, 4)
+      CLI.Outs.size() > RegArgLimit
+          ? alignTo((CLI.Outs.size() - RegArgLimit) * 4, 4)
           : 0;
   Chain = DAG.getCALLSEQ_START(Chain, StackBytes, 0, DL);
 
@@ -550,7 +664,7 @@ AVR32TargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
     }
 
     SDValue Arg = extendToI32(CLI.OutVals[I], CLI.Outs[I].Flags, DL, DAG);
-    if (I < ArgRegs.size()) {
+    if (I < RegArgLimit) {
       RegsToPass.push_back({ArgRegs[I], Arg});
       continue;
     }
@@ -558,7 +672,7 @@ AVR32TargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
     if (!StackPtr)
       StackPtr = DAG.getCopyFromReg(Chain, DL, AVR32::SP, MVT::i32);
 
-    unsigned Offset = (I - ArgRegs.size()) * 4;
+    unsigned Offset = (I - RegArgLimit) * 4;
     SDValue Ptr =
         DAG.getNode(ISD::ADD, DL, MVT::i32, StackPtr,
                     DAG.getIntPtrConstant(Offset, DL, MVT::i32));

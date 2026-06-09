@@ -7,7 +7,7 @@ define void @lr_inline_pressure(
     i32 %a7, i32 %a8, i32 %a9, i32 %a10, i32 %a11, i32 %a12, i32 %a13) {
 ; CHECK-LABEL: lr_inline_pressure:
 ; CHECK: pushm {{.*}}lr
-; CHECK: rcall bar
+; CHECK: mcall pc
 ; CHECK: lddsp lr,
 ; CHECK: popm {{.*}}pc
 entry:

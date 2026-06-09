@@ -3,8 +3,8 @@
 define void @pred_store_word_eq(ptr %p, i32 %a, i32 %b, i32 %v) minsize optsize {
 ; CHECK-LABEL: pred_store_word_eq:
 ; CHECK:      cp
-; CHECK-NEXT: st.weq {{r[0-9]+}}[0], {{r[0-9]+}}
-; CHECK-NOT:  brne
+; CHECK-NEXT: brne
+; CHECK:      st.w {{r[0-9]+}}[0], {{r[0-9]+}}
 ; CHECK:      ret r12
 entry:
   %cond = icmp eq i32 %a, %b
@@ -21,8 +21,8 @@ done:
 define void @pred_store_half_ne(ptr %p, i32 %a, i32 %b, i16 %v) minsize optsize {
 ; CHECK-LABEL: pred_store_half_ne:
 ; CHECK:      cp
-; CHECK-NEXT: st.hne {{r[0-9]+}}[0], {{r[0-9]+}}
-; CHECK-NOT:  breq
+; CHECK-NEXT: breq
+; CHECK:      st.h {{r[0-9]+}}[0], {{r[0-9]+}}
 ; CHECK:      ret r12
 entry:
   %cond = icmp ne i32 %a, %b
@@ -39,8 +39,8 @@ done:
 define void @pred_store_byte_ugt(ptr %p, i32 %a, i32 %b, i8 %v) minsize optsize {
 ; CHECK-LABEL: pred_store_byte_ugt:
 ; CHECK:      cp
-; CHECK-NEXT: st.bcs {{r[0-9]+}}[0], {{r[0-9]+}}
-; CHECK-NOT:  brcc
+; CHECK-NEXT: brcc
+; CHECK:      st.b {{r[0-9]+}}[0], {{r[0-9]+}}
 ; CHECK:      ret r12
 entry:
   %cond = icmp ugt i32 %a, %b

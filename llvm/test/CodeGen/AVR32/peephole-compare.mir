@@ -32,11 +32,11 @@ body:             |
 
     ; CHECK-LABEL: name: fold_redundant_cast
     ; CHECK: $r8 = LD_UB_Disp3 $r12, 0
+    ; CHECK-NEXT: $r8 = CASTU_Bcg killed $r8
     ; CHECK-NEXT: CPri6 killed $r8, 0
-    ; CHECK-NOT: CASTU_Bcg
     $r8 = LD_UB_Disp16 $r12, 0
-    $r8 = CASTU_Bcg killed $r8
-    CPri6 killed $r8, 0
+    $r8 = CASTU_Bcg killed $r8, implicit-def dead $sreg
+    CPri6 killed $r8, 0, implicit-def $sreg
     RETR12 implicit $r12
 ...
 ---
@@ -50,9 +50,9 @@ body:             |
     ; CHECK: $r8 = MOVrr $r12
     ; CHECK-NEXT: $r8 = CASTU_Bcg killed $r8
     ; CHECK-NEXT: CPri6 killed $r8, 0
-    $r8 = MOVrr $r12
-    $r8 = CASTU_Bcg killed $r8
-    CPri6 killed $r8, 0
+    $r8 = MOVrr $r12, implicit-def dead $sreg
+    $r8 = CASTU_Bcg killed $r8, implicit-def dead $sreg
+    CPri6 killed $r8, 0, implicit-def $sreg
     RETR12 implicit $r12
 ...
 ---
@@ -63,10 +63,10 @@ body:             |
     liveins: $r12
 
     ; CHECK-LABEL: name: fold_compare_imm
-    ; CHECK-NOT: MOVri21 7
-    ; CHECK: CPri6 $r12, 7
-    $r8 = MOVri21 7
-    CPrr $r12, killed $r8
+    ; CHECK: $r8 = MOVri21 7
+    ; CHECK-NEXT: CPrr $r12, killed $r8
+    $r8 = MOVri21 7, implicit-def dead $sreg
+    CPrr $r12, killed $r8, implicit-def $sreg
     RETR12 implicit $r12
 ...
 ---
@@ -78,13 +78,13 @@ body:             |
     successors: %bb.1
 
     ; CHECK-LABEL: name: fold_narrow_compare_imm
-    ; CHECK: $r8 = MOVri8 32
-    ; CHECK-NEXT: CP_Brr $r12, killed $r8
-    ; CHECK-NOT: CASTU_Bcg
-    $r8 = MOVrr $r12
-    $r8 = CASTU_Bcg killed $r8
-    CP_Wri21 killed $r8, 32
-    BRHIbb %bb.1
+    ; CHECK: $r8 = MOVrr $r12
+    ; CHECK-NEXT: $r8 = CASTU_Bcg killed $r8
+    ; CHECK-NEXT: CP_Wri21 killed $r8, 32
+    $r8 = MOVrr $r12, implicit-def dead $sreg
+    $r8 = CASTU_Bcg killed $r8, implicit-def dead $sreg
+    CP_Wri21 killed $r8, 32, implicit-def $sreg
+    BRHIbb %bb.1, implicit $sreg
     RETR12 implicit $r12
 
   bb.1:
@@ -104,10 +104,10 @@ body:             |
     ; CHECK: $r8 = MOVrr $r12
     ; CHECK-NEXT: $r8 = CASTU_Bcg killed $r8
     ; CHECK-NEXT: CP_Wri21 killed $r8, 32
-    $r8 = MOVrr $r12
-    $r8 = CASTU_Bcg killed $r8
-    CP_Wri21 killed $r8, 32
-    BRGTbb %bb.1
+    $r8 = MOVrr $r12, implicit-def dead $sreg
+    $r8 = CASTU_Bcg killed $r8, implicit-def dead $sreg
+    CP_Wri21 killed $r8, 32, implicit-def $sreg
+    BRGTbb %bb.1, implicit $sreg
     RETR12 implicit $r12
 
   bb.1:

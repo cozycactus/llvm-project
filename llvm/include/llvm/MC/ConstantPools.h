@@ -13,6 +13,7 @@
 #ifndef LLVM_MC_CONSTANTPOOLS_H
 #define LLVM_MC_CONSTANTPOOLS_H
 
+#include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/MapVector.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/SMLoc.h"
@@ -48,7 +49,8 @@ class ConstantPool {
   // and also the size of the constant.
   std::map<std::pair<int64_t, unsigned>, const MCSymbolRefExpr *>
       CachedConstantEntries;
-  DenseMap<std::pair<const MCSymbol *, unsigned>, const MCSymbolRefExpr *>
+  DenseMap<std::pair<std::pair<const MCSymbol *, unsigned>, unsigned>,
+           const MCSymbolRefExpr *>
       CachedSymbolEntries;
 
 public:

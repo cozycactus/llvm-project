@@ -10,7 +10,7 @@
 
 # ENCODING: mcall pc[.Ltmp{{[0-9]+}}] # encoding: [0xf0{{.*}},0x1f{{.*}},A,A]
 # ENCODING-NEXT: #   fixup {{.*}} - offset: 0, value: .Ltmp{{[0-9]+}}, kind: fixup_16w_pcrel
-# ENCODING: .long CPENT(callee)
+# ENCODING: .long callee
 
 # RELOC: Relocations [
 # RELOC: Section {{.*}} .rela.text {

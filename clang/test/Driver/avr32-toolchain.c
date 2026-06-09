@@ -56,6 +56,28 @@
 // RELAX-CC1-NOT: warning: argument unused
 // RELAX-CC1: "-target-feature" "+relax"
 
+// RUN: %clang -### --target=avr32 -mpart=uc3a3256 -mno-pic \
+// RUN:   -c %s 2>&1 | FileCheck --check-prefix=NO-PIC %s
+// NO-PIC-NOT: unknown argument
+// NO-PIC-NOT: warning: argument unused
+// NO-PIC: "-cc1"
+
+// RUN: %clang -### --target=avr32 -fno-integrated-as \
+// RUN:   -march=ap -mpart=uc3a3256 -mrelax -mno-pic -Wa,-gdwarf-2 \
+// RUN:   -c %s 2>&1 | FileCheck --check-prefix=EXT-AS %s
+// EXT-AS: "{{.*}}avr32-as"
+// EXT-AS-SAME: "-march=ap"
+// EXT-AS-SAME: "-mpart=uc3a3256"
+// EXT-AS-SAME: "--linkrelax"
+// EXT-AS-SAME: "--no-pic"
+// EXT-AS-SAME: "-gdwarf-2"
+
+// RUN: %clang -### --target=avr32 -fno-integrated-as \
+// RUN:   -march=ap -mpart=uc3a3256 -Os -c %s 2>&1 \
+// RUN:   | FileCheck --check-prefix=EXT-AS-OPT-RELAX %s
+// EXT-AS-OPT-RELAX: "{{.*}}avr32-as"
+// EXT-AS-OPT-RELAX-SAME: "--linkrelax"
+
 // RUN: %clang -### --target=avr32 -mpart=uc3a3256 -O2 \
 // RUN:   -c %s 2>&1 | FileCheck --check-prefix=OPT-RELAX-CC1 %s
 // OPT-RELAX-CC1: "-target-feature" "+relax"

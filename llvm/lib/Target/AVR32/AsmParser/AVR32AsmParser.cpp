@@ -589,6 +589,8 @@ private:
   bool parseRegisterOperand(OperandVector &Operands);
   bool parseImmediateOperand(OperandVector &Operands);
   bool parseRegisterCommaRegister(OperandVector &Operands);
+  bool parseRegisterCommaRegisterOptionalCommaRegister(
+      OperandVector &Operands);
   bool parseRegisterCommaRegisterCommaRegister(OperandVector &Operands);
   bool parseRegisterCommaRegisterCommaRegisterCommaRegister(
       OperandVector &Operands);
@@ -837,7 +839,13 @@ bool AVR32AsmParser::parseInstruction(ParseInstructionInfo &Info,
                                       OperandVector &Operands) {
   Operands.push_back(AVR32Operand::createToken(Name, NameLoc));
 
-  if (Name == "adc" || Name == "addabs" ||
+  if (Name == "add" || Name == "and" || Name == "eor" || Name == "or") {
+    if (parseRegisterCommaRegisterOptionalCommaRegister(Operands))
+      return true;
+  } else if (Name == "asr" || Name == "lsl" || Name == "lsr") {
+    if (parseRegisterCommaRegisterCommaRegisterOrImmediate(Operands))
+      return true;
+  } else if (Name == "adc" || Name == "addabs" ||
       Name == "addal" || Name == "addcc" || Name == "addcs" ||
       Name == "addeq" || Name == "addge" || Name == "addgt" ||
       Name == "addhi" || Name == "addhs" || Name == "addle" ||
@@ -850,7 +858,6 @@ bool AVR32AsmParser::parseInstruction(ParseInstructionInfo &Info,
       Name == "andlo" || Name == "andls" || Name == "andlt" ||
       Name == "andmi" || Name == "andne" || Name == "andpl" ||
       Name == "andqs" || Name == "andvc" || Name == "andvs" ||
-      Name == "asr" ||
       Name == "divs" || Name == "divu" ||
       Name == "eoral" || Name == "eorcc" || Name == "eorcs" ||
       Name == "eoreq" || Name == "eorge" || Name == "eorgt" ||
@@ -860,8 +867,7 @@ bool AVR32AsmParser::parseInstruction(ParseInstructionInfo &Info,
       Name == "eorqs" || Name == "eorvc" || Name == "eorvs" ||
       Name == "fadd.s" || Name == "fmul.s" || Name == "fnmul.s" ||
       Name == "fsub.s" ||
-      Name == "lsl" ||
-      Name == "lsr" || Name == "mac" || Name == "macs.d" ||
+      Name == "mac" || Name == "macs.d" ||
       Name == "macu.d" || Name == "max" || Name == "min" ||
       Name == "oral" || Name == "orcc" || Name == "orcs" ||
       Name == "oreq" || Name == "orge" || Name == "orgt" ||
@@ -1699,6 +1705,15 @@ bool AVR32AsmParser::parseRegisterCommaRegister(OperandVector &Operands) {
     return Error(getLexer().getLoc(), "expected comma");
   if (parseRegisterOperand(Operands))
     return true;
+  return false;
+}
+
+bool AVR32AsmParser::parseRegisterCommaRegisterOptionalCommaRegister(
+    OperandVector &Operands) {
+  if (parseRegisterCommaRegister(Operands))
+    return true;
+  if (parseOptionalToken(AsmToken::Comma))
+    return parseRegisterOperand(Operands);
   return false;
 }
 

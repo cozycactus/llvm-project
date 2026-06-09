@@ -10,6 +10,7 @@
 #include "AVR32InstrInfo.h"
 #include "AVR32Subtarget.h"
 #include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/CodeGen/MachineFunctionPass.h"
@@ -66,6 +67,8 @@ private:
                          const TargetRegisterInfo &TRI);
   bool foldRedundantCastBeforeCompare(MachineInstr &MI,
                                       const TargetRegisterInfo &TRI);
+  bool repairCompareBranchFlagClobbers(MachineFunction &MF,
+                                       const TargetRegisterInfo &TRI);
   bool foldNearBranches(MachineFunction &MF, const TargetInstrInfo &TII);
   bool foldPredicatedStores(MachineFunction &MF, const TargetInstrInfo &TII);
 };
@@ -115,7 +118,9 @@ prevNonDebug(MachineBasicBlock::iterator I) {
 }
 
 static StringRef getDirectCallTargetName(const MachineInstr &MI) {
-  if (MI.getOpcode() != AVR32::RCALLeCG || MI.getNumOperands() == 0)
+  if ((MI.getOpcode() != AVR32::RCALLeCG &&
+       MI.getOpcode() != AVR32::CALLp) ||
+      MI.getNumOperands() == 0)
     return StringRef();
 
   const MachineOperand &Target = MI.getOperand(0);
@@ -321,8 +326,10 @@ static std::optional<unsigned> getBitSetIndex(unsigned Opcode, int64_t Imm) {
   case AVR32::ORrr:
     return getSingleSetBit(Value);
   case AVR32::ORLri:
+  case AVR32::ORLcg:
     return getSingleSetBit(Value & 0xffff);
   case AVR32::ORHri:
+  case AVR32::ORHcg:
     if (std::optional<unsigned> Bit = getSingleSetBit(Value & 0xffff))
       return *Bit + 16;
     return std::nullopt;
@@ -337,8 +344,10 @@ static std::optional<unsigned> getBitClearIndex(unsigned Opcode, int64_t Imm) {
   case AVR32::ANDrr:
     return getSingleSetBit(~Value);
   case AVR32::ANDLri:
+  case AVR32::ANDLcg:
     return getSingleSetBit((~Value) & 0xffff);
   case AVR32::ANDHri:
+  case AVR32::ANDHcg:
     if (std::optional<unsigned> Bit = getSingleSetBit((~Value) & 0xffff))
       return *Bit + 16;
     return std::nullopt;
@@ -523,6 +532,38 @@ static bool fitsPredicatedStoreDisp(unsigned StoreOpcode, int64_t Disp) {
   }
 }
 
+static bool isConditionalBranchOpcode(unsigned Opcode) {
+  return getStoreConditionForSkippedBranch(Opcode).has_value();
+}
+
+static bool isMovableAcrossCompare(const MachineInstr &MI,
+                                   const TargetRegisterInfo &TRI) {
+  if (MI.isDebugInstr())
+    return true;
+  if (MI.isTerminator() || MI.isBranch() || MI.isCall() || MI.isReturn() ||
+      MI.isInlineAsm())
+    return false;
+  if (MI.mayLoad() || MI.mayStore() || MI.hasUnmodeledSideEffects())
+    return false;
+  return !MI.readsRegister(AVR32::SREG, &TRI);
+}
+
+static bool definesAnyCompareInput(const MachineInstr &MI,
+                                   const MachineInstr &Cmp,
+                                   const TargetRegisterInfo &TRI) {
+  for (const MachineOperand &Def : MI.operands()) {
+    if (!Def.isReg() || !Def.isDef() || !Def.getReg().isValid())
+      continue;
+    for (const MachineOperand &Use : Cmp.operands()) {
+      if (!Use.isReg() || !Use.isUse() || !Use.getReg().isValid())
+        continue;
+      if (TRI.regsOverlap(Def.getReg(), Use.getReg()))
+        return true;
+    }
+  }
+  return false;
+}
+
 static std::optional<unsigned> getPredicatedStoreOpcode(unsigned StoreOpcode,
                                                         AVR32Cond Cond) {
   switch (StoreOpcode) {
@@ -703,15 +744,27 @@ bool AVR32Peephole::foldBitImmediate(MachineInstr &MI,
   std::optional<unsigned> Bit;
   unsigned CompactOpc = 0;
   if (Opcode == AVR32::ORLri || Opcode == AVR32::ORHri ||
-      Opcode == AVR32::ANDLri || Opcode == AVR32::ANDHri) {
-    if (MI.getNumOperands() != 2 || !isRegOperand(MI.getOperand(0)) ||
-        !MI.getOperand(1).isImm())
+      Opcode == AVR32::ANDLri || Opcode == AVR32::ANDHri ||
+      Opcode == AVR32::ORLcg || Opcode == AVR32::ORHcg ||
+      Opcode == AVR32::ANDLcg || Opcode == AVR32::ANDHcg) {
+    bool IsCodeGenOnly = MI.getNumOperands() == 3;
+    if ((!IsCodeGenOnly && MI.getNumOperands() != 2) ||
+        !isRegOperand(MI.getOperand(0)))
       return false;
 
-    Bit = getBitSetIndex(Opcode, MI.getOperand(1).getImm());
+    if (IsCodeGenOnly &&
+        (!isRegOperand(MI.getOperand(1)) ||
+         MI.getOperand(0).getReg() != MI.getOperand(1).getReg()))
+      return false;
+
+    const MachineOperand &ImmOp = MI.getOperand(IsCodeGenOnly ? 2 : 1);
+    if (!ImmOp.isImm())
+      return false;
+
+    Bit = getBitSetIndex(Opcode, ImmOp.getImm());
     CompactOpc = AVR32::SBRri;
     if (!Bit) {
-      Bit = getBitClearIndex(Opcode, MI.getOperand(1).getImm());
+      Bit = getBitClearIndex(Opcode, ImmOp.getImm());
       CompactOpc = AVR32::CBRri;
     }
     if (!Bit)
@@ -1528,6 +1581,63 @@ bool AVR32Peephole::foldSPStoreDisp(MachineInstr &MI,
   return true;
 }
 
+bool AVR32Peephole::repairCompareBranchFlagClobbers(
+    MachineFunction &MF, const TargetRegisterInfo &TRI) {
+  bool Changed = false;
+
+  for (MachineBasicBlock &MBB : MF) {
+    for (MachineBasicBlock::iterator Branch = MBB.begin(), E = MBB.end();
+         Branch != E; ++Branch) {
+      if (!isConditionalBranchOpcode(Branch->getOpcode()))
+        continue;
+
+      MachineBasicBlock::iterator Scan = Branch;
+      bool HasFlagClobber = false;
+      while (Scan != MBB.begin()) {
+        MachineBasicBlock::iterator Prev = std::prev(Scan);
+        if (Prev->isDebugInstr()) {
+          Scan = Prev;
+          continue;
+        }
+
+        if (isCompareOpcode(Prev->getOpcode())) {
+          if (!HasFlagClobber)
+            break;
+
+          MachineBasicBlock::iterator WindowBegin = std::next(Prev);
+          bool CanMoveWindow = true;
+          for (MachineBasicBlock::iterator It = WindowBegin; It != Branch;
+               ++It) {
+            if (!isMovableAcrossCompare(*It, TRI) ||
+                definesAnyCompareInput(*It, *Prev, TRI)) {
+              CanMoveWindow = false;
+              break;
+            }
+          }
+          if (!CanMoveWindow)
+            break;
+
+          Prev->clearKillInfo();
+          for (MachineBasicBlock::iterator It = WindowBegin; It != Branch;
+               ++It)
+            It->clearKillInfo();
+          MBB.splice(Prev, &MBB, WindowBegin, Branch);
+          Changed = true;
+          break;
+        }
+
+        if (!isMovableAcrossCompare(*Prev, TRI))
+          break;
+        if (Prev->modifiesRegister(AVR32::SREG, &TRI))
+          HasFlagClobber = true;
+        Scan = Prev;
+      }
+    }
+  }
+
+  return Changed;
+}
+
 bool AVR32Peephole::foldSignedImmediate(MachineInstr &MI, unsigned CompactOpc,
                                         unsigned Bits, bool HasDef,
                                         const TargetInstrInfo &TII) {
@@ -1580,6 +1690,8 @@ bool AVR32Peephole::runOnMachineFunction(MachineFunction &MF) {
           break;
         case AVR32::ANDLri:
         case AVR32::ANDHri:
+        case AVR32::ANDLcg:
+        case AVR32::ANDHcg:
           LocalChanged |= foldBitImmediate(MI, TII);
           break;
         case AVR32::EORALrrr:
@@ -1615,6 +1727,8 @@ bool AVR32Peephole::runOnMachineFunction(MachineFunction &MF) {
           break;
         case AVR32::ORLri:
         case AVR32::ORHri:
+        case AVR32::ORLcg:
+        case AVR32::ORHcg:
           LocalChanged |= foldBitImmediate(MI, TII);
           break;
         case AVR32::CP_Wri21:
@@ -1673,10 +1787,10 @@ bool AVR32Peephole::runOnMachineFunction(MachineFunction &MF) {
     Changed |= LocalChanged;
   } while (LocalChanged);
 
-  while (foldNearBranches(MF, TII))
+  if (repairCompareBranchFlagClobbers(MF, TRI))
     Changed = true;
 
-  while (foldPredicatedStores(MF, TII))
+  while (foldNearBranches(MF, TII))
     Changed = true;
 
   return Changed;

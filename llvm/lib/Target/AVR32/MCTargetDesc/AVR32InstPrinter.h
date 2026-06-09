@@ -35,6 +35,8 @@ public:
 
 private:
   void printOperand(const MCInst *MI, unsigned OpNo, raw_ostream &OS);
+  void printGPRDivPairOperand(const MCInst *MI, unsigned OpNo,
+                              raw_ostream &OS);
   void printHalfPart(const MCInst *MI, unsigned OpNo, raw_ostream &OS);
   void printBytePart(const MCInst *MI, unsigned OpNo, raw_ostream &OS);
   void printRegList16(const MCInst *MI, unsigned OpNo, raw_ostream &OS);

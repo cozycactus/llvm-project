@@ -45,6 +45,9 @@ public:
     if (selectJumpTableAddress(Node))
       return;
 
+    if (selectBlockAddress(Node))
+      return;
+
     if (selectConstant(Node))
       return;
 
@@ -102,6 +105,28 @@ public:
     Base = Addr;
     Disp = CurDAG->getTargetConstant(0, DL, MVT::i32);
     return true;
+  }
+
+  bool SelectInlineAsmMemoryOperand(
+      const SDValue &Op, InlineAsm::ConstraintCode ConstraintID,
+      std::vector<SDValue> &OutOps) override {
+    switch (ConstraintID) {
+    default:
+      return true;
+    case InlineAsm::ConstraintCode::m:
+    case InlineAsm::ConstraintCode::o:
+    case InlineAsm::ConstraintCode::Q:
+      break;
+    }
+
+    SDValue Base;
+    SDValue Disp;
+    if (!selectBaseDispAddress(Op, Base, Disp))
+      return true;
+
+    OutOps.push_back(Base);
+    OutOps.push_back(Disp);
+    return false;
   }
 
   unsigned getLoadOpcode(EVT MemVT, ISD::LoadExtType ExtType) const {
@@ -388,18 +413,17 @@ public:
 
     uint32_t Hi = Bits >> 16;
     uint32_t Lo = Bits & 0xffff;
-    SDValue HiImm = CurDAG->getTargetConstant(Hi, DL, MVT::i32);
-    SDValue HiReg =
-        SDValue(CurDAG->getMachineNode(AVR32::MOVHri, DL, MVT::i32, HiImm), 0);
-
-    if (Lo == 0)
-      return HiReg;
-
     SDValue LoImm = CurDAG->getTargetConstant(Lo, DL, MVT::i32);
     SDValue LoReg =
         SDValue(CurDAG->getMachineNode(AVR32::MOVri21, DL, MVT::i32, LoImm), 0);
-    return SDValue(
-        CurDAG->getMachineNode(AVR32::ORALrrr, DL, MVT::i32, HiReg, LoReg), 0);
+
+    if (Hi == 0)
+      return LoReg;
+
+    SDValue HiImm = CurDAG->getTargetConstant(Hi, DL, MVT::i32);
+    return SDValue(CurDAG->getMachineNode(AVR32::ORHcg, DL, MVT::i32, LoReg,
+                                          HiImm),
+                   0);
   }
 
   bool selectGlobalAddress(SDNode *Node) {
@@ -419,9 +443,20 @@ public:
     if (Offset == std::numeric_limits<int64_t>::min())
       Offset = GA->getOffset();
 
-    SDValue Sym = CurDAG->getTargetGlobalAddress(GA->getGlobal(), DL, MVT::i32,
-                                                  Offset);
-    return SDValue(CurDAG->getMachineNode(AVR32::LDA_W, DL, MVT::i32, Sym), 0);
+    bool SplitExternalOffset = Offset != 0 && GA->getGlobal()->isDeclaration();
+    SDValue Sym = CurDAG->getTargetGlobalAddress(
+        GA->getGlobal(), DL, MVT::i32, SplitExternalOffset ? 0 : Offset);
+    SDValue Addr =
+        SDValue(CurDAG->getMachineNode(AVR32::LDA_W, DL, MVT::i32, Sym), 0);
+
+    if (!SplitExternalOffset)
+      return Addr;
+
+    SDValue OffsetReg = materializeI32Constant(static_cast<uint32_t>(Offset),
+                                               DL);
+    return SDValue(CurDAG->getMachineNode(AVR32::ADDALrrr, DL, MVT::i32, Addr,
+                                          OffsetReg),
+                   0);
   }
 
   SDValue materializeJumpTableAddress(const JumpTableSDNode *JT,
@@ -429,6 +464,14 @@ public:
     SDValue Sym =
         CurDAG->getTargetJumpTable(JT->getIndex(), MVT::i32,
                                    JT->getTargetFlags());
+    return SDValue(CurDAG->getMachineNode(AVR32::LDA_W, DL, MVT::i32, Sym), 0);
+  }
+
+  SDValue materializeBlockAddress(const BlockAddressSDNode *BA,
+                                  const SDLoc &DL) {
+    SDValue Sym = CurDAG->getTargetBlockAddress(
+        BA->getBlockAddress(), MVT::i32, BA->getOffset(),
+        BA->getTargetFlags());
     return SDValue(CurDAG->getMachineNode(AVR32::LDA_W, DL, MVT::i32, Sym), 0);
   }
 
@@ -440,6 +483,18 @@ public:
     SDLoc DL(Node);
     SDValue Result = materializeJumpTableAddress(cast<JumpTableSDNode>(Node),
                                                  DL);
+    ReplaceNode(Node, Result.getNode());
+    return true;
+  }
+
+  bool selectBlockAddress(SDNode *Node) {
+    if (Node->getOpcode() != ISD::BlockAddress &&
+        Node->getOpcode() != ISD::TargetBlockAddress)
+      return false;
+
+    SDLoc DL(Node);
+    SDValue Result = materializeBlockAddress(cast<BlockAddressSDNode>(Node),
+                                             DL);
     ReplaceNode(Node, Result.getNode());
     return true;
   }

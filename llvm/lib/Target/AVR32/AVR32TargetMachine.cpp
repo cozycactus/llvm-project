@@ -8,6 +8,7 @@
 
 #include "AVR32TargetMachine.h"
 #include "AVR32.h"
+#include "AVR32MachineFunctionInfo.h"
 #include "AVR32TargetTransformInfo.h"
 #include "TargetInfo/AVR32TargetInfo.h"
 #include "llvm/Analysis/TargetTransformInfo.h"
@@ -25,7 +26,8 @@ AVR32TargetMachine::AVR32TargetMachine(
     const Target &T, const Triple &TT, StringRef CPU, StringRef FS,
     const TargetOptions &Options, std::optional<Reloc::Model> RM,
     std::optional<CodeModel::Model> CM, CodeGenOptLevel OL, bool JIT)
-    : CodeGenTargetMachineImpl(T, "E-m:e-p:32:32-i64:32-n32-S32", TT, CPU, FS,
+    : CodeGenTargetMachineImpl(T, "E-m:e-p:32:32-i64:32-f64:32-n32-S32", TT,
+                               CPU, FS,
                                Options, getEffectiveRelocModel(RM),
                                getEffectiveCodeModel(CM, CodeModel::Small), OL),
       TLOF(std::make_unique<TargetLoweringObjectFileELF>()),
@@ -57,6 +59,13 @@ TargetPassConfig *AVR32TargetMachine::createPassConfig(PassManagerBase &PM) {
 TargetTransformInfo
 AVR32TargetMachine::getTargetTransformInfo(const Function &F) const {
   return TargetTransformInfo(std::make_unique<AVR32TTIImpl>(this, F));
+}
+
+MachineFunctionInfo *AVR32TargetMachine::createMachineFunctionInfo(
+    BumpPtrAllocator &Allocator, const Function &F,
+    const TargetSubtargetInfo *STI) const {
+  return AVR32MachineFunctionInfo::create<AVR32MachineFunctionInfo>(Allocator,
+                                                                    F, STI);
 }
 
 bool AVR32PassConfig::addInstSelector() {

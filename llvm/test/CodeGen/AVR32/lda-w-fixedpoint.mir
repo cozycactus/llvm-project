@@ -5,8 +5,8 @@
 # assumed to be full size. The two later loads fit in compact form immediately;
 # after they shrink, the first load also becomes compact. This catches the
 # fixed-point pool planner instead of a single pre-shrink layout pass.
-# CHECK: 0x00000000 d4014fec
-# CHECK: 0x000001f0 483b484a d802
+# CHECK: 0x00000000 d4214fec
+# CHECK: 0x000001f0 483b484a d822
 
 --- |
   target triple = "avr32"

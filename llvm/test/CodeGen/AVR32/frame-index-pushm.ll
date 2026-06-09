@@ -3,10 +3,11 @@
 @sink = external global i32
 
 declare i32 @fill(ptr, i32)
+declare void @touch(ptr)
 
 define i32 @frame_index_after_pushm(i32 %x) {
 ; CHECK-LABEL: frame_index_after_pushm:
-; CHECK: pushm lr
+; CHECK: pushm r4-r7, lr
 ; CHECK-NEXT: sub sp, 12
 ; CHECK: sub r12, sp, 0
 ; CHECK-NOT: sub r12, sp, -4
@@ -23,12 +24,12 @@ entry:
 define i32 @stack_args_after_pushm(i32 %a, i32 %b, i32 %c, i32 %d,
                                    i32 %e, i32 %f, i32 %g, i32 %h) {
 ; CHECK-LABEL: stack_args_after_pushm:
-; CHECK: pushm r0-r3
+; CHECK: pushm r0-r3, r4-r7
 ; CHECK-NOT: lddsp {{r[0-9]+}}, sp[0]
-; CHECK: lddsp {{r[0-9]+}}, sp[16]
-; CHECK: lddsp {{r[0-9]+}}, sp[20]
-; CHECK: lddsp {{r[0-9]+}}, sp[24]
-; CHECK: popm r0-r3
+; CHECK: lddsp {{r[0-9]+}}, sp[40]
+; CHECK: lddsp {{r[0-9]+}}, sp[36]
+; CHECK: lddsp {{r[0-9]+}}, sp[32]
+; CHECK: popm r0-r3, r4-r7
 entry:
   call void asm sideeffect "", "~{r0},~{r1},~{r2},~{r3}"()
   %ab = add i32 %a, %b
@@ -41,4 +42,16 @@ entry:
   %twice_f = shl i32 %f, 1
   %sum = add i32 %with_h, %twice_f
   ret i32 %sum
+}
+
+define void @large_stack_frame() {
+; CHECK-LABEL: large_stack_frame:
+; CHECK: pushm r4-r7, lr
+; CHECK-NEXT: sub sp, 1200
+; CHECK: sub r12, sp, 0
+; CHECK: popm r4-r7, pc
+entry:
+  %local = alloca [300 x i32], align 4
+  call void @touch(ptr %local)
+  ret void
 }

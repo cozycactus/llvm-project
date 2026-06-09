@@ -84,7 +84,6 @@ void AVR32Subtarget::initLibcallLoweringInfo(
   Info.setLibcallImpl(RTLIB::OGT_F64, RTLIB::impl___gtdf2);
   Info.setLibcallImpl(RTLIB::UO_F64, RTLIB::impl___unorddf2);
 
-  Info.setLibcallImpl(RTLIB::MUL_I64, RTLIB::impl___avr32_mul64);
   Info.setLibcallImpl(RTLIB::SDIV_I64, RTLIB::impl___divdi3);
   Info.setLibcallImpl(RTLIB::UDIV_I64, RTLIB::impl___avr32_udiv64);
   Info.setLibcallImpl(RTLIB::SREM_I64, RTLIB::impl___moddi3);

@@ -1,0 +1,40 @@
+# RUN: llc -mtriple=avr32 -run-pass=avr32-peephole -o - %s | FileCheck %s
+
+--- |
+  target triple = "avr32"
+
+  define void @repair_flag_clobber() {
+    ret void
+  }
+...
+---
+name: repair_flag_clobber
+tracksRegLiveness: true
+liveins:
+  - { reg: '$r2' }
+  - { reg: '$r5' }
+  - { reg: '$r9' }
+  - { reg: '$r12' }
+body: |
+  bb.0:
+    successors: %bb.1, %bb.2
+    liveins: $r2, $r5, $r9, $r12
+
+    CPri21 $r9, 0, implicit-def $sreg
+    $r3 = ADDALrrr $r2, $r5, implicit-def $sreg
+    BREQbb %bb.1, implicit $sreg
+    RJMPbb %bb.2
+
+  bb.1:
+    liveins: $r12
+    RETR12 implicit $r12
+
+  bb.2:
+    liveins: $r12
+    RETR12 implicit $r12
+...
+
+# CHECK-LABEL: name: repair_flag_clobber
+# CHECK: $r3 = ADDALrrr $r2, $r5, implicit-def $sreg
+# CHECK-NEXT: CPri21 $r9, 0, implicit-def $sreg
+# CHECK-NEXT: BREQbb %bb.1, implicit $sreg

@@ -21,6 +21,7 @@ enum Fixups {
   fixup_7w_pcrel,
   fixup_16w_pcrel,
   fixup_16b_pcrel,
+  fixup_cpcall,
   fixup_21s,
   fixup_hi16,
   fixup_lo16,

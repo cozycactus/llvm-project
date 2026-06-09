@@ -5,7 +5,7 @@
 # compact lddpc encodings. A pool before bb.1 crosses the compact breq/rjmp,
 # but both branches still remain in range after inserting the pool, so the
 # splitter may place the pool there.
-# CHECK:      0x00000000 d401484c 484b485a 4859c0b0 cf680000
+# CHECK:      0x00000000 d421484c 484b485a 4859c0b0 cf680000
 # CHECK-NEXT: 0x00000010 00000000 00000000 00000000 00000000
 # CHECK-NEXT: 0x00000020 e0a00000
 
@@ -32,7 +32,7 @@ body: |
     $r11 = LDA_W @g1
     $r10 = LDA_W @g2
     $r9 = LDA_W @g3
-    BREQcbb %bb.1
+    BREQcbb %bb.1, implicit $sreg
     RJMPbb %bb.2
 
   bb.1:

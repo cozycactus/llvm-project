@@ -24,6 +24,7 @@ AVR32MCAsmInfo::AVR32MCAsmInfo(const MCTargetOptions &Options)
 
   CommentString = "#";
   DollarIsPC = true;
+  UsesELFSectionDirectiveForBSS = true;
   SupportsDebugInformation = true;
   ExceptionsType = ExceptionHandling::DwarfCFI;
 }
@@ -38,8 +39,8 @@ void AVR32MCAsmInfo::printSpecifierExpr(raw_ostream &OS,
     OS << "LO(";
     break;
   case ELF::R_AVR32_32_CPENT:
-    OS << "CPENT(";
-    break;
+    printExpr(OS, *Expr.getSubExpr());
+    return;
   default:
     llvm_unreachable("Unsupported AVR32 expression specifier");
   }

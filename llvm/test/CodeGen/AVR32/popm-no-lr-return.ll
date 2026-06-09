@@ -4,8 +4,8 @@
 
 define i32 @leaf_saves_regs_without_lr() minsize optsize {
 ; CHECK-LABEL: leaf_saves_regs_without_lr:
-; CHECK: pushm r0-r3
-; CHECK: popm r0-r3{{$}}
+; CHECK: pushm r4-r7
+; CHECK: popm r4-r7{{$}}
 ; CHECK-NEXT: ret r12
 entry:
   br label %loop

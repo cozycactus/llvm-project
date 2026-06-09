@@ -31,9 +31,11 @@ unsigned AVR32FrameLowering::getPushmMask(const MachineFunction &MF) {
   if (MRI.isPhysRegModified(AVR32::R0) || MRI.isPhysRegModified(AVR32::R1) ||
       MRI.isPhysRegModified(AVR32::R2) || MRI.isPhysRegModified(AVR32::R3))
     Mask |= 1 << 0;
+  bool HasFP = MF.getTarget().Options.DisableFramePointerElim(MF) ||
+               MFI.hasVarSizedObjects() || MFI.isFrameAddressTaken();
   if (MRI.isPhysRegModified(AVR32::R4) || MRI.isPhysRegModified(AVR32::R5) ||
       MRI.isPhysRegModified(AVR32::R6) || MRI.isPhysRegModified(AVR32::R7) ||
-      MFI.hasVarSizedObjects())
+      HasFP)
     Mask |= 1 << 1;
   if (IsInterrupt &&
       (MRI.isPhysRegModified(AVR32::R8) || MRI.isPhysRegModified(AVR32::R9)))
@@ -46,6 +48,17 @@ unsigned AVR32FrameLowering::getPushmMask(const MachineFunction &MF) {
     Mask |= 1 << 5;
   if (MFI.hasCalls())
     Mask |= 1 << 6;
+
+  // Match AVR32 GCC's single-instruction popm return shape for framed leaf
+  // functions too. Linux's early exception path relies on preserving the
+  // caller frame pointer across these returns.
+  if (HasFP && (Mask & (1 << 1)))
+    Mask |= 1 << 6;
+
+  // Keep call frames that only need LR in the same r4-r7,lr shape that AVR32
+  // GCC uses. Linux/QEMU exercises this return frame heavily during early boot.
+  if ((Mask & (1 << 6)) && !(Mask & ((1 << 0) | (1 << 1))))
+    Mask |= 1 << 1;
   return Mask;
 }
 
@@ -75,8 +88,26 @@ AVR32FrameLowering::AVR32FrameLowering(const AVR32Subtarget &STI)
     : TargetFrameLowering(TargetFrameLowering::StackGrowsDown, Align(4), 0,
                           Align(4)) {}
 
+static void emitSPAdjustment(MachineBasicBlock &MBB,
+                             MachineBasicBlock::iterator MBBI,
+                             const DebugLoc &DL, const AVR32InstrInfo &TII,
+                             int64_t Amount, MachineInstr::MIFlag Flag) {
+  if (Amount == 0)
+    return;
+  if (Amount % 4 != 0 || !isInt<21>(Amount))
+    report_fatal_error("AVR32 stack frame size is not supported yet");
+
+  unsigned Opc = Amount >= -512 && Amount <= 508 ? AVR32::SUBSPri8
+                                                  : AVR32::SUBri21;
+  BuildMI(MBB, MBBI, DL, TII.get(Opc), AVR32::SP)
+      .addImm(Amount)
+      .setMIFlag(Flag);
+}
+
 bool AVR32FrameLowering::hasFPImpl(const MachineFunction &MF) const {
-  return MF.getFrameInfo().hasVarSizedObjects();
+  const MachineFrameInfo &MFI = MF.getFrameInfo();
+  return MF.getTarget().Options.DisableFramePointerElim(MF) ||
+         MFI.hasVarSizedObjects() || MFI.isFrameAddressTaken();
 }
 
 void AVR32FrameLowering::emitPrologue(MachineFunction &MF,
@@ -86,9 +117,6 @@ void AVR32FrameLowering::emitPrologue(MachineFunction &MF,
   unsigned PushmMask = getPushmMask(MF);
   if (StackSize == 0 && !HasFP && PushmMask == 0)
     return;
-
-  if (StackSize % 4 != 0 || StackSize > 508)
-    report_fatal_error("AVR32 stack frame size is not supported yet");
 
   const AVR32InstrInfo &TII =
       *MF.getSubtarget<AVR32Subtarget>().getInstrInfo();
@@ -100,10 +128,8 @@ void AVR32FrameLowering::emitPrologue(MachineFunction &MF,
         .addImm(PushmMask)
         .setMIFlag(MachineInstr::FrameSetup);
 
-  if (StackSize != 0)
-    BuildMI(MBB, MBBI, DL, TII.get(AVR32::SUBSPri8), AVR32::SP)
-        .addImm(StackSize)
-        .setMIFlag(MachineInstr::FrameSetup);
+  emitSPAdjustment(MBB, MBBI, DL, TII, static_cast<int64_t>(StackSize),
+                   MachineInstr::FrameSetup);
 
   if (HasFP)
     BuildMI(MBB, MBBI, DL, TII.get(AVR32::MOVrr), AVR32::R7)
@@ -117,9 +143,6 @@ void AVR32FrameLowering::emitEpilogue(MachineFunction &MF,
   unsigned PushmMask = getPushmMask(MF);
   if (StackSize == 0 && !HasFP && PushmMask == 0)
     return;
-
-  if (StackSize % 4 != 0 || StackSize > 512)
-    report_fatal_error("AVR32 stack frame size is not supported yet");
 
   const AVR32InstrInfo &TII =
       *MF.getSubtarget<AVR32Subtarget>().getInstrInfo();
@@ -153,10 +176,8 @@ void AVR32FrameLowering::emitEpilogue(MachineFunction &MF,
     BuildMI(MBB, MBBI, DL, TII.get(AVR32::MOVrr), AVR32::SP)
         .addReg(AVR32::R7);
 
-  if (StackSize != 0)
-    BuildMI(MBB, MBBI, DL, TII.get(AVR32::SUBSPri8), AVR32::SP)
-        .addImm(-static_cast<int64_t>(StackSize))
-        .setMIFlag(MachineInstr::FrameDestroy);
+  emitSPAdjustment(MBB, MBBI, DL, TII, -static_cast<int64_t>(StackSize),
+                   MachineInstr::FrameDestroy);
 
   if (PushmMask != 0) {
     bool CanPopmReturn = PushmMask & (1 << 6);

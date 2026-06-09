@@ -17,13 +17,13 @@ target:
 # ENCODING-NEXT: #   fixup {{.*}} - offset: 0, value: .Ltmp{{[0-9]+}}, kind: fixup_7w_pcrel
 # ENCODING: lddpc r0, pc[.Ltmp{{[0-9]+}}] # encoding: [0x48{{.*}},{{.*}}]
 # ENCODING-NEXT: #   fixup {{.*}} - offset: 0, value: .Ltmp{{[0-9]+}}, kind: fixup_7w_pcrel
-# ENCODING: .long CPENT(target)
-# ENCODING: .long CPENT(value)
+# ENCODING: .long target
+# ENCODING: .long value
 
 # ASM: lddpc pc, pc[.Ltmp{{[0-9]+}}]
 # ASM: lddpc r0, pc[.Ltmp{{[0-9]+}}]
-# ASM: .long CPENT(target)
-# ASM: .long CPENT(value)
+# ASM: .long target
+# ASM: .long value
 
 # RELOC: Relocations [
 # RELOC: Section {{.*}} .rela.text {

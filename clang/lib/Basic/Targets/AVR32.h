@@ -26,7 +26,8 @@ public:
       : TargetInfo(Triple) {
     TLSSupported = false;
     WIntType = UnsignedInt;
-    resetDataLayout("E-m:e-p:32:32-i64:32-n32-S32");
+    LongLongAlign = DoubleAlign = LongDoubleAlign = SuitableAlign = 32;
+    resetDataLayout("E-m:e-p:32:32-i64:32-f64:32-n32-S32");
   }
 
   void getTargetDefines(const LangOptions &Opts,
@@ -38,6 +39,8 @@ public:
     return Feature == "avr32";
   }
 
+  bool allowsLargerPreferedTypeAlignment() const override { return false; }
+
   bool isValidCPUName(StringRef Name) const override;
   void fillValidCPUList(SmallVectorImpl<StringRef> &Values) const override;
   bool setCPU(const std::string &Name) override;
@@ -47,11 +50,31 @@ public:
 
   bool validateAsmConstraint(const char *&Name,
                              TargetInfo::ConstraintInfo &Info) const override {
-    if (*Name == 'r') {
+    switch (*Name) {
+    default:
+      return false;
+    case 'r':
       Info.setAllowsRegister();
       return true;
+    case 'K':
+      if (Name[1] == 's' && Name[2] == '2' && Name[3] == '1') {
+        Info.setRequiresImmediate(-1048576, 1048575);
+        Name += 3;
+        return true;
+      }
+      return false;
     }
-    return false;
+  }
+
+  std::string convertConstraint(const char *&Constraint) const override {
+    if (Constraint[0] == 'K' && Constraint[1] == 's' &&
+        Constraint[2] == '2' && Constraint[3] == '1') {
+      std::string Result = std::string("@4") + std::string(Constraint, 4);
+      Constraint += 3;
+      return Result;
+    }
+
+    return TargetInfo::convertConstraint(Constraint);
   }
 
   std::string_view getClobbers() const override { return ""; }

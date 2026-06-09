@@ -101,10 +101,11 @@ public:
       return static_cast<unsigned>(MO.getImm());
 
     assert(MO.isExpr() && "expected expression operand");
-    MCFixup Fixup = MCFixup::create(
-        0, MO.getExpr(), static_cast<MCFixupKind>(AVR32::fixup_16b_pcrel),
-        /*PCRel=*/true);
-    if (STI.hasFeature(AVR32::FeatureRelax))
+    auto Kind = static_cast<MCFixupKind>(
+        MI.getOpcode() == AVR32::MCALLcp ? AVR32::fixup_cpcall
+                                         : AVR32::fixup_16b_pcrel);
+    MCFixup Fixup = MCFixup::create(0, MO.getExpr(), Kind, /*PCRel=*/true);
+    if (STI.hasFeature(AVR32::FeatureRelax) && MI.getOpcode() == AVR32::MCALLcp)
       Fixup.setLinkerRelaxable();
     Fixups.push_back(Fixup);
     return 0;

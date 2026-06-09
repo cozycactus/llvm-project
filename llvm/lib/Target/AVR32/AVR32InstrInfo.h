@@ -57,6 +57,8 @@ public:
 
   bool reverseBranchCondition(SmallVectorImpl<MachineOperand> &Cond) const
       override;
+
+  bool shouldSink(const MachineInstr &MI) const override;
 };
 } // namespace llvm
 

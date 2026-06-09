@@ -218,6 +218,7 @@ void AVR32ToolChain::addClangTargetOptions(
   DriverArgs.ClaimAllArgs(options::OPT_mmcu_EQ);
   DriverArgs.ClaimAllArgs(options::OPT_masm_addr_pseudos);
   DriverArgs.ClaimAllArgs(options::OPT_mno_asm_addr_pseudos);
+  DriverArgs.ClaimAllArgs(options::OPT_mno_pic);
   DriverArgs.ClaimAllArgs(options::OPT_mrelax);
   DriverArgs.ClaimAllArgs(options::OPT_mno_relax);
   DriverArgs.ClaimAllArgs(options::OPT_rodata_writable);
@@ -232,6 +233,47 @@ void AVR32ToolChain::addClangTargetOptions(
 
 Tool *AVR32ToolChain::buildLinker() const {
   return new tools::AVR32::Linker(*this);
+}
+
+Tool *AVR32ToolChain::buildAssembler() const {
+  return new tools::AVR32::Assembler(*this);
+}
+
+void AVR32::Assembler::ConstructJob(Compilation &C, const JobAction &JA,
+                                    const InputInfo &Output,
+                                    const InputInfoList &Inputs,
+                                    const ArgList &Args,
+                                    const char *LinkingOutput) const {
+  claimNoWarnArgs(Args);
+
+  ArgStringList CmdArgs;
+
+  Args.AddLastArg(CmdArgs, options::OPT_march_EQ);
+  Args.AddLastArg(CmdArgs, options::OPT_mpart_EQ);
+
+  if (shouldEnableAVR32LinkRelax(getToolChain().getDriver(), Args))
+    CmdArgs.push_back("--linkrelax");
+  else if (Args.getLastArg(options::OPT_mno_relax))
+    CmdArgs.push_back("--no-linkrelax");
+
+  if (Args.hasArg(options::OPT_mno_pic))
+    CmdArgs.push_back("--no-pic");
+
+  Args.AddAllArgs(CmdArgs, options::OPT_I);
+  Args.AddAllArgValues(CmdArgs, options::OPT_Wa_COMMA,
+                       options::OPT_Xassembler);
+
+  CmdArgs.push_back("-o");
+  CmdArgs.push_back(Output.getFilename());
+
+  for (const auto &II : Inputs)
+    CmdArgs.push_back(II.getFilename());
+
+  const char *Exec =
+      Args.MakeArgString(getToolChain().GetProgramPath("avr32-as"));
+  C.addCommand(std::make_unique<Command>(
+      JA, *this, ResponseFileSupport::AtFileCurCP(), Exec, CmdArgs, Inputs,
+      Output));
 }
 
 void AVR32::Linker::ConstructJob(Compilation &C, const JobAction &JA,

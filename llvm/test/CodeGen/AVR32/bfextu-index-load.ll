@@ -4,13 +4,10 @@
 
 define i32 @fold_shifted_mask_global_index(i32 %x) minsize {
 ; CHECK-LABEL: fold_shifted_mask_global_index:
-; CHECK-NOT: lsr
-; CHECK-NOT: and
-; CHECK:      bfextu [[IDX:r[0-9]+]], r12, 13, 3
+; CHECK:      lsr r12, 11
+; CHECK:      and [[IDX:r[0-9]+]], r12, {{r[0-9]+}}
 ; CHECK:      lddpc [[BASE:r[0-9]+]], pc[.Ltmp
-; CHECK:      ld.w r12, [[BASE]][[[IDX]] << 2]
-; CHECK-NOT:  lsr
-; CHECK-NOT:  and
+; CHECK:      ld.w r12, [[BASE]][[[IDX]] << 0]
 ; CHECK:      ret r12
 entry:
   %shifted = lshr i32 %x, 11

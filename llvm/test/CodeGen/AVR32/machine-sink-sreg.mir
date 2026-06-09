@@ -1,0 +1,41 @@
+# RUN: llc -mtriple=avr32 -run-pass=machine-sink -o - %s | FileCheck %s
+
+--- |
+  target triple = "avr32"
+
+  define i32 @no_sink_sreg_defs(i32 %a) {
+    ret i32 0
+  }
+...
+---
+name: no_sink_sreg_defs
+tracksRegLiveness: true
+body: |
+  ; CHECK-LABEL: name: no_sink_sreg_defs
+  ; CHECK: bb.0:
+  ; CHECK: %val:gpr = MOVri21 1, implicit-def dead $sreg
+  ; CHECK: CPri21
+  ; CHECK: BREQbb
+  ; CHECK: bb.1:
+  ; CHECK-NOT: MOVri21 1
+  ; CHECK: $r12 = COPY %val
+
+  bb.0:
+    successors: %bb.1(0x40000000), %bb.2(0x40000000)
+    liveins: $r12
+
+    %in:gpr = COPY $r12
+    %val:gpr = MOVri21 1, implicit-def dead $sreg
+    CPri21 %in, 0, implicit-def $sreg
+    BREQbb %bb.1, implicit $sreg
+    BRALbb %bb.2
+
+  bb.1:
+    $r12 = COPY %val
+    RETALr $lr, implicit $r12
+
+  bb.2:
+    %zero:gpr = MOVri21 0, implicit-def dead $sreg
+    $r12 = COPY %zero
+    RETALr $lr, implicit $r12
+...

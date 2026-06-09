@@ -4,7 +4,7 @@ define i32 @dense_switch(i32 %x) {
 ; CHECK-LABEL: dense_switch:
 ; CHECK:       lddpc [[BASE:r[0-9]+]], pc[.Ltmp
 ; CHECK-NEXT:  ld.w pc, [[BASE]][r12 << 2]
-; CHECK:       .long CPENT(.LJTI
+; CHECK:       .long .LJTI
 ; CHECK:       .section .rodata
 ; CHECK:       .LJTI
 entry:

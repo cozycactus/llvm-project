@@ -5177,6 +5177,8 @@ def mguard_EQ : Joined<["-"], "mguard=">, Group<m_Group>,
 def mmcu_EQ : Joined<["-"], "mmcu=">, Group<m_Group>;
 def mpart_EQ : Joined<["-"], "mpart=">, Group<m_Group>,
   Flags<[TargetSpecific]>;
+def mno_pic : Flag<["-"], "mno-pic">, Group<m_Group>,
+  Flags<[TargetSpecific]>, Visibility<[ClangOption]>;
 def masm_addr_pseudos : Flag<["-"], "masm-addr-pseudos">, Group<m_Group>,
   Flags<[TargetSpecific]>, Visibility<[ClangOption]>;
 def mno_asm_addr_pseudos : Flag<["-"], "mno-asm-addr-pseudos">,

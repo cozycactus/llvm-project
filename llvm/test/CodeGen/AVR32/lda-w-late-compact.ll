@@ -11,13 +11,13 @@ declare void @side()
 define ptr @late_lda() {
 ; ASM-LABEL: late_lda:
 ; ASM:       lddpc r12, pc[.Ltmp0]
-; ASM:       lddpc r12, pc[.Ltmp1]
+; ASM:       lddpc r12, pc[.Ltmp3]
 ;
 ; The first materialized address is too far from the end-of-function literal
 ; pool and must remain a 32-bit lddpc. The late address is close enough to use
 ; a compact 16-bit lddpc.
-; HEX:       d401fefc {{[0-9a-f]+}}
-; HEX:       483c
+; HEX:       d421fefc {{[0-9a-f]+}}
+; HEX:       485c
 entry:
   call void @sink(ptr @g1)
   call void @side()

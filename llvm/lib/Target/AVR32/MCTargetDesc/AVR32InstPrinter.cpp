@@ -11,6 +11,7 @@
 #include "llvm/MC/MCAsmInfo.h"
 #include "llvm/MC/MCExpr.h"
 #include "llvm/MC/MCInst.h"
+#include "llvm/MC/MCRegisterInfo.h"
 #include "llvm/Support/ErrorHandling.h"
 
 using namespace llvm;
@@ -45,6 +46,14 @@ void AVR32InstPrinter::printOperand(const MCInst *MI, unsigned OpNo,
   }
   assert(Op.isExpr() && "unknown AVR32 operand kind");
   MAI.printExpr(OS, *Op.getExpr());
+}
+
+void AVR32InstPrinter::printGPRDivPairOperand(const MCInst *MI, unsigned OpNo,
+                                              raw_ostream &OS) {
+  const MCOperand &Op = MI->getOperand(OpNo);
+  assert(Op.isReg() && "division pair operand must be a register");
+  MCRegister Lo = MRI.getSubReg(Op.getReg(), sub_lo);
+  OS << getRegisterName(Lo ? Lo : Op.getReg());
 }
 
 void AVR32InstPrinter::printHalfPart(const MCInst *MI, unsigned OpNo,

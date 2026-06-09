@@ -38,8 +38,15 @@ void ConstantPool::emitEntries(MCStreamer &Streamer) {
 
 const MCExpr *ConstantPool::addEntry(const MCExpr *Value, MCContext &Context,
                                      unsigned Size, SMLoc Loc) {
-  const MCConstantExpr *C = dyn_cast<MCConstantExpr>(Value);
-  const MCSymbolRefExpr *S = dyn_cast<MCSymbolRefExpr>(Value);
+  const MCExpr *CacheValue = Value;
+  unsigned Specifier = 0;
+  if (const MCSpecifierExpr *SE = dyn_cast<MCSpecifierExpr>(Value)) {
+    CacheValue = SE->getSubExpr();
+    Specifier = SE->getSpecifier() + 1;
+  }
+
+  const MCConstantExpr *C = dyn_cast<MCConstantExpr>(CacheValue);
+  const MCSymbolRefExpr *S = dyn_cast<MCSymbolRefExpr>(CacheValue);
 
   // Check if there is existing entry for the same constant. If so, reuse it.
   if (C) {
@@ -50,8 +57,9 @@ const MCExpr *ConstantPool::addEntry(const MCExpr *Value, MCContext &Context,
 
   // Check if there is existing entry for the same symbol. If so, reuse it.
   if (S) {
-    auto SItr =
-        CachedSymbolEntries.find(std::make_pair(&(S->getSymbol()), Size));
+    auto Key = std::make_pair(std::make_pair(&(S->getSymbol()), Size),
+                              Specifier);
+    auto SItr = CachedSymbolEntries.find(Key);
     if (SItr != CachedSymbolEntries.end())
       return SItr->second;
   }
@@ -62,8 +70,11 @@ const MCExpr *ConstantPool::addEntry(const MCExpr *Value, MCContext &Context,
   const auto SymRef = MCSymbolRefExpr::create(CPEntryLabel, Context, Loc);
   if (C)
     CachedConstantEntries[std::make_pair(C->getValue(), Size)] = SymRef;
-  if (S)
-    CachedSymbolEntries[std::make_pair(&(S->getSymbol()), Size)] = SymRef;
+  if (S) {
+    auto Key = std::make_pair(std::make_pair(&(S->getSymbol()), Size),
+                              Specifier);
+    CachedSymbolEntries[Key] = SymRef;
+  }
   return SymRef;
 }
 

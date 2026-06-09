@@ -21,6 +21,9 @@ def SDT_AVR32SelectCC : SDTypeProfile<1, 5, [SDTCisVT<0, i32>,
                                              SDTCisSameAs<0, 3>,
                                              SDTCisSameAs<0, 4>,
                                              SDTCisVT<5, i32>]>;
+def SDT_AVR32DivRem : SDTypeProfile<1, 2, [SDTCisVT<0, untyped>,
+                                           SDTCisVT<1, i32>,
+                                           SDTCisVT<2, i32>]>;
 
 def AVR32call : SDNode<"AVR32ISD::CALL", SDT_AVR32Call,
                        [SDNPHasChain, SDNPOutGlue, SDNPOptInGlue,
@@ -42,6 +45,8 @@ def AVR32retflag : SDNode<"AVR32ISD::RET_FLAG", SDTNone,
                           [SDNPHasChain, SDNPOptInGlue, SDNPVariadic]>;
 def AVR32retintrflag : SDNode<"AVR32ISD::RET_INTR_FLAG", SDTNone,
                               [SDNPHasChain, SDNPOptInGlue, SDNPVariadic]>;
+def AVR32sdivrem : SDNode<"AVR32ISD::SDIVREM", SDT_AVR32DivRem>;
+def AVR32udivrem : SDNode<"AVR32ISD::UDIVREM", SDT_AVR32DivRem>;
 
 def AVR32_COND_EQ : PatLeaf<(i32 0)>;
 def AVR32_COND_NE : PatLeaf<(i32 1)>;
@@ -687,6 +692,8 @@ def incjospimm : Operand<i32>,
   let EncoderMethod = "getIncJOSPImmOpValue";
 }
 
+def GPRDivPairOp : RegisterOperand<GPRDivPair, "printGPRDivPairOperand">;
+
 def bfext_width : SDNodeXForm<imm, [{
   return CurDAG->getTargetConstant(N->getAPIntValue().popcount(), SDLoc(N),
                                    MVT::i32);
@@ -717,6 +724,8 @@ def NOP : AVR32Inst<0b1101011100000011, (outs), (ins), "nop">;
 class CompactRegReg<bits<5> Op, string Mnemonic>
     : AVR32Inst<0, (outs GPR:$Rd), (ins GPR:$Rs),
                 Mnemonic#"\t$Rd, $Rs"> {
+  let Defs = [SREG];
+
   bits<4> Rd;
   bits<4> Rs;
 
@@ -729,6 +738,8 @@ class CompactRegReg<bits<5> Op, string Mnemonic>
 class CompactRegRegNoOut<bits<5> Op, string Mnemonic>
     : AVR32Inst<0, (outs), (ins GPR:$Rd, GPR:$Rs),
                 Mnemonic#"\t$Rd, $Rs"> {
+  let Defs = [SREG];
+
   bits<4> Rd;
   bits<4> Rs;
 
@@ -1516,9 +1527,45 @@ class CompactRegImmNoOut<bits<6> Op, string Mnemonic>
   let Inst{3-0} = Rd;
 }
 
+class CompactRegUImm5Shift<bits<3> Op, string Mnemonic>
+    : AVR32Inst<0, (outs GPR:$Rd), (ins uimm5:$Sa),
+                Mnemonic#"\t$Rd, $Sa"> {
+  let Defs = [SREG];
+
+  bits<4> Rd;
+  bits<5> Sa;
+
+  let Inst{15-13} = 0b101;
+  let Inst{12} = Sa{4};
+  let Inst{11-9} = Sa{3-1};
+  let Inst{8} = 1;
+  let Inst{7-5} = Op;
+  let Inst{4} = Sa{0};
+  let Inst{3-0} = Rd;
+}
+
+class CompactRegUImm5ShiftCG<bits<3> Op, string Mnemonic>
+    : AVR32Inst<0, (outs GPR:$Rd), (ins GPR:$Old, uimm5:$Sa),
+                Mnemonic#"\t$Rd, $Sa"> {
+  let Defs = [SREG];
+
+  bits<4> Rd;
+  bits<5> Sa;
+
+  let Inst{15-13} = 0b101;
+  let Inst{12} = Sa{4};
+  let Inst{11-9} = Sa{3-1};
+  let Inst{8} = 1;
+  let Inst{7-5} = Op;
+  let Inst{4} = Sa{0};
+  let Inst{3-0} = Rd;
+}
+
 class CompactRegSImm8<bits<4> Prefix, string Mnemonic>
     : AVR32Inst<0, (outs GPRNoSP:$Rd), (ins simm8:$Imm),
                 Mnemonic#"\t$Rd, $Imm"> {
+  let Defs = [SREG];
+
   bits<4> Rd;
   bits<8> Imm;
 
@@ -1530,6 +1577,8 @@ class CompactRegSImm8<bits<4> Prefix, string Mnemonic>
 class CompactSPSubImm<string Mnemonic>
     : AVR32Inst<0, (outs SPOnly:$Rd), (ins subspimm:$Imm),
                 Mnemonic#"\t$Rd, $Imm"> {
+  let Defs = [SREG];
+
   bits<4> Rd;
   bits<8> Imm;
 
@@ -2743,6 +2792,8 @@ class FullRegUImm5NoOut<bits<12> Op, string Mnemonic>
 class FullRegRegReg<bits<12> Op, string Mnemonic>
     : AVR32Inst32<(outs GPR:$Rd), (ins GPR:$Rx, GPR:$Ry),
                   Mnemonic#"\t$Rd, $Rx, $Ry"> {
+  let Defs = [SREG];
+
   bits<4> Rd;
   bits<4> Rx;
   bits<4> Ry;
@@ -2753,6 +2804,23 @@ class FullRegRegReg<bits<12> Op, string Mnemonic>
   let Inst{19-16} = Ry;
   let Inst{15-4} = Op;
   let Inst{3-0} = Rd;
+}
+
+class FullRegRegRegDiv<bits<12> Op, string Mnemonic>
+    : AVR32Inst32<(outs GPRDivPairOp:$RdPair), (ins GPR:$Rx, GPR:$Ry),
+                  Mnemonic#"\t$RdPair, $Rx, $Ry"> {
+  let Defs = [SREG];
+
+  bits<4> RdPair;
+  bits<4> Rx;
+  bits<4> Ry;
+
+  let Inst{31-29} = 0b111;
+  let Inst{28-25} = Rx;
+  let Inst{24-20} = 0b00000;
+  let Inst{19-16} = Ry;
+  let Inst{15-4} = Op;
+  let Inst{3-0} = RdPair;
 }
 
 class FullFPURegRegReg<bits<4> Op, string Mnemonic>
@@ -2958,6 +3026,8 @@ class FullRegRegImm<bits<8> Op, string Mnemonic>
 class FullRegRegSImm16<bits<5> Op, string Mnemonic>
     : AVR32Inst32<(outs GPR:$Rd), (ins GPR:$Rs, simm16:$Imm),
                   Mnemonic#"\t$Rd, $Rs, $Imm"> {
+  let Defs = [SREG];
+
   bits<4> Rd;
   bits<4> Rs;
   bits<16> Imm;
@@ -2986,6 +3056,8 @@ class FullRegShiftBits<bits<12> Prefix, bits<6> Op, string Mnemonic>
 class FullRegImmNoOut<bits<4> Op, string Mnemonic>
     : AVR32Inst32<(outs), (ins GPR:$Rd, simm21:$Imm),
                   Mnemonic#"\t$Rd, $Imm"> {
+  let Defs = [SREG];
+
   bits<4> Rd;
   bits<21> Imm;
 
@@ -3000,6 +3072,8 @@ class FullRegImmNoOut<bits<4> Op, string Mnemonic>
 class FullRegImm<bits<4> Op, string Mnemonic>
     : AVR32Inst32<(outs GPR:$Rd), (ins simm21:$Imm),
                   Mnemonic#"\t$Rd, $Imm"> {
+  let Defs = [SREG];
+
   bits<4> Rd;
   bits<21> Imm;
 
@@ -3023,6 +3097,8 @@ class FullImm8NoOut<bits<16> Op, string Mnemonic>
 class FullRegUImm16<bits<12> Op, string Mnemonic>
     : AVR32Inst32<(outs GPR:$Rd), (ins uimm16:$Imm),
                   Mnemonic#"\t$Rd, $Imm"> {
+  let Defs = [SREG];
+
   bits<4> Rd;
   bits<16> Imm;
 
@@ -3034,6 +3110,8 @@ class FullRegUImm16<bits<12> Op, string Mnemonic>
 class FullRegUImm16CG<bits<12> Op, string Mnemonic>
     : AVR32Inst32<(outs GPR:$Rd), (ins GPR:$Old, uimm16:$Imm),
                   Mnemonic#"\t$Rd, $Imm"> {
+  let Defs = [SREG];
+
   bits<4> Rd;
   bits<16> Imm;
 
@@ -3045,6 +3123,8 @@ class FullRegUImm16CG<bits<12> Op, string Mnemonic>
 class FullRegUImm16Suffix<bits<12> Op, string Mnemonic, string Suffix>
     : AVR32Inst32<(outs GPR:$Rd), (ins uimm16:$Imm),
                   Mnemonic#"\t$Rd, $Imm"#Suffix> {
+  let Defs = [SREG];
+
   bits<4> Rd;
   bits<16> Imm;
 
@@ -3130,6 +3210,9 @@ class MovRR<bits<4> Cond, string Mnemonic>
 class MovRRCG<bits<4> Cond, string Mnemonic>
     : AVR32Inst32<(outs GPR:$Rd), (ins GPR:$Old, GPR:$Rs),
                   Mnemonic#"\t$Rd, $Rs"> {
+  let Uses = [SREG];
+  let Constraints = "$Old = $Rd";
+
   bits<4> Rd;
   bits<4> Rs;
 
@@ -3162,6 +3245,9 @@ class MovCondRI<bits<4> Cond, string Mnemonic>
 class MovCondRICG<bits<4> Cond, string Mnemonic>
     : AVR32Inst32<(outs GPR:$Rd), (ins GPR:$Old, simm8:$Imm),
                   Mnemonic#"\t$Rd, $Imm"> {
+  let Uses = [SREG];
+  let Constraints = "$Old = $Rd";
+
   bits<4> Rd;
   bits<8> Imm;
 
@@ -3182,6 +3268,8 @@ class CondRRR<bits<4> Cond, bits<4> Op, string Mnemonic,
               list<dag> Patterns = []>
     : AVR32Inst32<(outs GPR:$Rd), (ins GPR:$Rx, GPR:$Ry),
                   Mnemonic#"\t$Rd, $Rx, $Ry", Patterns> {
+  let Defs = [SREG];
+
   bits<4> Rd;
   bits<4> Rx;
   bits<4> Ry;
@@ -3223,7 +3311,7 @@ def ABSr : CompactReg<0b010111000100, "abs">;
 def ACRr : CompactReg<0b010111000000, "acr">;
 def ADDABSrrr : FullRegRegReg<0b000011100100, "addabs">;
 def ADDHH_W : FullRegRegHalfRegHalf<0b0000111000, "addhh.w">;
-def ADDALrrr : CondRRR<0b1111, 0b0000, "addal",
+def ADDALrrr : CondRRR<0b1111, 0b0000, "add",
                        [(set GPR:$Rd, (add GPR:$Rx, GPR:$Ry))]>;
 def ADDEQrrr : CondRRR<0b0000, 0b0000, "addeq">;
 def ADDNErrr : CondRRR<0b0001, 0b0000, "addne">;
@@ -3247,11 +3335,11 @@ def ANDHri : FullRegUImm16<0b111001000001, "andh">;
 def ANDHri_COH : FullRegUImm16Suffix<0b111001100001, "andh", ", coh">;
 def ANDLri : FullRegUImm16<0b111000000001, "andl">;
 def ANDLri_COH : FullRegUImm16Suffix<0b111000100001, "andl", ", coh">;
-let isCodeGenOnly = 1, Constraints = "$Rd = $Old" in {
+let isCodeGenOnly = 1, Constraints = "$Old = $Rd" in {
 def ANDHcg : FullRegUImm16CG<0b111001000001, "andh">;
 def ANDLcg : FullRegUImm16CG<0b111000000001, "andl">;
 }
-def ANDALrrr : CondRRR<0b1111, 0b0010, "andal",
+def ANDALrrr : CondRRR<0b1111, 0b0010, "and",
                        [(set GPR:$Rd, (and GPR:$Rx, GPR:$Ry))]>;
 def ANDEQrrr : CondRRR<0b0000, 0b0010, "andeq">;
 def ANDNErrr : CondRRR<0b0001, 0b0010, "andne">;
@@ -3272,6 +3360,7 @@ def ANDVCrrr : CondRRR<0b1101, 0b0010, "andvc">;
 def ANDQSrrr : CondRRR<0b1110, 0b0010, "andqs">;
 def ANDNrr : CompactRegReg<0b01000, "andn">;
 def ANDrr : CompactRegReg<0b00110, "and">;
+def ASRri : CompactRegUImm5Shift<0b010, "asr">;
 def ASRrrr : FullRegRegReg<0b000010000100, "asr">;
 def BFEXTS : FullRegRegBitField<0b101100, "bfexts">;
 def BFEXTU : FullRegRegBitField<0b110000, "bfextu">;
@@ -3334,7 +3423,7 @@ def BRQSe : FullBranch<0b1110, "brqs">;
 
 let isBranch = 1, isTerminator = 1, isBarrier = 1 in
 def BRALbb : FullBranchCG<0b1111, "bral">;
-let isBranch = 1, isTerminator = 1 in {
+let isBranch = 1, isTerminator = 1, Uses = [SREG] in {
 def BREQbb : FullBranchCG<0b0000, "breq">;
 def BRNEbb : FullBranchCG<0b0001, "brne">;
 def BRCCbb : FullBranchCG<0b0010, "brcc">;
@@ -3349,7 +3438,7 @@ def BRHIbb : FullBranchCG<0b1011, "brhi">;
 
 let isBranch = 1, isTerminator = 1, isBarrier = 1 in
 def RJMPbb : CompactRjmpCG<"rjmp">;
-let isBranch = 1, isTerminator = 1 in {
+let isBranch = 1, isTerminator = 1, Uses = [SREG] in {
 def BREQcbb : CompactBranchCG<0b000, "breq">;
 def BRNEcbb : CompactBranchCG<0b001, "brne">;
 def BRCCcbb : CompactBranchCG<0b010, "brcc">;
@@ -3366,7 +3455,7 @@ def CASTS_Br : CompactReg<0b010111000110, "casts.b">;
 def CASTS_Hr : CompactReg<0b010111001000, "casts.h">;
 def CASTU_Br : CompactReg<0b010111000101, "castu.b">;
 def CASTU_Hr : CompactReg<0b010111000111, "castu.h">;
-let isCodeGenOnly = 1, Constraints = "$Rd = $Old" in {
+let isCodeGenOnly = 1, Constraints = "$Old = $Rd" in {
 def CASTS_Bcg : AVR32Inst<0, (outs GPR:$Rd), (ins GPR:$Old),
                           "casts.b\t$Rd"> {
   bits<4> Rd;
@@ -3435,13 +3524,25 @@ def CSRFCZi : CompactImm<0b1101000, "csrfcz">;
 def CSRFi : CompactImm<0b1101010, "csrf">;
 def DIVSrrr : FullRegRegReg<0b000011000000, "divs">;
 def DIVUrrr : FullRegRegReg<0b000011010000, "divu">;
+let isCodeGenOnly = 1 in {
+def DIVSrrrQR : FullRegRegRegDiv<0b000011000000, "divs">,
+                Sched<[]> {
+  let Pattern = [(set GPRDivPairOp:$RdPair,
+                      (AVR32sdivrem GPR:$Rx, GPR:$Ry))];
+}
+def DIVUrrrQR : FullRegRegRegDiv<0b000011010000, "divu">,
+                Sched<[]> {
+  let Pattern = [(set GPRDivPairOp:$RdPair,
+                      (AVR32udivrem GPR:$Rx, GPR:$Ry))];
+}
+}
 def EORHri : FullRegUImm16<0b111011100001, "eorh">;
 def EORLri : FullRegUImm16<0b111011000001, "eorl">;
 let isCodeGenOnly = 1, Constraints = "$Rd = $Old" in {
 def EORHcg : FullRegUImm16CG<0b111011100001, "eorh">;
 def EORLcg : FullRegUImm16CG<0b111011000001, "eorl">;
 }
-def EORALrrr : CondRRR<0b1111, 0b0100, "eoral",
+def EORALrrr : CondRRR<0b1111, 0b0100, "eor",
                        [(set GPR:$Rd, (xor GPR:$Rx, GPR:$Ry))]>;
 def EOREQrrr : CondRRR<0b0000, 0b0100, "eoreq">;
 def EORNErrr : CondRRR<0b0001, 0b0100, "eorne">;
@@ -3508,16 +3609,20 @@ def PICOLDM_W_Low : PicoLoadMultipleLow<0b0000, 0, picoreglistlow,
                                         "picoldm.w\t$Rp, $Mask">;
 def PICOLDM_W_Low_UPD : PicoLoadMultipleLow<0b0000, 1, picoreglistlow,
                                             "picoldm.w\t${Rp}++, $Mask">;
+def LSLri : CompactRegUImm5Shift<0b011, "lsl">;
 def LSLrrr : FullRegRegReg<0b000010010100, "lsl">;
+def LSRri : CompactRegUImm5Shift<0b100, "lsr">;
 def LSRrrr : FullRegRegReg<0b000010100100, "lsr">;
 def MAXrrr : FullRegRegReg<0b000011000100, "max">;
+let isCall = 1, Defs = [LR], Size = 4 in
 def CALLp : AVR32Pseudo<(outs), (ins ldaexpr:$Disp), "call\t$Disp">;
 def MCALL : FullMemDisp16Shift2<0b111100000001, "mcall">;
 def MCALLcp : FullMemPCRel16Shift2<0b111100000001, "mcall">;
 def MINrrr : FullRegRegReg<0b000011010100, "min">;
 def MFDRi : FullRegDebugReg<0b111001011011, "mfdr">;
 def MFSRi : FullRegSysReg<0b111000011011, "mfsr">;
-def MOVALri : MovCondRI<0b1111, "moval">;
+let isCodeGenOnly = 1 in
+def MOVALri : MovCondRI<0b1111, "mov">;
 def MOVEQri : MovCondRI<0b0000, "moveq">;
 def MOVNEri : MovCondRI<0b0001, "movne">;
 def MOVCCri : MovCondRI<0b0010, "movcc">;
@@ -3547,7 +3652,8 @@ def MOVGTriCG : MovCondRICG<0b1001, "movgt">;
 def MOVLEriCG : MovCondRICG<0b1010, "movle">;
 def MOVHIriCG : MovCondRICG<0b1011, "movhi">;
 }
-def MOVALrr : MovRR<0b1111, "moval">;
+let isCodeGenOnly = 1 in
+def MOVALrr : MovRR<0b1111, "mov">;
 def MOVEQrr : MovRR<0b0000, "moveq">;
 def MOVNErr : MovRR<0b0001, "movne">;
 def MOVCCrr : MovRR<0b0010, "movcc">;
@@ -3622,7 +3728,7 @@ let isCodeGenOnly = 1, Constraints = "$Rd = $Old" in {
 def ORHcg : FullRegUImm16CG<0b111010100001, "orh">;
 def ORLcg : FullRegUImm16CG<0b111010000001, "orl">;
 }
-def ORALrrr : CondRRR<0b1111, 0b0011, "oral",
+def ORALrrr : CondRRR<0b1111, 0b0011, "or",
                       [(set GPR:$Rd, (or GPR:$Rx, GPR:$Ry))]>;
 def OREQrrr : CondRRR<0b0000, 0b0011, "oreq">;
 def ORNErrr : CondRRR<0b0001, 0b0011, "orne">;
@@ -3757,7 +3863,7 @@ def ADJCALLSTACKUP : AVR32Inst<0, (outs), (ins i32imm:$amt1, i32imm:$amt2),
 
 def ROLr : CompactReg<0b010111001111, "rol">;
 def RORr : CompactReg<0b010111010000, "ror">;
-def RSUBALri : CondRegImm8<0b111110111011, 0b1111, "rsubal">;
+def RSUBALri : CondRegImm8<0b111110111011, 0b1111, "rsub">;
 def RSUBEQri : CondRegImm8<0b111110111011, 0b0000, "rsubeq">;
 def RSUBNEri : CondRegImm8<0b111110111011, 0b0001, "rsubne">;
 def RSUBCCri : CondRegImm8<0b111110111011, 0b0010, "rsubcc">;
@@ -3932,7 +4038,7 @@ def PICOSTM_W_Low : PicoStoreMultipleLow<0b0010, 0, picoreglistlow,
                                          "picostm.w\t$Rp, $Mask">;
 def PICOSTM_W_Low_PRE : PicoStoreMultipleLow<0b0010, 1, picoreglistlow,
                                              "picostm.w\t--$Rp, $Mask">;
-def SUBALrrr : CondRRR<0b1111, 0b0001, "subal",
+def SUBALrrr : CondRRR<0b1111, 0b0001, "sub",
                        [(set GPR:$Rd, (sub GPR:$Rx, GPR:$Ry))]>;
 def SUBEQrrr : CondRRR<0b0000, 0b0001, "subeq">;
 def SUBNErrr : CondRRR<0b0001, 0b0001, "subne">;
@@ -3951,7 +4057,7 @@ def SUBHIrrr : CondRRR<0b1011, 0b0001, "subhi">;
 def SUBVSrrr : CondRRR<0b1100, 0b0001, "subvs">;
 def SUBVCrrr : CondRRR<0b1101, 0b0001, "subvc">;
 def SUBQSrrr : CondRRR<0b1110, 0b0001, "subqs">;
-def SUBALri : SubCondRI<0b1111, "subal">;
+def SUBALri : SubCondRI<0b1111, "sub">;
 def SUBEQri : SubCondRI<0b0000, "subeq">;
 def SUBNEri : SubCondRI<0b0001, "subne">;
 def SUBCCri : SubCondRI<0b0010, "subcc">;
@@ -4006,6 +4112,12 @@ let hasSideEffects = 1 in
 def TSTrr : CompactRegRegNoOut<0b00111, "tst">;
 def XCHGrrr : FullRegRegReg<0b000010110100, "xchg">;
 
+let isCodeGenOnly = 1, Constraints = "$Rd = $Old" in {
+def ASRricg : CompactRegUImm5ShiftCG<0b010, "asr">;
+def LSLricg : CompactRegUImm5ShiftCG<0b011, "lsl">;
+def LSRricg : CompactRegUImm5ShiftCG<0b100, "lsr">;
+}
+
 let usesCustomInserter = 1, isCodeGenOnly = 1 in
 def SETCCrr : AVR32Inst<0, (outs GPR:$Rd),
                         (ins GPR:$LHS, GPR:$RHS, i32imm:$Cond),
@@ -4026,13 +4138,16 @@ let isCodeGenOnly = 1 in
 def FIADDR : AVR32Inst<0, (outs GPR:$Rd), (ins i32imm:$Frame, simm16:$Disp),
                        "# FIADDR">;
 
-def : Pat<(AVR32call (i32 tglobaladdr:$dst)), (RCALLeCG tglobaladdr:$dst)>;
+def : Pat<(AVR32call (i32 tglobaladdr:$dst)), (CALLp tglobaladdr:$dst)>;
 def : Pat<(AVR32call (i32 texternalsym:$dst)),
-          (RCALLeCG texternalsym:$dst)>;
+          (CALLp texternalsym:$dst)>;
 def : Pat<(AVR32call GPR:$dst), (ICALLr GPR:$dst)>;
 
 def : Pat<(br bb:$dst), (BRALbb bb:$dst)>;
 
+def : Pat<(shl GPR:$LHS, uimm5:$RHS), (LSLricg GPR:$LHS, uimm5:$RHS)>;
+def : Pat<(srl GPR:$LHS, uimm5:$RHS), (LSRricg GPR:$LHS, uimm5:$RHS)>;
+def : Pat<(sra GPR:$LHS, uimm5:$RHS), (ASRricg GPR:$LHS, uimm5:$RHS)>;
 def : Pat<(shl GPR:$LHS, GPR:$RHS), (LSLrrr GPR:$LHS, GPR:$RHS)>;
 def : Pat<(srl GPR:$LHS, GPR:$RHS), (LSRrrr GPR:$LHS, GPR:$RHS)>;
 def : Pat<(sra GPR:$LHS, GPR:$RHS), (ASRrrr GPR:$LHS, GPR:$RHS)>;
@@ -4043,8 +4158,6 @@ def : Pat<(ctlz_zero_undef GPR:$Src), (CLZrr GPR:$Src)>;
 def : Pat<(cttz GPR:$Src), (CLZrr (BREVcg GPR:$Src))>;
 def : Pat<(cttz_zero_undef GPR:$Src), (CLZrr (BREVcg GPR:$Src))>;
 def : Pat<(mul GPR:$LHS, GPR:$RHS), (MULrrr GPR:$LHS, GPR:$RHS)>;
-def : Pat<(sdiv GPR:$LHS, GPR:$RHS), (DIVSrrr GPR:$LHS, GPR:$RHS)>;
-def : Pat<(udiv GPR:$LHS, GPR:$RHS), (DIVUrrr GPR:$LHS, GPR:$RHS)>;
 def : Pat<(sext_inreg GPR:$Src, i8),
           (CASTS_Bcg GPR:$Src)>;
 def : Pat<(sext_inreg GPR:$Src, i16),
