@@ -105,7 +105,9 @@ public:
         MI.getOpcode() == AVR32::MCALLcp ? AVR32::fixup_cpcall
                                          : AVR32::fixup_16b_pcrel);
     MCFixup Fixup = MCFixup::create(0, MO.getExpr(), Kind, /*PCRel=*/true);
-    if (STI.hasFeature(AVR32::FeatureRelax) && MI.getOpcode() == AVR32::MCALLcp)
+    if (STI.hasFeature(AVR32::FeatureRelax) &&
+        (MI.getOpcode() == AVR32::MCALLcp ||
+         MI.getOpcode() == AVR32::LDDPC_PCREL16))
       Fixup.setLinkerRelaxable();
     Fixups.push_back(Fixup);
     return 0;
