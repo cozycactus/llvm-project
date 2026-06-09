@@ -516,6 +516,7 @@ RelExpr AVR32::getRelExpr(RelType type, const Symbol &s,
   case R_AVR32_18W_PCREL:
   case R_AVR32_22H_PCREL:
   case R_AVR32_16B_PCREL:
+  case R_AVR32_16N_PCREL:
   case R_AVR32_11H_PCREL:
   case R_AVR32_9H_PCREL:
   case R_AVR32_9UW_PCREL:
@@ -559,6 +560,8 @@ int64_t AVR32::getImplicitAddend(const uint8_t *buf, RelType type) const {
   }
   case R_AVR32_16B_PCREL:
     return SignExtend64<16>(read32be(buf) & 0xffff);
+  case R_AVR32_16N_PCREL:
+    return -SignExtend64<16>(read32be(buf) & 0xffff);
   case R_AVR32_11H_PCREL: {
     uint16_t word = read16be(buf);
     uint16_t enc = ((word >> 4) & 0xff) | ((word & 0x3) << 8);
@@ -966,6 +969,13 @@ void AVR32::relocate(uint8_t *loc, const Relocation &rel, uint64_t val) const {
     checkInt(ctx, loc, val, 16, rel);
     uint32_t word = read32be(loc) & ~0xffff;
     write32be(loc, word | (val & 0xffff));
+    break;
+  }
+  case R_AVR32_16N_PCREL: {
+    int64_t neg = -val;
+    checkInt(ctx, loc, neg, 16, rel);
+    uint32_t word = read32be(loc) & ~0xffff;
+    write32be(loc, word | (neg & 0xffff));
     break;
   }
   case R_AVR32_11H_PCREL: {

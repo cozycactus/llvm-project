@@ -163,6 +163,14 @@
 # PCREL-18W: Hex dump of section '.text':
 # PCREL-18W-NEXT: 0x{{[0-9a-f]+}} f01f0002 d703d703
 
+# RUN: yaml2obj --docnum=19 %s -o %t.16n-pcrel.o
+# RUN: ld.lld %t.16n-pcrel.o -o %t.16n-pcrel
+# RUN: llvm-readobj --hex-dump=.text %t.16n-pcrel \
+# RUN:   | FileCheck %s --check-prefix=PCREL-16N
+
+# PCREL-16N: Hex dump of section '.text':
+# PCREL-16N-NEXT: 0x{{[0-9a-f]+}} fec1fff8 d703d703
+
 --- !ELF
 FileHeader:
   Class:   ELFCLASS32
@@ -700,6 +708,34 @@ Sections:
       - Offset: 0
         Symbol: target
         Type: R_AVR32_18W_PCREL
+Symbols:
+  - Name: _start
+    Section: .text
+    Value: 0
+    Binding: STB_GLOBAL
+  - Name: target
+    Section: .text
+    Value: 8
+    Binding: STB_GLOBAL
+
+--- !ELF
+FileHeader:
+  Class:   ELFCLASS32
+  Data:    ELFDATA2MSB
+  Type:    ET_REL
+  Machine: EM_AVR32
+Sections:
+  - Name: .text
+    Type: SHT_PROGBITS
+    Flags: [ SHF_ALLOC, SHF_EXECINSTR ]
+    Content: "fec10000d703d703"
+  - Name: .rela.text
+    Type: SHT_RELA
+    Info: .text
+    Relocations:
+      - Offset: 0
+        Symbol: target
+        Type: R_AVR32_16N_PCREL
 Symbols:
   - Name: _start
     Section: .text
