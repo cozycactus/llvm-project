@@ -15,6 +15,8 @@
 #include "llvm/ADT/Statistic.h"
 #include "llvm/CodeGen/MachineFunctionPass.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
+#include "llvm/CodeGen/MachineRegisterInfo.h"
+#include "llvm/CodeGen/LivePhysRegs.h"
 #include "llvm/CodeGen/TargetInstrInfo.h"
 #include "llvm/CodeGen/TargetRegisterInfo.h"
 #include "llvm/Support/MathExtras.h"
@@ -67,6 +69,9 @@ private:
                          const TargetRegisterInfo &TRI);
   bool foldRedundantCastBeforeCompare(MachineInstr &MI,
                                       const TargetRegisterInfo &TRI);
+  bool repairDivRemainderClobbers(MachineFunction &MF,
+                                  const TargetInstrInfo &TII,
+                                  const TargetRegisterInfo &TRI);
   bool repairCompareBranchFlagClobbers(MachineFunction &MF,
                                        const TargetRegisterInfo &TRI);
   bool foldNearBranches(MachineFunction &MF, const TargetInstrInfo &TII);
@@ -207,6 +212,42 @@ static bool explicitlyDefinesReg(const MachineInstr &MI, Register Reg) {
     if (MO.isReg() && MO.isDef() && MO.getReg() == Reg)
       return true;
   return false;
+}
+
+static bool isQuotientOnlyDivOpcode(unsigned Opcode) {
+  return Opcode == AVR32::DIVSrrrQ || Opcode == AVR32::DIVUrrrQ;
+}
+
+static Register getDivRemainderReg(Register QuotReg) {
+  switch (QuotReg.id()) {
+  case AVR32::R0:
+    return AVR32::R1;
+  case AVR32::R2:
+    return AVR32::R3;
+  case AVR32::R4:
+    return AVR32::R5;
+  case AVR32::R6:
+    return AVR32::R7;
+  case AVR32::R8:
+    return AVR32::R9;
+  case AVR32::R10:
+    return AVR32::R11;
+  default:
+    return Register();
+  }
+}
+
+static std::optional<Register>
+findAvailableDivQuotReg(const LivePhysRegs &Live,
+                        const MachineRegisterInfo &MRI) {
+  static const MCPhysReg Candidates[] = {AVR32::R8, AVR32::R10, AVR32::R4,
+                                         AVR32::R6, AVR32::R0, AVR32::R2};
+  for (MCPhysReg Low : Candidates) {
+    Register High = getDivRemainderReg(Low);
+    if (High && Live.available(MRI, Low) && Live.available(MRI, High))
+      return Low;
+  }
+  return std::nullopt;
 }
 
 static bool isEqualityConditionOpcode(unsigned Opcode) {
@@ -1666,6 +1707,61 @@ bool AVR32Peephole::foldSignedImmediate(MachineInstr &MI, unsigned CompactOpc,
   return true;
 }
 
+bool AVR32Peephole::repairDivRemainderClobbers(
+    MachineFunction &MF, const TargetInstrInfo &TII,
+    const TargetRegisterInfo &TRI) {
+  MachineRegisterInfo &MRI = MF.getRegInfo();
+  bool Changed = false;
+
+  for (MachineBasicBlock &MBB : MF) {
+    LivePhysRegs Live(TRI);
+    Live.addLiveOutsNoPristines(MBB);
+
+    for (MachineBasicBlock::iterator I = MBB.end(); I != MBB.begin();) {
+      --I;
+      MachineInstr &MI = *I;
+      MachineInstr *InsertedCopy = nullptr;
+      MachineInstr *InsertedReload = nullptr;
+
+      if (isQuotientOnlyDivOpcode(MI.getOpcode()) && MI.getNumOperands() >= 3 &&
+          isRegOperand(MI.getOperand(0))) {
+        Register QuotReg = MI.getOperand(0).getReg();
+        Register RemReg = getDivRemainderReg(QuotReg);
+        if (RemReg && Live.contains(RemReg)) {
+          std::optional<Register> AltQuotReg =
+              findAvailableDivQuotReg(Live, MRI);
+          if (AltQuotReg) {
+            MI.getOperand(0).setReg(*AltQuotReg);
+            MI.clearKillInfo();
+            InsertedCopy =
+                BuildMI(MBB, std::next(MI.getIterator()), MI.getDebugLoc(),
+                        TII.get(AVR32::MOVrr), QuotReg)
+                    .addReg(*AltQuotReg);
+          } else {
+            BuildMI(MBB, MI, MI.getDebugLoc(), TII.get(AVR32::ST_W_PreDec))
+                .addReg(AVR32::SP)
+                .addReg(RemReg);
+            InsertedReload =
+                BuildMI(MBB, std::next(MI.getIterator()), MI.getDebugLoc(),
+                        TII.get(AVR32::LD_W_PostInc), RemReg)
+                    .addReg(AVR32::SP, RegState::Define)
+                    .addReg(AVR32::SP);
+          }
+          Changed = true;
+        }
+      }
+
+      if (InsertedCopy)
+        Live.stepBackward(*InsertedCopy);
+      if (InsertedReload)
+        Live.stepBackward(*InsertedReload);
+      Live.stepBackward(MI);
+    }
+  }
+
+  return Changed;
+}
+
 bool AVR32Peephole::runOnMachineFunction(MachineFunction &MF) {
   const AVR32Subtarget &STI = MF.getSubtarget<AVR32Subtarget>();
   const TargetInstrInfo &TII = *STI.getInstrInfo();
@@ -1788,6 +1884,9 @@ bool AVR32Peephole::runOnMachineFunction(MachineFunction &MF) {
   } while (LocalChanged);
 
   if (repairCompareBranchFlagClobbers(MF, TRI))
+    Changed = true;
+
+  if (repairDivRemainderClobbers(MF, TII, TRI))
     Changed = true;
 
   while (foldNearBranches(MF, TII))

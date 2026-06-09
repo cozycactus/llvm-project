@@ -40,6 +40,9 @@ def GPRDivPairs : RegisterTuples<[sub_lo, sub_hi],
                                  [(add R8, R10, R4, R6, R0, R2),
                                   (add R9, R11, R5, R7, R1, R3)]>;
 
+def GPRDivLo : RegisterClass<"AVR32", [i32], 32,
+                             (add R8, R10, R4, R6, R0, R2)>;
+
 def GPRDivPair : RegisterClass<"AVR32", [untyped], 64, (add GPRDivPairs)> {
   let Size = 64;
 }

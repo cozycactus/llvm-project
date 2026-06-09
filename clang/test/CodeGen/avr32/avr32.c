@@ -576,10 +576,8 @@ __attribute__((optnone, noinline)) int pick(int a, int b) {
 // ASM: ret r12
 
 // ASM-LABEL: swap_16:
-// ASM: lsr
-// ASM: lsl
-// ASM: or
-// ASM: castu.h r12
+// ASM: swap.b r12
+// ASM: lsr r12, 16
 // ASM: ret r12
 
 // ASM-LABEL: eq:

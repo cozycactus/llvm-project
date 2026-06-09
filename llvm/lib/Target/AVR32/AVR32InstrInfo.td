@@ -24,6 +24,9 @@ def SDT_AVR32SelectCC : SDTypeProfile<1, 5, [SDTCisVT<0, i32>,
 def SDT_AVR32DivRem : SDTypeProfile<1, 2, [SDTCisVT<0, untyped>,
                                            SDTCisVT<1, i32>,
                                            SDTCisVT<2, i32>]>;
+def SDT_AVR32Div : SDTypeProfile<1, 2, [SDTCisVT<0, i32>,
+                                        SDTCisSameAs<0, 1>,
+                                        SDTCisSameAs<0, 2>]>;
 
 def AVR32call : SDNode<"AVR32ISD::CALL", SDT_AVR32Call,
                        [SDNPHasChain, SDNPOutGlue, SDNPOptInGlue,
@@ -47,6 +50,8 @@ def AVR32retintrflag : SDNode<"AVR32ISD::RET_INTR_FLAG", SDTNone,
                               [SDNPHasChain, SDNPOptInGlue, SDNPVariadic]>;
 def AVR32sdivrem : SDNode<"AVR32ISD::SDIVREM", SDT_AVR32DivRem>;
 def AVR32udivrem : SDNode<"AVR32ISD::UDIVREM", SDT_AVR32DivRem>;
+def AVR32sdiv : SDNode<"AVR32ISD::SDIV", SDT_AVR32Div>;
+def AVR32udiv : SDNode<"AVR32ISD::UDIV", SDT_AVR32Div>;
 
 def AVR32_COND_EQ : PatLeaf<(i32 0)>;
 def AVR32_COND_NE : PatLeaf<(i32 1)>;
@@ -2823,6 +2828,23 @@ class FullRegRegRegDiv<bits<12> Op, string Mnemonic>
   let Inst{3-0} = RdPair;
 }
 
+class FullRegRegRegDivQuot<bits<12> Op, string Mnemonic>
+    : AVR32Inst32<(outs GPRDivLo:$Rd), (ins GPR:$Rx, GPR:$Ry),
+                  Mnemonic#"\t$Rd, $Rx, $Ry"> {
+  let Defs = [SREG];
+
+  bits<4> Rd;
+  bits<4> Rx;
+  bits<4> Ry;
+
+  let Inst{31-29} = 0b111;
+  let Inst{28-25} = Rx;
+  let Inst{24-20} = 0b00000;
+  let Inst{19-16} = Ry;
+  let Inst{15-4} = Op;
+  let Inst{3-0} = Rd;
+}
+
 class FullFPURegRegReg<bits<4> Op, string Mnemonic>
     : AVR32Inst32<(outs GPR:$Rd), (ins GPR:$Rx, GPR:$Ry),
                   Mnemonic#"\t$Rd, $Rx, $Ry"> {
@@ -3525,6 +3547,14 @@ def CSRFi : CompactImm<0b1101010, "csrf">;
 def DIVSrrr : FullRegRegReg<0b000011000000, "divs">;
 def DIVUrrr : FullRegRegReg<0b000011010000, "divu">;
 let isCodeGenOnly = 1 in {
+def DIVSrrrQ : FullRegRegRegDivQuot<0b000011000000, "divs">,
+               Sched<[]> {
+  let Pattern = [(set GPRDivLo:$Rd, (AVR32sdiv GPR:$Rx, GPR:$Ry))];
+}
+def DIVUrrrQ : FullRegRegRegDivQuot<0b000011010000, "divu">,
+               Sched<[]> {
+  let Pattern = [(set GPRDivLo:$Rd, (AVR32udiv GPR:$Rx, GPR:$Ry))];
+}
 def DIVSrrrQR : FullRegRegRegDiv<0b000011000000, "divs">,
                 Sched<[]> {
   let Pattern = [(set GPRDivPairOp:$RdPair,
@@ -4103,6 +4133,30 @@ def SUBrr : CompactRegReg<0b00001, "sub">;
 def SWAP_BHr : CompactReg<0b010111001100, "swap.bh">;
 def SWAP_Br : CompactReg<0b010111001011, "swap.b">;
 def SWAP_Hr : CompactReg<0b010111001010, "swap.h">;
+let isCodeGenOnly = 1, Constraints = "$Old = $Rd" in {
+def SWAP_BHcg : AVR32Inst<0, (outs GPR:$Rd), (ins GPR:$Old),
+                          "swap.bh\t$Rd"> {
+  bits<4> Rd;
+
+  let Inst{15-4} = 0b010111001100;
+  let Inst{3-0} = Rd;
+}
+def SWAP_Bcg : AVR32Inst<0, (outs GPR:$Rd), (ins GPR:$Old),
+                         "swap.b\t$Rd"> {
+  bits<4> Rd;
+
+  let Inst{15-4} = 0b010111001011;
+  let Inst{3-0} = Rd;
+}
+def SWAP_Hcg : AVR32Inst<0, (outs GPR:$Rd), (ins GPR:$Old),
+                         "swap.h\t$Rd"> {
+  bits<4> Rd;
+
+  let Inst{15-4} = 0b010111001010;
+  let Inst{3-0} = Rd;
+}
+}
+def : Pat<(bswap GPR:$Src), (SWAP_Bcg GPR:$Src)>;
 def SYNCi : FullImm8NoOut<0b1110011101100000, "sync">;
 def TLBR : AVR32Inst<0b1101011001000011, (outs), (ins), "tlbr">;
 def TLBS : AVR32Inst<0b1101011001010011, (outs), (ins), "tlbs">;

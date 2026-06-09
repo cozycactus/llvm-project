@@ -268,6 +268,8 @@ void AVR32AsmPrinter::emitInstruction(const MachineInstr *MI) {
   MCInst Inst;
   Inst.setOpcode(MI->getOpcode());
   for (const MachineOperand &MO : MI->operands()) {
+    if (MO.isReg() && MO.isImplicit())
+      continue;
     if (MO.isReg())
       Inst.addOperand(MCOperand::createReg(MO.getReg()));
     else if (MO.isImm())

@@ -11,6 +11,7 @@
 #include "llvm/CodeGen/MachineFrameInfo.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
 #include "llvm/CodeGen/MachineMemOperand.h"
+#include "llvm/CodeGen/MachineRegisterInfo.h"
 #include "llvm/Support/Alignment.h"
 #include "llvm/Support/ErrorHandling.h"
 
@@ -93,9 +94,51 @@ static MachineInstrBuilder addSubReg(MachineInstrBuilder MIB,
                                       const TargetRegisterInfo &TRI,
                                       Register Reg,
                                       unsigned SubIdx, unsigned Flags = 0) {
-  if (Reg.isPhysical())
-    return MIB.addReg(TRI.getSubReg(Reg, SubIdx), Flags);
+  if (Reg.isPhysical()) {
+    Register SubReg = TRI.getSubReg(Reg, SubIdx);
+    if (!SubReg) {
+      switch (Reg) {
+      case AVR32::R0_R1:
+      case AVR32::R0:
+        SubReg = SubIdx == sub_lo ? AVR32::R0 : AVR32::R1;
+        break;
+      case AVR32::R2_R3:
+      case AVR32::R2:
+        SubReg = SubIdx == sub_lo ? AVR32::R2 : AVR32::R3;
+        break;
+      case AVR32::R4_R5:
+      case AVR32::R4:
+        SubReg = SubIdx == sub_lo ? AVR32::R4 : AVR32::R5;
+        break;
+      case AVR32::R6_R7:
+      case AVR32::R6:
+        SubReg = SubIdx == sub_lo ? AVR32::R6 : AVR32::R7;
+        break;
+      case AVR32::R8_R9:
+      case AVR32::R8:
+        SubReg = SubIdx == sub_lo ? AVR32::R8 : AVR32::R9;
+        break;
+      case AVR32::R10_R11:
+      case AVR32::R10:
+        SubReg = SubIdx == sub_lo ? AVR32::R10 : AVR32::R11;
+        break;
+      default:
+        break;
+      }
+    }
+    assert(SubReg && "invalid AVR32 divide-pair subregister");
+    return MIB.addReg(SubReg, Flags);
+  }
   return MIB.addReg(Reg, Flags, SubIdx);
+}
+
+static bool isGPRDivLoVirtual(const MachineFunction &MF, Register Reg,
+                              Register VReg) {
+  const MachineRegisterInfo &MRI = MF.getRegInfo();
+  auto IsDivLo = [&](Register R) {
+    return R.isVirtual() && MRI.getRegClass(R) == &AVR32::GPRDivLoRegClass;
+  };
+  return IsDivLo(Reg) || IsDivLo(VReg);
 }
 
 void AVR32InstrInfo::copyPhysReg(MachineBasicBlock &MBB,
@@ -110,7 +153,7 @@ void AVR32InstrInfo::copyPhysReg(MachineBasicBlock &MBB,
     addSubReg(Lo, RI, SrcReg, sub_lo, getKillRegState(KillSrc));
 
     MachineInstrBuilder Hi = BuildMI(MBB, I, DL, get(AVR32::MOVrr));
-    addSubReg(Hi, RI, DestReg, sub_hi, RegState::DefineNoRead);
+    addSubReg(Hi, RI, DestReg, sub_hi, RegState::Define);
     addSubReg(Hi, RI, SrcReg, sub_hi);
     return;
   }
@@ -132,12 +175,13 @@ void AVR32InstrInfo::storeRegToStackSlot(
 
   MachineFunction &MF = *MBB.getParent();
   MachineFrameInfo &MFI = MF.getFrameInfo();
+  Align ObjectAlign = MFI.getObjectAlign(FrameIndex);
   MachineMemOperand *MMO = MF.getMachineMemOperand(
-      MachinePointerInfo::getFixedStack(MF, FrameIndex),
-      MachineMemOperand::MOStore, MFI.getObjectSize(FrameIndex),
-      MFI.getObjectAlign(FrameIndex));
+      MachinePointerInfo::getFixedStack(MF, FrameIndex, 0),
+      MachineMemOperand::MOStore, LocationSize::precise(4), ObjectAlign);
 
-  if (RC == &AVR32::GPRRegClass) {
+  if (RC == &AVR32::GPRRegClass || RC == &AVR32::GPRDivLoRegClass ||
+      isGPRDivLoVirtual(MF, SrcReg, VReg)) {
     BuildMI(MBB, MI, DL, get(AVR32::ST_W_Disp16))
         .addFrameIndex(FrameIndex)
         .addImm(0)
@@ -149,7 +193,6 @@ void AVR32InstrInfo::storeRegToStackSlot(
   if (RC != &AVR32::GPRDivPairRegClass)
     llvm_unreachable("AVR32 can only store GPR registers to stack slots");
 
-  Align ObjectAlign = MFI.getObjectAlign(FrameIndex);
   MachineMemOperand *LoMMO = MF.getMachineMemOperand(
       MachinePointerInfo::getFixedStack(MF, FrameIndex, 0),
       MachineMemOperand::MOStore, LocationSize::precise(4), ObjectAlign);
@@ -183,12 +226,13 @@ void AVR32InstrInfo::loadRegFromStackSlot(MachineBasicBlock &MBB,
 
   MachineFunction &MF = *MBB.getParent();
   MachineFrameInfo &MFI = MF.getFrameInfo();
+  Align ObjectAlign = MFI.getObjectAlign(FrameIdx);
   MachineMemOperand *MMO = MF.getMachineMemOperand(
-      MachinePointerInfo::getFixedStack(MF, FrameIdx),
-      MachineMemOperand::MOLoad, MFI.getObjectSize(FrameIdx),
-      MFI.getObjectAlign(FrameIdx));
+      MachinePointerInfo::getFixedStack(MF, FrameIdx, 0),
+      MachineMemOperand::MOLoad, LocationSize::precise(4), ObjectAlign);
 
-  if (RC == &AVR32::GPRRegClass) {
+  if (RC == &AVR32::GPRRegClass || RC == &AVR32::GPRDivLoRegClass ||
+      isGPRDivLoVirtual(MF, DestReg, VReg)) {
     BuildMI(MBB, MI, DL, get(AVR32::LD_W_Disp16), DestReg)
         .addFrameIndex(FrameIdx)
         .addImm(0)
@@ -201,7 +245,6 @@ void AVR32InstrInfo::loadRegFromStackSlot(MachineBasicBlock &MBB,
 
   assert(SubReg == 0 && "GPRDivPair stack reloads cannot target a subreg");
 
-  Align ObjectAlign = MFI.getObjectAlign(FrameIdx);
   MachineMemOperand *LoMMO = MF.getMachineMemOperand(
       MachinePointerInfo::getFixedStack(MF, FrameIdx, 0),
       MachineMemOperand::MOLoad, LocationSize::precise(4), ObjectAlign);
@@ -215,7 +258,7 @@ void AVR32InstrInfo::loadRegFromStackSlot(MachineBasicBlock &MBB,
   Lo.addFrameIndex(FrameIdx).addImm(0).addMemOperand(LoMMO);
 
   MachineInstrBuilder Hi = BuildMI(MBB, MI, DL, get(AVR32::LD_W_Disp16));
-  addSubReg(Hi, RI, DestReg, sub_hi, RegState::DefineNoRead);
+  addSubReg(Hi, RI, DestReg, sub_hi, RegState::Define);
   Hi.addFrameIndex(FrameIdx).addImm(4).addMemOperand(HiMMO);
 }
 

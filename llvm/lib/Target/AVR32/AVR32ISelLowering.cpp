@@ -36,7 +36,7 @@ AVR32TargetLowering::AVR32TargetLowering(const TargetMachine &TM,
   setOperationAction(ISD::BR_CC, MVT::i32, Custom);
   setOperationAction(ISD::BR_JT, MVT::Other, Legal);
   setOperationAction(ISD::BRCOND, MVT::Other, Expand);
-  setOperationAction(ISD::BSWAP, MVT::i32, Expand);
+  setOperationAction(ISD::BSWAP, MVT::i32, Legal);
   setOperationAction(ISD::CTLZ, MVT::i32, Legal);
   setOperationAction(ISD::CTLZ_ZERO_UNDEF, MVT::i32, Legal);
   setOperationAction(ISD::CTPOP, MVT::i32, Expand);
@@ -159,12 +159,18 @@ static bool isSupportedPostIncStore(EVT MemVT) {
          MemVT == MVT::i1;
 }
 
-static SDValue lowerDivRem(SDValue Op, SelectionDAG &DAG, unsigned Opcode) {
+static SDValue lowerDivRem(SDValue Op, SelectionDAG &DAG, unsigned DivRemOpcode,
+                           unsigned DivOpcode) {
   SDLoc DL(Op);
-  SDValue Pair = DAG.getNode(Opcode, DL, MVT::Untyped, Op.getOperand(0),
+  if (!Op.getNode()->hasAnyUseOfValue(1)) {
+    SDValue Quot = DAG.getNode(DivOpcode, DL, MVT::i32, Op.getOperand(0),
+                               Op.getOperand(1));
+    return DAG.getMergeValues({Quot, DAG.getUNDEF(MVT::i32)}, DL);
+  }
+
+  SDValue Pair = DAG.getNode(DivRemOpcode, DL, MVT::Untyped, Op.getOperand(0),
                              Op.getOperand(1));
-  SDValue Quot =
-      DAG.getTargetExtractSubreg(sub_lo, DL, MVT::i32, Pair);
+  SDValue Quot = DAG.getTargetExtractSubreg(sub_lo, DL, MVT::i32, Pair);
   SDValue Product = DAG.getNode(ISD::MUL, DL, MVT::i32, Quot, Op.getOperand(1));
   SDValue Rem = DAG.getNode(ISD::SUB, DL, MVT::i32, Op.getOperand(0), Product);
   return DAG.getMergeValues({Quot, Rem}, DL);
@@ -324,9 +330,9 @@ SDValue AVR32TargetLowering::LowerOperation(SDValue Op,
   if (Op.getOpcode() == ISD::VASTART)
     return lowerVASTART(Op, DAG);
   if (Op.getOpcode() == ISD::SDIVREM)
-    return lowerDivRem(Op, DAG, AVR32ISD::SDIVREM);
+    return lowerDivRem(Op, DAG, AVR32ISD::SDIVREM, AVR32ISD::SDIV);
   if (Op.getOpcode() == ISD::UDIVREM)
-    return lowerDivRem(Op, DAG, AVR32ISD::UDIVREM);
+    return lowerDivRem(Op, DAG, AVR32ISD::UDIVREM, AVR32ISD::UDIV);
 
   if (Op.getOpcode() != ISD::BR_CC && Op.getOpcode() != ISD::SELECT &&
       Op.getOpcode() != ISD::SETCC && Op.getOpcode() != ISD::SELECT_CC)
