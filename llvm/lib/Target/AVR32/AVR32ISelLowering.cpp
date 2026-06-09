@@ -62,7 +62,7 @@ AVR32TargetLowering::AVR32TargetLowering(const TargetMachine &TM,
   setOperationAction(ISD::SMUL_LOHI, MVT::i32, Expand);
   setOperationAction(ISD::UDIV, MVT::i32, Expand);
   setOperationAction(ISD::UDIVREM, MVT::i32, Custom);
-  setOperationAction(ISD::UMUL_LOHI, MVT::i32, Expand);
+  setOperationAction(ISD::UMUL_LOHI, MVT::i32, Custom);
   setOperationAction(ISD::UREM, MVT::i32, Expand);
   setOperationAction(ISD::SELECT_CC, MVT::i32, Custom);
   setOperationAction(ISD::SETCC, MVT::i32, Custom);
@@ -174,6 +174,15 @@ static SDValue lowerDivRem(SDValue Op, SelectionDAG &DAG, unsigned DivRemOpcode,
   SDValue Product = DAG.getNode(ISD::MUL, DL, MVT::i32, Quot, Op.getOperand(1));
   SDValue Rem = DAG.getNode(ISD::SUB, DL, MVT::i32, Op.getOperand(0), Product);
   return DAG.getMergeValues({Quot, Rem}, DL);
+}
+
+static SDValue lowerUMulLoHi(SDValue Op, SelectionDAG &DAG) {
+  SDLoc DL(Op);
+  SDValue Pair = DAG.getNode(AVR32ISD::UMUL_LOHI, DL, MVT::Untyped,
+                             Op.getOperand(0), Op.getOperand(1));
+  SDValue Lo = DAG.getTargetExtractSubreg(sub_lo, DL, MVT::i32, Pair);
+  SDValue Hi = DAG.getTargetExtractSubreg(sub_hi, DL, MVT::i32, Pair);
+  return DAG.getMergeValues({Lo, Hi}, DL);
 }
 
 static ArrayRef<MCPhysReg> getIntArgRegs() {
@@ -333,6 +342,8 @@ SDValue AVR32TargetLowering::LowerOperation(SDValue Op,
     return lowerDivRem(Op, DAG, AVR32ISD::SDIVREM, AVR32ISD::SDIV);
   if (Op.getOpcode() == ISD::UDIVREM)
     return lowerDivRem(Op, DAG, AVR32ISD::UDIVREM, AVR32ISD::UDIV);
+  if (Op.getOpcode() == ISD::UMUL_LOHI)
+    return lowerUMulLoHi(Op, DAG);
 
   if (Op.getOpcode() != ISD::BR_CC && Op.getOpcode() != ISD::SELECT &&
       Op.getOpcode() != ISD::SETCC && Op.getOpcode() != ISD::SELECT_CC)

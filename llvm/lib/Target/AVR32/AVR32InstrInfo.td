@@ -52,6 +52,8 @@ def AVR32sdivrem : SDNode<"AVR32ISD::SDIVREM", SDT_AVR32DivRem>;
 def AVR32udivrem : SDNode<"AVR32ISD::UDIVREM", SDT_AVR32DivRem>;
 def AVR32sdiv : SDNode<"AVR32ISD::SDIV", SDT_AVR32Div>;
 def AVR32udiv : SDNode<"AVR32ISD::UDIV", SDT_AVR32Div>;
+def AVR32umullohi : SDNode<"AVR32ISD::UMUL_LOHI", SDT_AVR32DivRem,
+                           [SDNPCommutative]>;
 
 def AVR32_COND_EQ : PatLeaf<(i32 0)>;
 def AVR32_COND_NE : PatLeaf<(i32 1)>;
@@ -3782,6 +3784,12 @@ def MULSATRNDWH_W : FullRegRegRegHalf<0b00001011100, "mulsatrndwh.w">;
 def MULSATWH_W : FullRegRegRegHalf<0b00001110100, "mulsatwh.w">;
 def MULS_Drrr : FullRegRegReg<0b000001000100, "muls.d">;
 def MULU_Drrr : FullRegRegReg<0b000001100100, "mulu.d">;
+let isCodeGenOnly = 1 in
+def MULU_DrrrP : FullRegRegRegDiv<0b000001100100, "mulu.d">,
+                 Sched<[]> {
+  let Pattern = [(set GPRDivPairOp:$RdPair,
+                      (AVR32umullohi GPR:$Rx, GPR:$Ry))];
+}
 def MULWH_D : FullRegRegRegHalf<0b00001101100, "mulwh.d">;
 def MUSFRr : CompactRegNoOut<0b010111010011, "musfr">;
 def MUSTRr : CompactReg<0b010111010010, "mustr">;
