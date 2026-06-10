@@ -249,7 +249,8 @@ void AVR32AsmPrinter::emitCallPseudo(const MachineInstr *MI) {
     report_fatal_error("AVR32 call cannot lower this operand yet");
 
   const MCExpr *CPLoc =
-      getAVR32TargetStreamer().addCPENTConstantPoolEntry(ValueExpr, SMLoc());
+      getAVR32TargetStreamer().addCPENTConstantPoolEntry(
+          ValueExpr, SMLoc(), /*CanShare=*/false);
   ++PendingLdaW;
 
   MCInst Call;
@@ -415,10 +416,6 @@ static bool needsRangePool(uint64_t PoolOffset, const LiteralPoolUse &Use,
                             MaxFullLddpcPoolDistance;
 }
 
-static bool isLiteralPoolUserOpcode(unsigned Opcode) {
-  return Opcode == AVR32::LDA_W || Opcode == AVR32::CALLp;
-}
-
 static bool getKnownInstSize(const MachineFunction &MF, const MachineInstr &MI,
                              unsigned &Size) {
   if (MI.isDebugInstr() || MI.isMetaInstruction()) {
@@ -475,10 +472,16 @@ void AVR32AsmPrinter::buildLdaWPoolPlan(const MachineFunction &MF) {
 
     SmallVector<LiteralPoolUse, 32> Pending;
     DenseMap<MachineOperand, unsigned> PendingPoolEntryIndices;
+    unsigned PendingPoolEntryCount = 0;
     auto GetOrAddPendingPoolEntry = [&](const MachineOperand &MO) {
       auto [It, Inserted] = PendingPoolEntryIndices.try_emplace(
-          MO, PendingPoolEntryIndices.size());
+          MO, PendingPoolEntryCount);
+      if (Inserted)
+        ++PendingPoolEntryCount;
       return It->second;
+    };
+    auto AddUniquePendingPoolEntry = [&]() {
+      return PendingPoolEntryCount++;
     };
 
     for (const MachineBasicBlock &MBB : MF) {
@@ -491,7 +494,7 @@ void AVR32AsmPrinter::buildLdaWPoolPlan(const MachineFunction &MF) {
           Pending.push_back(
               {&MI, InstrOffsets.lookup(&MI), LiteralIndex, /*IsLdaW=*/true});
         } else if (MI.getOpcode() == AVR32::CALLp) {
-          unsigned LiteralIndex = GetOrAddPendingPoolEntry(MI.getOperand(0));
+          unsigned LiteralIndex = AddUniquePendingPoolEntry();
           Pending.push_back({&MI, InstrOffsets.lookup(&MI), LiteralIndex,
                              /*IsLdaW=*/false});
         }
@@ -515,7 +518,7 @@ void AVR32AsmPrinter::buildLdaWPoolPlan(const MachineFunction &MF) {
       uint64_t ShiftedBlockEnd =
           BlockEnd + poolShiftBefore(PlannedPools, BlockEnd);
       uint64_t PoolBytes = align4(ShiftedBlockEnd) - ShiftedBlockEnd +
-                           uint64_t(PendingPoolEntryIndices.size()) * 4;
+                           uint64_t(PendingPoolEntryCount) * 4;
       SmallVector<PlannedPool, 16> CandidatePools(PlannedPools);
       CandidatePools.push_back({BlockEnd, PoolBytes});
       if (compactBranchOutOfRangeWithPools(MF, BlockOffsets, InstrOffsets,
@@ -548,6 +551,7 @@ void AVR32AsmPrinter::buildLdaWPoolPlan(const MachineFunction &MF) {
       NextPoolBeforeBlocks.insert(&*NextMBB);
       Pending.clear();
       PendingPoolEntryIndices.clear();
+      PendingPoolEntryCount = 0;
     }
 
     for (const LiteralPoolUse &Use : Pending)
@@ -570,11 +574,13 @@ static bool shouldUseCompactLdaW(const MachineFunction &MF,
   uint64_t CodeBytes = 0;
   uint64_t LoadOffset = 0;
   unsigned LoadLiteralIndex = 0;
+  unsigned PoolEntryCount = 0;
   bool FoundLoad = false;
   DenseMap<MachineOperand, unsigned> PoolEntryIndices;
   auto GetOrAddPoolEntry = [&](const MachineOperand &MO) {
-    auto [It, Inserted] =
-        PoolEntryIndices.try_emplace(MO, PoolEntryIndices.size());
+    auto [It, Inserted] = PoolEntryIndices.try_emplace(MO, PoolEntryCount);
+    if (Inserted)
+      ++PoolEntryCount;
     return It->second;
   };
 
@@ -593,8 +599,8 @@ static bool shouldUseCompactLdaW(const MachineFunction &MF,
           LoadLiteralIndex = LiteralIndex;
           FoundLoad = true;
         }
-      } else if (isLiteralPoolUserOpcode(MI.getOpcode())) {
-        GetOrAddPoolEntry(MI.getOperand(0));
+      } else if (MI.getOpcode() == AVR32::CALLp) {
+        ++PoolEntryCount;
       }
       CodeBytes += Size;
     }

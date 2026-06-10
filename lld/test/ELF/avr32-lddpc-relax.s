@@ -17,6 +17,11 @@
 # RUN: llvm-readobj --hex-dump=.text pair-norelax \
 # RUN:   | FileCheck %s --check-prefix=PAIR-NORELAX
 
+# RUN: llvm-mc -triple=avr32 -mattr=+relax -filetype=obj pair-cpcall.s -o pair-cpcall.o
+# RUN: ld.lld --emit-relocs pair-cpcall.o -o pair-cpcall
+# RUN: llvm-readobj --relocations --hex-dump=.text pair-cpcall \
+# RUN:   | FileCheck %s --check-prefix=PAIR-CPCALL
+
 # SINGLE:      Hex dump of section '.text':
 # SINGLE-NEXT: 0x{{[0-9a-f]+}} fef80004 000110bc d703
 
@@ -45,6 +50,19 @@
 # PAIR-NORELAX:      Hex dump of section '.text':
 # PAIR-NORELAX-NEXT: 0x{{[0-9a-f]+}} fef80008 fef90004 000110c0 d703
 
+# PAIR-CPCALL:      Relocations [
+# PAIR-CPCALL-NEXT:   Section ({{.*}}) .rela.text {
+# PAIR-CPCALL-NEXT:     0x110B4 R_AVR32_9W_CP .text 0x8
+# PAIR-CPCALL-NEXT:     0x110B6 R_AVR32_9W_CP .text 0x8
+# PAIR-CPCALL-NEXT:     0x110B8 R_AVR32_CPCALL .Lcallpool 0x0
+# PAIR-CPCALL-NEXT:     0x110BC R_AVR32_32_CPENT target 0x0
+# PAIR-CPCALL-NEXT:     0x110C0 R_AVR32_32_CPENT callee 0x0
+# PAIR-CPCALL-NEXT:   }
+# PAIR-CPCALL-NEXT: ]
+# PAIR-CPCALL:      Hex dump of section '.text':
+# PAIR-CPCALL-NEXT: 0x{{[0-9a-f]+}} 48284829 f01f0002 000110c4 000110c6
+# PAIR-CPCALL-NEXT: 0x{{[0-9a-f]+}} d703d703
+
 #--- single.s
 .text
 .globl _start, target
@@ -54,6 +72,26 @@ _start:
   .long 0
   .reloc .Lpool, R_AVR32_32_CPENT, target
 target:
+  nop
+
+#--- pair-cpcall.s
+.text
+.globl _start, target, callee
+_start:
+  lddpc r8, pc[.Lpool]
+  lddpc r9, pc[.Lpool]
+.Lcall:
+  .long 0xf01f0000
+  .reloc .Lcall, R_AVR32_CPCALL, .Lcallpool
+.Lpool:
+  .long 0
+  .reloc .Lpool, R_AVR32_32_CPENT, target
+.Lcallpool:
+  .long 0
+  .reloc .Lcallpool, R_AVR32_32_CPENT, callee
+target:
+  nop
+callee:
   nop
 
 #--- pair.s

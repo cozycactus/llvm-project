@@ -37,7 +37,7 @@ void ConstantPool::emitEntries(MCStreamer &Streamer) {
 }
 
 const MCExpr *ConstantPool::addEntry(const MCExpr *Value, MCContext &Context,
-                                     unsigned Size, SMLoc Loc) {
+                                     unsigned Size, SMLoc Loc, bool CanShare) {
   const MCExpr *CacheValue = Value;
   unsigned Specifier = 0;
   if (const MCSpecifierExpr *SE = dyn_cast<MCSpecifierExpr>(Value)) {
@@ -49,14 +49,14 @@ const MCExpr *ConstantPool::addEntry(const MCExpr *Value, MCContext &Context,
   const MCSymbolRefExpr *S = dyn_cast<MCSymbolRefExpr>(CacheValue);
 
   // Check if there is existing entry for the same constant. If so, reuse it.
-  if (C) {
+  if (CanShare && C) {
     auto CItr = CachedConstantEntries.find(std::make_pair(C->getValue(), Size));
     if (CItr != CachedConstantEntries.end())
       return CItr->second;
   }
 
   // Check if there is existing entry for the same symbol. If so, reuse it.
-  if (S) {
+  if (CanShare && S) {
     auto Key = std::make_pair(std::make_pair(&(S->getSymbol()), Size),
                               Specifier);
     auto SItr = CachedSymbolEntries.find(Key);
@@ -68,9 +68,9 @@ const MCExpr *ConstantPool::addEntry(const MCExpr *Value, MCContext &Context,
 
   Entries.push_back(ConstantPoolEntry(CPEntryLabel, Value, Size, Loc));
   const auto SymRef = MCSymbolRefExpr::create(CPEntryLabel, Context, Loc);
-  if (C)
+  if (CanShare && C)
     CachedConstantEntries[std::make_pair(C->getValue(), Size)] = SymRef;
-  if (S) {
+  if (CanShare && S) {
     auto Key = std::make_pair(std::make_pair(&(S->getSymbol()), Size),
                               Specifier);
     CachedSymbolEntries[Key] = SymRef;
@@ -133,8 +133,9 @@ void AssemblerConstantPools::clearCacheForCurrentSection(MCStreamer &Streamer) {
 
 const MCExpr *AssemblerConstantPools::addEntry(MCStreamer &Streamer,
                                                const MCExpr *Expr,
-                                               unsigned Size, SMLoc Loc) {
+                                               unsigned Size, SMLoc Loc,
+                                               bool CanShare) {
   MCSection *Section = Streamer.getCurrentSectionOnly();
   return getOrCreateConstantPool(Section).addEntry(Expr, Streamer.getContext(),
-                                                   Size, Loc);
+                                                   Size, Loc, CanShare);
 }

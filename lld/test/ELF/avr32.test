@@ -171,6 +171,32 @@
 # PCREL-16N: Hex dump of section '.text':
 # PCREL-16N-NEXT: 0x{{[0-9a-f]+}} fec1fff8 d703d703
 
+# RUN: yaml2obj --docnum=20 %s -o %t.gas-call-pool.o
+# RUN: ld.lld --relax --direct-data %t.gas-call-pool.o -o %t.gas-call-pool
+# RUN: llvm-readobj --hex-dump=.text --relocations %t.gas-call-pool \
+# RUN:   | FileCheck %s --check-prefix=GAS-CALL-POOL
+
+# GAS-CALL-POOL: Relocations [
+# GAS-CALL-POOL-NEXT: ]
+# GAS-CALL-POOL: Hex dump of section '.text':
+# GAS-CALL-POOL-NEXT: 0x{{[0-9a-f]+}} e0a00006 e0a00004 d703d703 d703
+
+# RUN: yaml2obj --docnum=21 %s -o %t.cross-text-relax.o
+# RUN: ld.lld --relax %t.cross-text-relax.o -o %t.cross-text-relax
+# RUN: llvm-readobj --hex-dump=.rodata %t.cross-text-relax \
+# RUN:   | FileCheck %s --check-prefix=CROSS-TEXT-RELAX
+
+# CROSS-TEXT-RELAX: Hex dump of section '.rodata':
+# CROSS-TEXT-RELAX-NEXT: 0x{{[0-9a-f]+}} 000110be
+
+# RUN: yaml2obj --docnum=22 %s -o %t.cross-text-anchor.o
+# RUN: ld.lld --relax --direct-data %t.cross-text-anchor.o -o %t.cross-text-anchor
+# RUN: llvm-readobj --hex-dump=.rodata %t.cross-text-anchor \
+# RUN:   | FileCheck %s --check-prefix=CROSS-TEXT-ANCHOR
+
+# CROSS-TEXT-ANCHOR: Hex dump of section '.rodata':
+# CROSS-TEXT-ANCHOR-NEXT: 0x{{[0-9a-f]+}} 000110c4
+
 --- !ELF
 FileHeader:
   Class:   ELFCLASS32
@@ -744,4 +770,146 @@ Symbols:
   - Name: target
     Section: .text
     Value: 8
+    Binding: STB_GLOBAL
+
+--- !ELF
+FileHeader:
+  Class:   ELFCLASS32
+  Data:    ELFDATA2MSB
+  Type:    ET_REL
+  Machine: EM_AVR32
+  Flags:   [ EF_AVR32_LINKRELAX ]
+Sections:
+  - Name: .text
+    Type: SHT_PROGBITS
+    Flags: [ SHF_ALLOC, SHF_EXECINSTR ]
+    Content: "f01f0000f01f0000d703d7030000000000000000d703"
+  - Name: .rela.text
+    Type: SHT_RELA
+    Info: .text
+    Relocations:
+      - Offset: 12
+        Symbol: target_gas_call
+        Type: R_AVR32_32
+      - Offset: 16
+        Symbol: target_gas_call
+        Type: R_AVR32_32
+      - Offset: 0
+        Symbol: .text
+        Type: R_AVR32_18W_PCREL
+        Addend: 12
+      - Offset: 4
+        Symbol: .text
+        Type: R_AVR32_18W_PCREL
+        Addend: 16
+Symbols:
+  - Name: .text
+    Type: STT_SECTION
+    Section: .text
+  - Name: _start
+    Section: .text
+    Value: 0
+    Binding: STB_GLOBAL
+  - Name: target_gas_call
+    Section: .text
+    Value: 20
+    Binding: STB_GLOBAL
+
+--- !ELF
+FileHeader:
+  Class:   ELFCLASS32
+  Data:    ELFDATA2MSB
+  Type:    ET_REL
+  Machine: EM_AVR32
+  Flags:   [ EF_AVR32_LINKRELAX ]
+Sections:
+  - Name: .text
+    Type: SHT_PROGBITS
+    Flags: [ SHF_ALLOC, SHF_EXECINSTR ]
+    Content: "e08f0002d703d703d703"
+  - Name: .rela.text
+    Type: SHT_RELA
+    Info: .text
+    Relocations:
+      - Offset: 0
+        Symbol: target_cross_text
+        Type: R_AVR32_22H_PCREL
+  - Name: .rodata
+    Type: SHT_PROGBITS
+    Flags: [ SHF_ALLOC ]
+    Content: "00000000"
+  - Name: .rela.rodata
+    Type: SHT_RELA
+    Info: .rodata
+    Relocations:
+      - Offset: 0
+        Symbol: .text
+        Type: R_AVR32_32
+        Addend: 8
+Symbols:
+  - Name: .text
+    Type: STT_SECTION
+    Section: .text
+  - Name: _start
+    Section: .text
+    Value: 0
+    Binding: STB_GLOBAL
+  - Name: target_cross_text
+    Section: .text
+    Value: 8
+    Binding: STB_GLOBAL
+
+--- !ELF
+FileHeader:
+  Class:   ELFCLASS32
+  Data:    ELFDATA2MSB
+  Type:    ET_REL
+  Machine: EM_AVR32
+  Flags:   [ EF_AVR32_LINKRELAX ]
+Sections:
+  - Name: .text
+    Type: SHT_PROGBITS
+    Flags: [ SHF_ALLOC, SHF_EXECINSTR ]
+    Content: "f01f0000f01f0000d703d7030000000000000000d703"
+  - Name: .rela.text
+    Type: SHT_RELA
+    Info: .text
+    Relocations:
+      - Offset: 12
+        Symbol: target_cross_anchor
+        Type: R_AVR32_32
+      - Offset: 16
+        Symbol: target_cross_anchor
+        Type: R_AVR32_32
+      - Offset: 0
+        Symbol: .text
+        Type: R_AVR32_18W_PCREL
+        Addend: 12
+      - Offset: 4
+        Symbol: .text
+        Type: R_AVR32_18W_PCREL
+        Addend: 16
+  - Name: .rodata
+    Type: SHT_PROGBITS
+    Flags: [ SHF_ALLOC ]
+    Content: "00000000"
+  - Name: .rela.rodata
+    Type: SHT_RELA
+    Info: .rodata
+    Relocations:
+      - Offset: 0
+        Symbol: .text
+        Type: R_AVR32_32
+        Addend: 20
+Symbols:
+  - Name: .text
+    Type: STT_SECTION
+    Section: .text
+  - Name: _start
+    Section: .text
+    Value: 0
+    Binding: STB_GLOBAL
+  - Name: target_cross_anchor
+    Section: .text
+    Value: 20
     Binding: STB_GLOBAL

@@ -46,6 +46,12 @@
 # RUN: llvm-readobj --hex-dump=.text align-code \
 # RUN:   | FileCheck %s --check-prefix=ALIGN-CODE
 
+# RUN: llvm-mc -triple=avr32 -mattr=+relax -filetype=obj vector-org.s -o vector-org.o
+# RUN: echo 'SECTIONS { . = 0; .text : { *(.text) } }' > vector-org.script
+# RUN: ld.lld vector-org.script vector-org.o -o vector-org
+# RUN: llvm-readelf -s vector-org \
+# RUN:   | FileCheck %s --check-prefix=VECTOR-ORG
+
 # RELAX:      Flags [ (0x1)
 # RELAX-NEXT:   EF_AVR32_LINKRELAX (0x1)
 # RELAX-NEXT: ]
@@ -103,6 +109,12 @@
 
 # ALIGN-CODE:      Hex dump of section '.text':
 # ALIGN-CODE-NEXT: 0x{{[0-9a-f]+}} e08f0004 f8000003 d703
+
+# VECTOR-ORG-DAG: 00000050 {{.*}} itlb_miss
+# VECTOR-ORG-DAG: 00000060 {{.*}} dtlb_miss_read
+# VECTOR-ORG-DAG: 00000070 {{.*}} dtlb_miss_write
+# VECTOR-ORG-DAG: 00000074 {{.*}} tlb_miss_common
+# VECTOR-ORG-DAG: 00000100 {{.*}} system_call
 
 #--- a.s
 .text
@@ -194,3 +206,28 @@ _start:
 .globl target_code
 target_code:
   nop
+
+#--- vector-org.s
+.text
+.globl _start, itlb_miss, dtlb_miss_read, dtlb_miss_write
+.globl tlb_miss_common, system_call
+_start:
+  bral tlb_miss_common
+  .org 0x50
+itlb_miss:
+  pushm r0-r3
+  bral tlb_miss_common
+  .org 0x60
+dtlb_miss_read:
+  pushm r0-r3
+  bral tlb_miss_common
+  .org 0x70
+dtlb_miss_write:
+  pushm r0-r3
+  .reloc ., R_AVR32_ALIGN, 2
+  .short 0
+tlb_miss_common:
+  nop
+  .org 0x100
+system_call:
+  pushm r12

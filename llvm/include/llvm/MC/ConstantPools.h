@@ -63,7 +63,7 @@ public:
   //
   // \returns a MCExpr that references the newly inserted value
   const MCExpr *addEntry(const MCExpr *Value, MCContext &Context,
-                         unsigned Size, SMLoc Loc);
+                         unsigned Size, SMLoc Loc, bool CanShare = true);
 
   // Emit the contents of the constant pool using the provided streamer.
   void emitEntries(MCStreamer &Streamer);
@@ -97,7 +97,7 @@ public:
   void emitForCurrentSection(MCStreamer &Streamer);
   void clearCacheForCurrentSection(MCStreamer &Streamer);
   const MCExpr *addEntry(MCStreamer &Streamer, const MCExpr *Expr,
-                         unsigned Size, SMLoc Loc);
+                         unsigned Size, SMLoc Loc, bool CanShare = true);
 
 private:
   ConstantPool *getConstantPool(MCSection *Section);

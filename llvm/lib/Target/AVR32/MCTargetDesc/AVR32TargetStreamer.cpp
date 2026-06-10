@@ -28,11 +28,12 @@ AVR32TargetStreamer::AVR32TargetStreamer(MCStreamer &S)
 AVR32TargetStreamer::~AVR32TargetStreamer() = default;
 
 const MCExpr *AVR32TargetStreamer::addCPENTConstantPoolEntry(const MCExpr *Expr,
-                                                             SMLoc Loc) {
+                                                             SMLoc Loc,
+                                                             bool CanShare) {
   if (!isa<MCConstantExpr>(Expr))
     Expr =
         MCSpecifierExpr::create(Expr, ELF::R_AVR32_32_CPENT, getContext(), Loc);
-  return ConstantPools->addEntry(Streamer, Expr, 4, Loc);
+  return ConstantPools->addEntry(Streamer, Expr, 4, Loc, CanShare);
 }
 
 void AVR32TargetStreamer::emitCurrentConstantPool() {

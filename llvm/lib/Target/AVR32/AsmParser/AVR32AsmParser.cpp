@@ -725,7 +725,8 @@ bool AVR32AsmParser::emitCallPseudo(const MCInst &Inst, SMLoc Loc,
     return Error(Loc, "expected immediate");
 
   const MCExpr *CPLoc =
-      getAVR32TargetStreamer().addCPENTConstantPoolEntry(ValueExpr, Loc);
+      getAVR32TargetStreamer().addCPENTConstantPoolEntry(
+          ValueExpr, Loc, /*CanShare=*/false);
 
   MCInst Call;
   Call.setLoc(Loc);

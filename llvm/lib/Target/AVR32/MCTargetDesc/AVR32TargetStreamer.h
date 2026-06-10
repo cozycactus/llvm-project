@@ -24,7 +24,8 @@ public:
   AVR32TargetStreamer(MCStreamer &S);
   ~AVR32TargetStreamer() override;
 
-  const MCExpr *addCPENTConstantPoolEntry(const MCExpr *Expr, SMLoc Loc);
+  const MCExpr *addCPENTConstantPoolEntry(const MCExpr *Expr, SMLoc Loc,
+                                          bool CanShare = true);
   void emitCurrentConstantPool();
   void emitConstantPools() override;
   void finish() override;

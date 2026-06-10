@@ -65,6 +65,7 @@ private:
   bool foldDoubleCompareLibcall(MachineInstr &MI, const TargetInstrInfo &TII);
   bool foldShiftedMaskIndexLoad(MachineInstr &MI, const TargetInstrInfo &TII,
                                 const TargetRegisterInfo &TRI);
+  bool foldRotate16(MachineInstr &MI, const TargetInstrInfo &TII);
   bool foldNarrowCompare(MachineInstr &MI, const TargetInstrInfo &TII,
                          const TargetRegisterInfo &TRI);
   bool foldRedundantCastBeforeCompare(MachineInstr &MI,
@@ -210,6 +211,14 @@ static bool isImmediateCompareOpcode(unsigned Opcode) {
 static bool explicitlyDefinesReg(const MachineInstr &MI, Register Reg) {
   for (const MachineOperand &MO : MI.operands())
     if (MO.isReg() && MO.isDef() && MO.getReg() == Reg)
+      return true;
+  return false;
+}
+
+static bool hasLiveSRegDef(const MachineInstr &MI) {
+  for (const MachineOperand &MO : MI.operands())
+    if (MO.isReg() && MO.isDef() && MO.getReg() == AVR32::SREG &&
+        !MO.isDead())
       return true;
   return false;
 }
@@ -1183,6 +1192,93 @@ bool AVR32Peephole::foldShiftedMaskIndexLoad(
   return true;
 }
 
+static bool isRegRegImmShift16(const MachineInstr &MI, unsigned Opcode,
+                               Register Reg) {
+  return MI.getOpcode() == Opcode && MI.getNumOperands() >= 3 &&
+         isRegOperand(MI.getOperand(0)) && isRegOperand(MI.getOperand(1)) &&
+         MI.getOperand(0).getReg() == Reg &&
+         MI.getOperand(1).getReg() == Reg && MI.getOperand(2).isImm() &&
+         MI.getOperand(2).getImm() == 16;
+}
+
+bool AVR32Peephole::foldRotate16(MachineInstr &MI,
+                                 const TargetInstrInfo &TII) {
+  if (MI.getNumOperands() < 3 || !isRegOperand(MI.getOperand(0)) ||
+      !isRegOperand(MI.getOperand(1)) || !isRegOperand(MI.getOperand(2)) ||
+      hasLiveSRegDef(MI))
+    return false;
+
+  Register DstReg = MI.getOperand(0).getReg();
+  Register LHSReg = MI.getOperand(1).getReg();
+  Register RHSReg = MI.getOperand(2).getReg();
+  Register TmpReg;
+  unsigned TmpOpIdx;
+  if (LHSReg == DstReg && RHSReg != DstReg) {
+    TmpReg = RHSReg;
+    TmpOpIdx = 2;
+  } else if (MI.getOpcode() == AVR32::ORALrrr && RHSReg == DstReg &&
+             LHSReg != DstReg) {
+    TmpReg = LHSReg;
+    TmpOpIdx = 1;
+  } else {
+    return false;
+  }
+
+  if (!MI.getOperand(TmpOpIdx).isKill())
+    return false;
+
+  MachineBasicBlock::iterator SecondShiftIt = prevNonDebug(MI.getIterator());
+  if (SecondShiftIt == MI.getParent()->end())
+    return false;
+  MachineBasicBlock::iterator FirstShiftIt = prevNonDebug(SecondShiftIt);
+  if (FirstShiftIt == MI.getParent()->end())
+    return false;
+
+  bool FirstIsLsrTmp =
+      isRegRegImmShift16(*FirstShiftIt, AVR32::LSRricg, TmpReg);
+  bool FirstIsLslTmp =
+      isRegRegImmShift16(*FirstShiftIt, AVR32::LSLricg, TmpReg);
+  bool FirstIsLslDst =
+      isRegRegImmShift16(*FirstShiftIt, AVR32::LSLricg, DstReg);
+  bool FirstIsLsrDst =
+      isRegRegImmShift16(*FirstShiftIt, AVR32::LSRricg, DstReg);
+  bool SecondIsLsrTmp =
+      isRegRegImmShift16(*SecondShiftIt, AVR32::LSRricg, TmpReg);
+  bool SecondIsLslTmp =
+      isRegRegImmShift16(*SecondShiftIt, AVR32::LSLricg, TmpReg);
+  bool SecondIsLslDst =
+      isRegRegImmShift16(*SecondShiftIt, AVR32::LSLricg, DstReg);
+  bool SecondIsLsrDst =
+      isRegRegImmShift16(*SecondShiftIt, AVR32::LSRricg, DstReg);
+  if (!((FirstIsLsrTmp && SecondIsLslDst) ||
+        (FirstIsLslDst && SecondIsLsrTmp) ||
+        (FirstIsLslTmp && SecondIsLsrDst) ||
+        (FirstIsLsrDst && SecondIsLslTmp)))
+    return false;
+
+  MachineBasicBlock::iterator CopyIt = prevNonDebug(FirstShiftIt);
+  if (CopyIt == MI.getParent()->end() ||
+      CopyIt->getOpcode() != AVR32::MOVrr || CopyIt->getNumOperands() < 2 ||
+      !isRegOperand(CopyIt->getOperand(0)) ||
+      !isRegOperand(CopyIt->getOperand(1)) ||
+      CopyIt->getOperand(0).getReg() != TmpReg ||
+      CopyIt->getOperand(1).getReg() != DstReg)
+    return false;
+
+  MachineBasicBlock &MBB = *MI.getParent();
+  BuildMI(MBB, CopyIt, CopyIt->getDebugLoc(), TII.get(AVR32::SWAP_Hcg),
+          DstReg)
+      .addReg(DstReg, getKillRegState(CopyIt->getOperand(1).isKill()))
+      .setMIFlags(MI.getFlags());
+
+  CopyIt->eraseFromParent();
+  FirstShiftIt->eraseFromParent();
+  SecondShiftIt->eraseFromParent();
+  MI.eraseFromParent();
+  ++NumCompactForms;
+  return true;
+}
+
 static std::optional<unsigned> getCastWidth(unsigned Opcode, bool &Signed) {
   Signed = false;
   switch (Opcode) {
@@ -1822,11 +1918,14 @@ bool AVR32Peephole::runOnMachineFunction(MachineFunction &MF) {
                           foldCompareImmediate(MI, TII);
           break;
         case AVR32::ORALrrr:
-          LocalChanged |= foldMovhOr(MI, TII) ||
+          LocalChanged |= foldRotate16(MI, TII) || foldMovhOr(MI, TII) ||
                           foldTwoAddressALU(MI, AVR32::ORrrCG, true, TII);
           break;
         case AVR32::ORrr:
           LocalChanged |= foldMovhOr(MI, TII) || foldBitImmediate(MI, TII);
+          break;
+        case AVR32::ORrrCG:
+          LocalChanged |= foldRotate16(MI, TII);
           break;
         case AVR32::ORLri:
         case AVR32::ORHri:

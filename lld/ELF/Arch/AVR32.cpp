@@ -46,6 +46,7 @@ public:
   int64_t getImplicitAddend(const uint8_t *buf, RelType type) const override;
   bool relaxOnce(int pass) const override;
   void finalizeRelax(int passes) const override;
+  void relocateAlloc(InputSection &sec, uint8_t *buf) const override;
   void relocate(uint8_t *loc, const Relocation &rel,
                 uint64_t val) const override;
 };
@@ -108,6 +109,12 @@ static bool isSameSectionSymbol(const Relocation &r, const InputSection &sec) {
   return d && d->isSection() && d->section == &sec;
 }
 
+static std::optional<uint64_t>
+getSameSectionSymbolOffset(const Relocation &r, const InputSection &sec,
+                           uint64_t oldSize);
+
+static constexpr size_t AmbiguousMcallRelocIndex = static_cast<size_t>(-1);
+
 static std::optional<uint32_t> findUniqueMcallToCPEntry(ArrayRef<uint8_t> data,
                                                         uint64_t cpOffset) {
   std::optional<uint32_t> found;
@@ -126,6 +133,29 @@ static std::optional<uint32_t> findUniqueMcallToCPEntry(ArrayRef<uint8_t> data,
     found = offset;
   }
   return found;
+}
+
+static DenseMap<uint64_t, size_t> getMcallRelocsByCPEntry(
+    ArrayRef<uint8_t> data, ArrayRef<Relocation> rels, const InputSection &sec,
+    uint64_t oldSize) {
+  DenseMap<uint64_t, size_t> result;
+  for (auto [i, r] : llvm::enumerate(rels)) {
+    if (r.type != R_AVR32_18W_PCREL && r.type != R_AVR32_CPCALL)
+      continue;
+    if (r.offset + 4 > data.size() ||
+        !isMcallPC(read32be(data.data() + r.offset)))
+      continue;
+
+    std::optional<uint64_t> targetOffset =
+        getSameSectionSymbolOffset(r, sec, oldSize);
+    if (!targetOffset)
+      continue;
+
+    auto [it, inserted] = result.try_emplace(*targetOffset, i);
+    if (!inserted)
+      it->second = AmbiguousMcallRelocIndex;
+  }
+  return result;
 }
 
 static std::optional<uint32_t> findUniqueLddpcToCPEntry(ArrayRef<uint8_t> data,
@@ -225,6 +255,42 @@ static bool hasSymbolAnchorInRange(ArrayRef<SymbolAnchor> anchors,
   return false;
 }
 
+static uint64_t getNextRelocOffset(ArrayRef<Relocation> rels, size_t index,
+                                   uint64_t end) {
+  for (size_t i = index + 1, e = rels.size(); i != e; ++i)
+    if (rels[i].offset > rels[index].offset)
+      return rels[i].offset;
+  return end;
+}
+
+static bool isZeroRange(ArrayRef<uint8_t> data, uint64_t begin, uint64_t end) {
+  if (begin > end || end > data.size())
+    return false;
+  for (uint8_t b : data.slice(begin, end - begin))
+    if (b != 0)
+      return false;
+  return true;
+}
+
+static bool hasZeroPaddingAnchorInRange(ArrayRef<uint8_t> data,
+                                        ArrayRef<SymbolAnchor> anchors,
+                                        uint64_t begin, uint64_t end) {
+  if (begin >= data.size())
+    return false;
+  end = std::min(end, static_cast<uint64_t>(data.size()));
+  for (const SymbolAnchor &a : anchors) {
+    if (a.end || a.offset <= begin)
+      continue;
+    if (a.d && a.d->getName().starts_with(".L"))
+      continue;
+    if (a.offset > end)
+      break;
+    if (isZeroRange(data, begin, a.offset))
+      return true;
+  }
+  return false;
+}
+
 static uint32_t getDeltaBefore(ArrayRef<Relocation> rels, const RelaxAux &aux,
                                uint64_t offset) {
   uint32_t delta = 0;
@@ -236,6 +302,100 @@ static uint32_t getDeltaBefore(ArrayRef<Relocation> rels, const RelaxAux &aux,
 static uint64_t getRelaxedOffset(ArrayRef<Relocation> rels, const RelaxAux &aux,
                                  uint64_t offset) {
   return offset - getDeltaBefore(rels, aux, offset);
+}
+
+static uint32_t getTotalDelta(ArrayRef<Relocation> rels, const RelaxAux &aux) {
+  if (aux.oldRelocCount)
+    return aux.relocDeltas[aux.oldRelocCount - 1];
+
+  uint32_t total = 0;
+  for (size_t i = 0, e = rels.size(); i != e; ++i)
+    total = std::max(total, aux.relocDeltas[i]);
+  return total;
+}
+
+static uint32_t getDeltaBeforeFinalized(ArrayRef<Relocation> rels,
+                                        const RelaxAux &aux, uint64_t offset) {
+  if (aux.oldRelocOffsets && aux.oldRelocCount) {
+    uint32_t delta = 0;
+    uint32_t bestOffset = 0;
+    bool found = false;
+    for (size_t i = 0, e = aux.oldRelocCount; i != e; ++i) {
+      uint32_t oldOffset = aux.oldRelocOffsets[i];
+      if (oldOffset < offset && (!found || bestOffset <= oldOffset)) {
+        delta = aux.relocDeltas[i];
+        bestOffset = oldOffset;
+        found = true;
+      }
+    }
+    return delta;
+  }
+
+  uint32_t delta = 0, prevDelta = 0;
+  for (size_t i = 0, e = rels.size(); i != e;) {
+    uint64_t cur = rels[i].offset;
+    size_t j = i + 1;
+    for (; j != e && rels[j].offset == cur; ++j)
+      ;
+
+    uint64_t oldOffset = cur + prevDelta;
+    if (oldOffset >= offset)
+      break;
+    delta = aux.relocDeltas[j - 1];
+    prevDelta = delta;
+    i = j;
+  }
+  return delta;
+}
+
+static std::optional<uint64_t>
+getRelaxedAnchorVA(const InputSection &target, const RelaxAux &aux,
+                   uint64_t oldOffset) {
+  for (const SymbolAnchor &a : aux.anchors)
+    if (!a.end && a.offset == oldOffset && a.d && a.d->section == &target)
+      return target.getVA(a.d->value);
+  return std::nullopt;
+}
+
+struct RelaxedTarget {
+  InputSection *sec;
+  uint64_t oldOffset;
+  uint64_t unrelaxedVA;
+};
+
+static std::optional<RelaxedTarget>
+getRelaxedTarget(const Defined &d, uint64_t addend, const InputSection &src) {
+  if (auto *target = dyn_cast_or_null<InputSection>(d.section)) {
+    if (target == &src)
+      return std::nullopt;
+    return RelaxedTarget{target, addend, target->getVA(addend)};
+  }
+
+  auto *osec = dyn_cast_or_null<OutputSection>(d.section);
+  if (!osec)
+    return std::nullopt;
+
+  uint64_t oldOutputOffset = d.value + addend;
+  uint64_t priorDelta = 0;
+  SmallVector<InputSection *, 0> storage;
+  for (InputSection *target : getInputSections(*osec, storage)) {
+    uint64_t totalDelta = 0;
+    if (target->relaxAux && target->relocs().size() &&
+        target->relaxAux->relocDeltas)
+      totalDelta = getTotalDelta(target->relocs(), *target->relaxAux);
+
+    uint64_t oldStart = target->outSecOff + priorDelta;
+    uint64_t oldSize = target->content().size() + totalDelta;
+    if (oldStart <= oldOutputOffset && oldOutputOffset <= oldStart + oldSize) {
+      if (target == &src)
+        return std::nullopt;
+      return RelaxedTarget{target, oldOutputOffset - oldStart,
+                           osec->addr + oldOutputOffset};
+    }
+    priorDelta += totalDelta;
+  }
+
+  return std::nullopt;
 }
 
 static std::optional<uint64_t>
@@ -269,6 +429,38 @@ static void adjustSameSectionSymbolAddend(const InputSection &sec,
   if (!offset)
     return;
   r.addend -= getDeltaBefore(rels, aux, *offset);
+}
+
+static uint64_t adjustCrossSectionRelaxedTarget(const InputSection &src,
+                                                const Relocation &r,
+                                                uint64_t val) {
+  auto *d = dyn_cast<Defined>(r.sym);
+  if (!d || !d->isSection() || r.addend < 0)
+    return val;
+
+  std::optional<RelaxedTarget> rt =
+      getRelaxedTarget(*d, r.addend, src);
+  if (!rt || !rt->sec->relaxAux)
+    return val;
+
+  RelaxAux &aux = *rt->sec->relaxAux;
+  ArrayRef<Relocation> rels = rt->sec->relocs();
+  if (!aux.relocDeltas || (!aux.oldRelocCount && rels.empty()))
+    return val;
+
+  uint64_t totalDelta = getTotalDelta(rels, aux);
+  uint64_t oldSize = rt->sec->content().size() + totalDelta;
+  if (rt->oldOffset > oldSize)
+    return val;
+
+  if (std::optional<uint64_t> va =
+          getRelaxedAnchorVA(*rt->sec, aux, rt->oldOffset))
+    return val - (rt->unrelaxedVA - *va);
+
+  uint64_t relaxedVA =
+      rt->sec->getVA(rt->oldOffset - getDeltaBeforeFinalized(rels, aux,
+                                                             rt->oldOffset));
+  return val - (rt->unrelaxedVA - relaxedVA);
 }
 
 static std::optional<std::pair<RelType, uint16_t>>
@@ -395,6 +587,27 @@ static bool hasWordPCRel(ArrayRef<Relocation> rels) {
                       [](const Relocation &r) { return isWordPCRel(r.type); });
 }
 
+static SmallVector<char, 0>
+getPairedHalfwordRemovals(ArrayRef<Relocation> rels,
+                          ArrayRef<char> halfwordRemovals) {
+  SmallVector<char, 0> paired(rels.size(), false);
+  std::optional<size_t> pending;
+  for (auto [i, r] : llvm::enumerate(rels)) {
+    if (isWordPCRel(r.type))
+      pending.reset();
+    if (!halfwordRemovals[i])
+      continue;
+    if (!pending) {
+      pending = i;
+      continue;
+    }
+    paired[*pending] = true;
+    paired[i] = true;
+    pending.reset();
+  }
+  return paired;
+}
+
 static bool canRemoveHalfword(Ctx &ctx, const InputSection &sec,
                               ArrayRef<Relocation> rels, size_t index,
                               uint64_t delta, bool requireWordAlignment) {
@@ -419,10 +632,6 @@ static SmallVector<char, 0>
 getRelaxableFullLddpcRelocs(Ctx &ctx, const InputSection &sec,
                             ArrayRef<Relocation> rels, const RelaxAux &aux) {
   SmallVector<char, 0> relaxable(rels.size(), false);
-  if (llvm::any_of(
-          rels, [](const Relocation &r) { return r.type == R_AVR32_CPCALL; }))
-    return relaxable;
-
   SmallVector<uint64_t, 0> cpOffsets;
   for (const Relocation &r : rels)
     if (r.type == R_AVR32_32_CPENT)
@@ -589,7 +798,7 @@ int64_t AVR32::getImplicitAddend(const uint8_t *buf, RelType type) const {
   }
 }
 
-static bool relax(Ctx &ctx, InputSection &sec) {
+static bool relax(Ctx &ctx, InputSection &sec, int pass) {
   const uint64_t secAddr = sec.getVA();
   const MutableArrayRef<Relocation> relocs = sec.relocs();
   auto &aux = *sec.relaxAux;
@@ -597,11 +806,14 @@ static bool relax(Ctx &ctx, InputSection &sec) {
   ArrayRef<SymbolAnchor> sa = ArrayRef(aux.anchors);
   uint64_t delta = 0;
   bool hasWordPCRelocs = hasWordPCRel(relocs);
-
+  DenseMap<uint64_t, size_t> mcallRelocsByCPEntry =
+      getMcallRelocsByCPEntry(sec.content(), relocs, sec, sec.content().size());
   std::fill_n(aux.relocTypes.get(), relocs.size(), R_AVR32_NONE);
   aux.writes.clear();
   SmallVector<char, 0> relaxableFullLddpc =
       getRelaxableFullLddpcRelocs(ctx, sec, relocs, aux);
+  SmallVector<char, 0> pairedHalfwordRemovals =
+      getPairedHalfwordRemovals(relocs, relaxableFullLddpc);
   for (auto [i, r] : llvm::enumerate(relocs)) {
     const uint64_t loc = secAddr + r.offset - delta;
     uint32_t &cur = aux.relocDeltas[i], remove = 0;
@@ -631,70 +843,115 @@ static bool relax(Ctx &ctx, InputSection &sec) {
       aux.relocTypes[i] = R_AVR32_9W_CP;
       aux.writes.push_back(getCompactLddpcBase(word));
       remove = 2;
-    } else if (canRelaxDirectData(ctx) && r.type == R_AVR32_32_CPENT &&
+    } else if (canRelaxDirectData(ctx) &&
+               (r.type == R_AVR32_32 || r.type == R_AVR32_32_CPENT) &&
                !r.sym->isPreemptible && !r.sym->isGnuIFunc()) {
-      if (std::optional<uint32_t> callOffset =
-              findUniqueMcallToCPEntry(sec.content(), r.offset)) {
+      std::optional<uint32_t> directCallOffset;
+      if (r.type == R_AVR32_32_CPENT)
+        directCallOffset = findUniqueMcallToCPEntry(sec.content(), r.offset);
+      if (directCallOffset) {
         uint64_t callLoc =
-            secAddr + *callOffset - getDeltaBefore(relocs, aux, *callOffset);
+            secAddr + *directCallOffset -
+            getDeltaBefore(relocs, aux, *directCallOffset);
         uint64_t val = getRelocTargetVA(ctx, sec, relocs, aux, r, loc);
         int64_t pcrel = SignExtend64(val - callLoc, 32);
         if (!(pcrel & 1) && isInt<21>(pcrel >> 1)) {
           aux.relocTypes[i] = INTERNAL_R_AVR32_RELAX_CALL;
-          aux.writes.push_back(*callOffset);
+          aux.writes.push_back(*directCallOffset);
           remove = 4;
         }
-      } else if (std::optional<size_t> loadIndex =
-                     findUniqueFullLddpcRelocIndexToCPEntry(
-                         sec.content(), relocs, sec, r.offset)) {
-        // The full load and mov are both 4 bytes, so only the pool entry needs
-        // to be deleted. Intervening code can keep its original layout.
+      } else if (auto it = mcallRelocsByCPEntry.find(r.offset);
+                 it != mcallRelocsByCPEntry.end() &&
+                 it->second != AmbiguousMcallRelocIndex) {
+        size_t callIndex = it->second;
+        uint32_t callOffset = relocs[callIndex].offset;
+        uint64_t callLoc =
+            secAddr + callOffset - getDeltaBefore(relocs, aux, callOffset);
         uint64_t val = getRelocTargetVA(ctx, sec, relocs, aux, r, loc);
-        if (isInt<21>(SignExtend64(val, 32))) {
-          uint32_t loadOffset = relocs[*loadIndex].offset;
-          aux.relocTypes[*loadIndex] = INTERNAL_R_AVR32_RELAX_SKIP_RELOC;
-          aux.relocTypes[i] = INTERNAL_R_AVR32_RELAX_FULL_LDDPC_MOV;
-          aux.writes.push_back(loadOffset);
-          aux.writes.push_back(
-              getMovri21Base(read32be(sec.content().data() + loadOffset)));
+        int64_t pcrel = SignExtend64(val - callLoc, 32);
+        if (!(pcrel & 1) && isInt<21>(pcrel >> 1)) {
+          aux.relocTypes[callIndex] = INTERNAL_R_AVR32_RELAX_SKIP_RELOC;
+          aux.relocTypes[i] = INTERNAL_R_AVR32_RELAX_CALL;
+          aux.writes.push_back(callOffset);
           remove = 4;
         }
-      } else if (std::optional<uint32_t> loadOffset =
-                     findUniqueFullLddpcToCPEntry(sec.content(), r.offset)) {
-        // The full load and mov are both 4 bytes, so only the pool entry needs
-        // to be deleted. Intervening code can keep its original layout.
-        uint64_t val = getRelocTargetVA(ctx, sec, relocs, aux, r, loc);
-        if (isInt<21>(SignExtend64(val, 32))) {
-          aux.relocTypes[i] = INTERNAL_R_AVR32_RELAX_FULL_LDDPC_MOV;
-          aux.writes.push_back(*loadOffset);
-          aux.writes.push_back(
-              getMovri21Base(read32be(sec.content().data() + *loadOffset)));
-          remove = 4;
-        }
-      } else if (std::optional<uint32_t> loadOffset =
-                     findUniqueLddpcToCPEntry(sec.content(), r.offset)) {
-        // The load is 2 bytes and the pool entry is 4 bytes. Replacing the
-        // load plus immediately following pool bytes with a 4-byte mov is
-        // layout-local; wider cases would require inserting bytes before
-        // arbitrary code, which this relaxation pass does not model.
-        uint32_t gap = r.offset - *loadOffset;
-        bool poolFollowsLoad =
-            gap == 2 ||
-            (gap == 4 &&
-             read16be(sec.content().data() + *loadOffset + 2) == 0 &&
-             !hasSymbolAnchorInRange(aux.anchors, *loadOffset + 2, r.offset));
-        uint64_t val = getRelocTargetVA(ctx, sec, relocs, aux, r, loc);
-        if (poolFollowsLoad && isInt<21>(SignExtend64(val, 32))) {
-          aux.relocTypes[i] = INTERNAL_R_AVR32_RELAX_LDDPC_MOV;
-          aux.writes.push_back(*loadOffset);
-          aux.writes.push_back(
-              getMovri21Base(read16be(sec.content().data() + *loadOffset)));
-          remove = gap;
+      } else if (r.type == R_AVR32_32_CPENT) {
+        if (std::optional<size_t> loadIndex =
+                findUniqueFullLddpcRelocIndexToCPEntry(sec.content(), relocs,
+                                                       sec, r.offset)) {
+          // The full load and mov are both 4 bytes, so only the pool entry needs
+          // to be deleted. Intervening code can keep its original layout.
+          uint64_t val = getRelocTargetVA(ctx, sec, relocs, aux, r, loc);
+          if (isInt<21>(SignExtend64(val, 32))) {
+            uint32_t loadOffset = relocs[*loadIndex].offset;
+            aux.relocTypes[*loadIndex] = INTERNAL_R_AVR32_RELAX_SKIP_RELOC;
+            aux.relocTypes[i] = INTERNAL_R_AVR32_RELAX_FULL_LDDPC_MOV;
+            aux.writes.push_back(loadOffset);
+            aux.writes.push_back(
+                getMovri21Base(read32be(sec.content().data() + loadOffset)));
+            remove = 4;
+          }
+        } else if (std::optional<uint32_t> loadOffset =
+                       findUniqueFullLddpcToCPEntry(sec.content(), r.offset)) {
+          // The full load and mov are both 4 bytes, so only the pool entry needs
+          // to be deleted. Intervening code can keep its original layout.
+          uint64_t val = getRelocTargetVA(ctx, sec, relocs, aux, r, loc);
+          if (isInt<21>(SignExtend64(val, 32))) {
+            aux.relocTypes[i] = INTERNAL_R_AVR32_RELAX_FULL_LDDPC_MOV;
+            aux.writes.push_back(*loadOffset);
+            aux.writes.push_back(
+                getMovri21Base(read32be(sec.content().data() + *loadOffset)));
+            remove = 4;
+          }
+        } else if (std::optional<uint32_t> loadOffset =
+                       findUniqueLddpcToCPEntry(sec.content(), r.offset)) {
+          // The load is 2 bytes and the pool entry is 4 bytes. Replacing the
+          // load plus immediately following pool bytes with a 4-byte mov is
+          // layout-local; wider cases would require inserting bytes before
+          // arbitrary code, which this relaxation pass does not model.
+          uint32_t gap = r.offset - *loadOffset;
+          bool poolFollowsLoad =
+              gap == 2 ||
+              (gap == 4 &&
+               read16be(sec.content().data() + *loadOffset + 2) == 0 &&
+               !hasSymbolAnchorInRange(aux.anchors, *loadOffset + 2, r.offset));
+          uint64_t val = getRelocTargetVA(ctx, sec, relocs, aux, r, loc);
+          if (poolFollowsLoad && isInt<21>(SignExtend64(val, 32))) {
+            aux.relocTypes[i] = INTERNAL_R_AVR32_RELAX_LDDPC_MOV;
+            aux.writes.push_back(*loadOffset);
+            aux.writes.push_back(
+                getMovri21Base(read16be(sec.content().data() + *loadOffset)));
+            remove = gap;
+          }
         }
       }
     }
 
+    // Large 4-byte pool deletions can make late 2-byte branch/load/alignment
+    // relaxations toggle around an alignment boundary. After several passes,
+    // keep only halfword removals that were already present in the previous
+    // pass. Keeping an extra halfword of code or padding is always safe.
+    if (remove == 2) {
+      uint64_t paddingBegin =
+          r.type == R_AVR32_ALIGN ? r.offset : r.offset + 4;
+      uint64_t paddingEnd =
+          getNextRelocOffset(relocs, i, sec.content().size());
+      if (hasZeroPaddingAnchorInRange(sec.content(), aux.anchors, paddingBegin,
+                                      paddingEnd)) {
+        aux.relocTypes[i] = R_AVR32_NONE;
+        aux.writes.resize(oldWritesSize);
+        remove = 0;
+      }
+    }
+
+    if (pass >= 8 && remove == 2 && cur >= delta && cur - delta == 0) {
+      aux.relocTypes[i] = R_AVR32_NONE;
+      aux.writes.resize(oldWritesSize);
+      remove = 0;
+    }
+
     if (r.type != R_AVR32_ALIGN && remove == 2 &&
+        !pairedHalfwordRemovals[i] &&
         !canRemoveHalfword(ctx, sec, relocs, i, delta, hasWordPCRelocs)) {
       aux.relocTypes[i] = R_AVR32_NONE;
       aux.writes.resize(oldWritesSize);
@@ -741,7 +998,7 @@ bool AVR32::relaxOnce(int pass) const {
       continue;
     for (InputSection *sec : getInputSections(*osec, storage))
       if (sec->relaxAux && sec->relaxAux->relocDeltas)
-        changed |= relax(ctx, *sec);
+        changed |= relax(ctx, *sec, pass);
   }
   return changed;
 }
@@ -764,6 +1021,12 @@ void AVR32::finalizeRelax(int passes) const {
       MutableArrayRef<Relocation> rels = sec->relocs();
       if (aux.relocDeltas[rels.size() - 1] == 0 && aux.writes.empty())
         continue;
+
+      if (!aux.oldRelocOffsets)
+        aux.oldRelocOffsets = std::make_unique<uint32_t[]>(rels.size());
+      aux.oldRelocCount = rels.size();
+      for (auto [i, rel] : llvm::enumerate(rels))
+        aux.oldRelocOffsets[i] = rel.offset;
 
       ArrayRef<uint8_t> old = sec->content();
       size_t newSize = old.size() - aux.relocDeltas[rels.size() - 1];
@@ -902,6 +1165,20 @@ void AVR32::finalizeRelax(int passes) const {
         return r.expr == R_NONE && r.type == R_AVR32_NONE;
       });
     }
+  }
+}
+
+void AVR32::relocateAlloc(InputSection &sec, uint8_t *buf) const {
+  uint64_t secAddr = sec.getOutputSection()->addr + sec.outSecOff;
+  for (const Relocation &rel : sec.relocs()) {
+    if (rel.expr == R_NONE)
+      continue;
+    uint8_t *loc = buf + rel.offset;
+    uint64_t val =
+        SignExtend64(sec.getRelocTargetVA(ctx, rel, secAddr + rel.offset), 32);
+    val = adjustCrossSectionRelaxedTarget(sec, rel, val);
+    if (rel.expr != R_RELAX_HINT)
+      relocate(loc, rel, val);
   }
 }
 

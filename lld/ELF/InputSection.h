@@ -135,6 +135,9 @@ struct RelaxAux {
   // For relocations[i], the actual offset is
   //   r_offset - (i ? relocDeltas[i-1] : 0).
   std::unique_ptr<uint32_t[]> relocDeltas;
+  // For relocations[i], the original offset before finalizeRelax mutates it.
+  std::unique_ptr<uint32_t[]> oldRelocOffsets;
+  uint32_t oldRelocCount = 0;
   // For relocations[i], the actual type is relocTypes[i].
   std::unique_ptr<RelType[]> relocTypes;
   SmallVector<uint32_t, 0> writes;

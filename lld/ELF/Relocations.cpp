@@ -1351,8 +1351,9 @@ void TargetInfo::scanSectionImpl(InputSectionBase &sec, Relocs<RelTy> rels) {
 
   // Sort relocations by offset for more efficient searching for
   // R_RISCV_PCREL_HI20, ALIGN relocations, R_PPC64_ADDR64 and the
-  // branch-to-branch optimization.
-  if (is_contained({EM_RISCV, EM_LOONGARCH}, ctx.arg.emachine) ||
+  // branch-to-branch optimization. AVR32 relaxation also records cumulative
+  // byte deltas in relocation order.
+  if (is_contained({EM_AVR32, EM_RISCV, EM_LOONGARCH}, ctx.arg.emachine) ||
       (ctx.arg.emachine == EM_PPC64 && sec.name == ".toc") ||
       ctx.arg.branchToBranch)
     llvm::stable_sort(sec.relocs(),
