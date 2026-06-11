@@ -97,7 +97,8 @@ public:
 
       if (C && isInt<16>(C->getSExtValue())) {
         Base = LHS;
-        Disp = CurDAG->getTargetConstant(C->getSExtValue(), DL, MVT::i32);
+        Disp = CurDAG->getSignedTargetConstant(C->getSExtValue(), DL,
+                                               MVT::i32);
         return true;
       }
     }
@@ -359,7 +360,7 @@ public:
     int64_t Offset = GA->getOffset();
     if (isInt<16>(Offset)) {
       Base = materializeGlobalAddress(GA, DL, /*Offset=*/0);
-      Disp = CurDAG->getTargetConstant(Offset, DL, MVT::i32);
+      Disp = CurDAG->getSignedTargetConstant(Offset, DL, MVT::i32);
       return true;
     }
 
@@ -406,7 +407,7 @@ public:
   SDValue materializeI32Constant(uint32_t Bits, const SDLoc &DL) {
     int32_t Signed = static_cast<int32_t>(Bits);
     if (isInt<21>(Signed)) {
-      SDValue Imm = CurDAG->getTargetConstant(Signed, DL, MVT::i32);
+      SDValue Imm = CurDAG->getSignedTargetConstant(Signed, DL, MVT::i32);
       return SDValue(CurDAG->getMachineNode(AVR32::MOVri21, DL, MVT::i32, Imm),
                      0);
     }

@@ -11,6 +11,8 @@
 
 using namespace llvm;
 
+#define DEBUG_TYPE "avr32-subtarget"
+
 #define GET_SUBTARGETINFO_ENUM
 #include "AVR32GenSubtargetInfo.inc"
 #define GET_SUBTARGETINFO_TARGET_DESC

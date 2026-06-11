@@ -25,9 +25,11 @@
 ...
 ---
 name: pool_cross_branch
-tracksRegLiveness: false
+tracksRegLiveness: true
 body: |
   bb.0:
+    liveins: $sreg
+
     $r12 = LDA_W @g0
     $r11 = LDA_W @g1
     $r10 = LDA_W @g2
@@ -156,5 +158,7 @@ body: |
     RCALLeCG @side, implicit-def $lr, implicit $sp, implicit-def $sp
 
   bb.2:
+    liveins: $r12
+
     RETR12 implicit $r12
 ...
