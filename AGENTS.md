@@ -36,10 +36,23 @@ On a new machine, first inspect local build directories and set:
 BUILD_DIR=/path/to/llvm-avr32-build
 ```
 
+Fresh AVR32-only CMake configure command:
+
+```sh
+cmake -S llvm -B "$BUILD_DIR" -G Ninja \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DLLVM_ENABLE_ASSERTIONS=ON \
+  -DLLVM_ENABLE_PROJECTS='clang;lld' \
+  -DLLVM_TARGETS_TO_BUILD='' \
+  -DLLVM_EXPERIMENTAL_TARGETS_TO_BUILD=AVR32
+```
+
 Useful build command:
 
 ```sh
-ninja -C "$BUILD_DIR" clang llc llvm-mc llvm-readobj llvm-objdump yaml2obj obj2yaml FileCheck lld
+ninja -C "$BUILD_DIR" clang llc llvm-mc llvm-readobj llvm-readelf \
+  llvm-objdump llvm-dwarfdump yaml2obj obj2yaml FileCheck lld count not \
+  split-file llvm-config
 ```
 
 For Clang AVR32 CodeGen only:
@@ -75,8 +88,8 @@ Use this subset after AVR32 target, Clang, MC, object, or lld changes:
   lld/test/ELF/avr32-lddpc-relax.s
 ```
 
-Last known result for this subset: 44/44 passed after AVR32 post-increment
-load/store lowering was added.
+Last known result for this subset: 77/77 passed after the LLVM 22.1.7 sync
+verification fixes.
 
 ## AVR32 Code Map
 
@@ -110,6 +123,19 @@ load/store lowering was added.
 - LLVM MC currently marks full `lddpc` (`fixup_16b_pcrel`) as linker-relaxable under `+relax`, so later `.p2align` can emit `R_AVR32_ALIGN`. Do not blindly mark full branch/call fixups linker-relaxable: doing that broke SDR-widget `exception.x` because `_intN - _evba` table expressions stopped folding and produced `expected relocatable expression`.
 - If MC linker-relaxable marking changes, compile the SDR-widget assembly `.x` files as part of validation, not just lit tests.
 - When touching return instruction aliases, check printer/parser behavior separately. Some printed return forms may not round-trip through the parser unless the alias is supported.
+- LLVM 22's generated subtarget info emits `LLVM_DEBUG` from the generated
+  parser, so AVR32 subtarget sources need `DEBUG_TYPE` defined before including
+  `AVR32GenSubtargetInfo.inc`.
+- Keep `Triple::avr32` in the default DWARF CFI exception-handling list to
+  match `AVR32MCAsmInfo`; otherwise Clang/llc assert during target machine
+  setup.
+- In SelectionDAG code, use `getSignedTargetConstant` for signed AVR32
+  immediates such as displacement operands and `MOVri21`; newer LLVM asserts
+  when negative values are passed through unsigned target-constant APIs.
+- For hand-written AVR32 MIR that goes through normal object emission, set
+  liveness metadata accurately (`tracksRegLiveness: true` and needed per-block
+  `liveins`) because LLVM 22 machine passes now assert on inconsistent
+  live-out queries.
 - `SELECT_CC` lowers to `cp` plus a conditional register move for normal optimization, but keeps the old branch/PHI lowering under `optsize`/`minsize`. Current SDR-widget `-Oz` measurement showed conditional moves can grow size because AVR32 compact branches may relax smaller and register allocation can need extra copies.
 - `popm ..., pc, r12=<imm>` is supported for immediate return values `-1`, `0`, and `1`. The special form cannot pop `lr` or `r12`; codegen folds a final `mov r12, -1/0/1` into `popm` when the epilogue is already returning through a saved `pc`.
 - Next code-size targets should be measured per SDR object/function before changing codegen. A good candidate from GCC comparisons is predicated stores.
