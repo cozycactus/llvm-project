@@ -452,15 +452,31 @@ static bool isImmediateAlreadyExtended(int64_t Imm, bool Signed,
   return Imm >= 0 && static_cast<uint64_t>(Imm) < (uint64_t(1) << Width);
 }
 
+static bool isRegAlreadyExtendedBefore(MachineBasicBlock &MBB,
+                                       MachineBasicBlock::iterator Pos,
+                                       Register Reg, bool Signed,
+                                       unsigned Width,
+                                       const TargetRegisterInfo &TRI,
+                                       unsigned Depth);
+
 static bool isRegAlreadyExtendedBefore(MachineBasicBlock::iterator Pos,
                                        Register Reg, bool Signed,
                                        unsigned Width,
                                        const TargetRegisterInfo &TRI,
                                        unsigned Depth = 8) {
+  return isRegAlreadyExtendedBefore(*Pos->getParent(), Pos, Reg, Signed, Width,
+                                    TRI, Depth);
+}
+
+static bool isRegAlreadyExtendedBefore(MachineBasicBlock &MBB,
+                                       MachineBasicBlock::iterator Pos,
+                                       Register Reg, bool Signed,
+                                       unsigned Width,
+                                       const TargetRegisterInfo &TRI,
+                                       unsigned Depth) {
   if (!Depth)
     return false;
 
-  MachineBasicBlock &MBB = *Pos->getParent();
   for (MachineBasicBlock::iterator I = Pos; I != MBB.begin();) {
     --I;
     MachineInstr &DefMI = *I;
@@ -491,7 +507,15 @@ static bool isRegAlreadyExtendedBefore(MachineBasicBlock::iterator Pos,
     return false;
   }
 
-  return false;
+  if (MBB.pred_size() != 1)
+    return false;
+
+  MachineBasicBlock *Pred = *MBB.pred_begin();
+  if (Pred == &MBB)
+    return false;
+
+  return isRegAlreadyExtendedBefore(*Pred, Pred->end(), Reg, Signed, Width, TRI,
+                                    Depth - 1);
 }
 
 static unsigned getInstSize(const MachineInstr &MI) {
@@ -1344,7 +1368,7 @@ bool AVR32Peephole::foldNarrowCompare(MachineInstr &MI,
   if (!Width || !hasCompatibleNarrowCompareUser(MI, Signed))
     return false;
   unsigned NarrowOpc = getNarrowCompareOpcode(*Width);
-  if (!NarrowOpc || CastIt->getNumOperands() != 2 ||
+  if (!NarrowOpc || CastIt->getNumExplicitOperands() != 2 ||
       !isRegOperand(CastIt->getOperand(0)) ||
       !isRegOperand(CastIt->getOperand(1)))
     return false;
@@ -1449,7 +1473,7 @@ bool AVR32Peephole::foldRedundantCastBeforeCompare(
     return false;
   }
 
-  if (MI.getNumOperands() != 2 || !isRegOperand(MI.getOperand(0)) ||
+  if (MI.getNumExplicitOperands() != 2 || !isRegOperand(MI.getOperand(0)) ||
       !isRegOperand(MI.getOperand(1)) ||
       MI.getOperand(0).getReg() != MI.getOperand(1).getReg())
     return false;

@@ -7,6 +7,10 @@
     ret i32 0
   }
 
+  define i32 @fold_redundant_cast_single_pred(ptr %p) {
+    ret i32 0
+  }
+
   define i32 @keep_needed_cast(i32 %x) {
     ret i32 %x
   }
@@ -32,9 +36,30 @@ body:             |
 
     ; CHECK-LABEL: name: fold_redundant_cast
     ; CHECK: $r8 = LD_UB_Disp3 $r12, 0
-    ; CHECK-NEXT: $r8 = CASTU_Bcg killed $r8
     ; CHECK-NEXT: CPri6 killed $r8, 0
     $r8 = LD_UB_Disp16 $r12, 0
+    $r8 = CASTU_Bcg killed $r8, implicit-def dead $sreg
+    CPri6 killed $r8, 0, implicit-def $sreg
+    RETR12 implicit $r12
+...
+---
+name:            fold_redundant_cast_single_pred
+tracksRegLiveness: true
+body:             |
+  bb.0:
+    liveins: $r12
+    successors: %bb.1
+
+    ; CHECK-LABEL: name: fold_redundant_cast_single_pred
+    ; CHECK: $r8 = LD_UB_Disp3 $r12, 0
+    ; CHECK: RJMPbb %bb.1
+    $r8 = LD_UB_Disp16 $r12, 0
+    BRALbb %bb.1
+
+  bb.1:
+    liveins: $r8, $r12
+
+    ; CHECK: CPri6 killed $r8, 0
     $r8 = CASTU_Bcg killed $r8, implicit-def dead $sreg
     CPri6 killed $r8, 0, implicit-def $sreg
     RETR12 implicit $r12

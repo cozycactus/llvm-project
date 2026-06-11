@@ -221,6 +221,21 @@ Current practical compile reference:
     and final link selection explain the remaining roughly +1.9 KB.
   - Largest current object flash deltas, LLVM Oz minus GCC Os: `taskPushButtonMenu.o` +460, `taskMoboCtrl.o` +410, `tasks.o` +385, `DG8SAQ_cmd.o` +362, `taskLCD.o` +355, `uac2_usb_specific_request.o` -346, `uac2_device_audio_task.o` +328, `gpio.o` +328, `tc.o` -304, `twim_patched.o` +284.
   - Largest current final text symbol deltas, LLVM Oz minus GCC Os: `dg8saqFunctionSetup` +500, `vtaskLCD` +452, `uac2_device_audio_task` +316, `uac2_user_read_request` -296, `vtaskMoboCtrl` +264, `menu_level0` +248, `pcf8574_menu` +212, `i2c_menu` +204.
+- Current clean full generated `Release` graph for SDR-widget branch
+  `codex/macos-avr32-build-local` at `22c5349372` (`Use latest AVR32
+  toolchain release in CI`), measured from `git archive HEAD` temp builds:
+  - GCC Os: flash 111,590; `.text` 99,662; `.exception` 512; `.rodata` 10,256; `.data` 1,672; `.bss` 22,176
+  - GCC O2: flash 115,718; `.text` 103,346; `.exception` 512; `.rodata` 10,700; `.data` 1,672; `.bss` 22,176
+  - LLVM Oz/lld before redundant cross-block cast folding: flash 116,532; `.text` 105,360; `.exception` 356; `.rodata` 9,508; `.data` 1,664; `.bss` 22,040
+  - LLVM Oz/lld after redundant cross-block cast folding: flash 116,412; `.text` 105,240; `.exception` 356; `.rodata` 9,508; `.data` 1,664; `.bss` 22,040
+  - LLVM O2/lld before that fold: flash 119,944; `.text` 107,952; `.exception` 356; `.rodata` 10,328; `.data` 1,664; `.bss` 22,040
+  - All builds used 75 objects; `src/newlib_compat.o` is part of this branch's generated object set.
+  - For LLVM makefile-wrapper comparisons, pass `-mrelax` on compile,
+    assembler-with-cpp, and link steps. Passing it only at link time measured
+    a false LLVM Oz flash of 123,880 bytes because relaxable forms were not
+    emitted during compilation.
+  - The redundant cross-block cast fold reduced final `castu.b` instruction
+    count from 357 to 311 and saved 120 linked flash bytes.
 - Current full SDR-widget link reference after the `popm` return-value change
   (`.text + .rodata + .data`; current local artifacts):
   - LLVM Oz/lld: flash 107,964; `.text` 97,376; `.exception` 356; `.rodata` 8,924; `.data` 1,664; `.bss` 22,040
