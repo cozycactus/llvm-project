@@ -138,7 +138,8 @@ void AVR32FrameLowering::emitPrologue(MachineFunction &MF,
 
 void AVR32FrameLowering::emitEpilogue(MachineFunction &MF,
                                       MachineBasicBlock &MBB) const {
-  uint64_t StackSize = MF.getFrameInfo().getStackSize();
+  const MachineFrameInfo &MFI = MF.getFrameInfo();
+  uint64_t StackSize = MFI.getStackSize();
   bool HasFP = hasFP(MF);
   unsigned PushmMask = getPushmMask(MF);
   if (StackSize == 0 && !HasFP && PushmMask == 0)
@@ -172,7 +173,7 @@ void AVR32FrameLowering::emitEpilogue(MachineFunction &MF,
     }
   }
 
-  if (HasFP)
+  if (HasFP && (StackSize != 0 || MFI.hasVarSizedObjects()))
     BuildMI(MBB, MBBI, DL, TII.get(AVR32::MOVrr), AVR32::SP)
         .addReg(AVR32::R7);
 
