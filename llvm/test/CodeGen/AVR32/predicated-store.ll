@@ -23,6 +23,29 @@ done:
   ret void
 }
 
+define void @pred_store_target_word_eq(ptr %p, i32 %a, i32 %v) minsize optsize {
+; UC3-LABEL: pred_store_target_word_eq:
+; UC3:      cp
+; UC3-NEXT: st.weq {{r[0-9]+}}[0], {{r[0-9]+}}
+; UC3:      ret r12
+; GENERIC-LABEL: pred_store_target_word_eq:
+; GENERIC:      cp
+; GENERIC-NEXT: breq
+; GENERIC:      ret r12
+; GENERIC:      st.w {{r[0-9]+}}[0], {{r[0-9]+}}
+; GENERIC:      ret r12
+entry:
+  %cond = icmp eq i32 %a, 0
+  br i1 %cond, label %store, label %done
+
+done:
+  ret void
+
+store:
+  store i32 %v, ptr %p, align 4
+  ret void
+}
+
 define void @pred_store_half_ne(ptr %p, i32 %a, i32 %b, i16 %v) minsize optsize {
 ; UC3-LABEL: pred_store_half_ne:
 ; UC3:      cp

@@ -597,38 +597,72 @@ enum class AVR32Cond {
   HI,
 };
 
-static std::optional<AVR32Cond> getStoreConditionForSkippedBranch(
+static AVR32Cond invertStoreCondition(AVR32Cond Cond) {
+  switch (Cond) {
+  case AVR32Cond::EQ:
+    return AVR32Cond::NE;
+  case AVR32Cond::NE:
+    return AVR32Cond::EQ;
+  case AVR32Cond::CC:
+    return AVR32Cond::CS;
+  case AVR32Cond::CS:
+    return AVR32Cond::CC;
+  case AVR32Cond::GE:
+    return AVR32Cond::LT;
+  case AVR32Cond::LT:
+    return AVR32Cond::GE;
+  case AVR32Cond::LS:
+    return AVR32Cond::HI;
+  case AVR32Cond::GT:
+    return AVR32Cond::LE;
+  case AVR32Cond::LE:
+    return AVR32Cond::GT;
+  case AVR32Cond::HI:
+    return AVR32Cond::LS;
+  }
+  llvm_unreachable("unknown AVR32 condition");
+}
+
+static std::optional<AVR32Cond> getStoreConditionForTakenBranch(
     unsigned Opcode) {
   switch (Opcode) {
   case AVR32::BREQbb:
   case AVR32::BREQcbb:
-    return AVR32Cond::NE;
+    return AVR32Cond::EQ;
   case AVR32::BRNEbb:
   case AVR32::BRNEcbb:
-    return AVR32Cond::EQ;
+    return AVR32Cond::NE;
   case AVR32::BRCCbb:
   case AVR32::BRCCcbb:
-    return AVR32Cond::CS;
+    return AVR32Cond::CC;
   case AVR32::BRCSbb:
   case AVR32::BRCScbb:
-    return AVR32Cond::CC;
+    return AVR32Cond::CS;
   case AVR32::BRGEbb:
   case AVR32::BRGEcbb:
-    return AVR32Cond::LT;
+    return AVR32Cond::GE;
   case AVR32::BRLTbb:
   case AVR32::BRLTcbb:
-    return AVR32Cond::GE;
+    return AVR32Cond::LT;
   case AVR32::BRLSbb:
-    return AVR32Cond::HI;
-  case AVR32::BRGTbb:
-    return AVR32Cond::LE;
-  case AVR32::BRLEbb:
-    return AVR32Cond::GT;
-  case AVR32::BRHIbb:
     return AVR32Cond::LS;
+  case AVR32::BRGTbb:
+    return AVR32Cond::GT;
+  case AVR32::BRLEbb:
+    return AVR32Cond::LE;
+  case AVR32::BRHIbb:
+    return AVR32Cond::HI;
   default:
     return std::nullopt;
   }
+}
+
+static std::optional<AVR32Cond> getStoreConditionForSkippedBranch(
+    unsigned Opcode) {
+  std::optional<AVR32Cond> Cond = getStoreConditionForTakenBranch(Opcode);
+  if (!Cond)
+    return std::nullopt;
+  return invertStoreCondition(*Cond);
 }
 
 static bool fitsPredicatedStoreDisp(unsigned StoreOpcode, int64_t Disp) {
@@ -760,6 +794,71 @@ static std::optional<unsigned> getPredicatedStoreOpcode(unsigned StoreOpcode,
   default:
     return std::nullopt;
   }
+}
+
+static MachineInstr *getOnlyNonDebugInstr(MachineBasicBlock &MBB) {
+  MachineInstr *Only = nullptr;
+  for (MachineInstr &MI : MBB) {
+    if (MI.isDebugInstr())
+      continue;
+    if (Only)
+      return nullptr;
+    Only = &MI;
+  }
+  return Only;
+}
+
+static bool getStoreAndReturn(MachineBasicBlock &MBB, MachineInstr *&Store,
+                              MachineInstr *&Ret) {
+  Store = nullptr;
+  Ret = nullptr;
+  for (MachineInstr &MI : MBB) {
+    if (MI.isDebugInstr())
+      continue;
+    if (!Store) {
+      Store = &MI;
+      continue;
+    }
+    if (!Ret) {
+      Ret = &MI;
+      continue;
+    }
+    return false;
+  }
+  return Store && Ret && Ret->isReturn();
+}
+
+static bool getPredicatedStoreOperands(MachineInstr &Store,
+                                       const MachineOperand *&Base,
+                                       const MachineOperand *&Disp,
+                                       const MachineOperand *&Src) {
+  if (Store.getNumExplicitOperands() != 3 || !Store.mayStore() ||
+      Store.mayLoad())
+    return false;
+
+  Base = &Store.getOperand(0);
+  Disp = &Store.getOperand(1);
+  Src = &Store.getOperand(2);
+  return isRegOperand(*Base) && Disp->isImm() && isRegOperand(*Src) &&
+         fitsPredicatedStoreDisp(Store.getOpcode(), Disp->getImm());
+}
+
+static void buildPredicatedStore(MachineFunction &MF, MachineBasicBlock &MBB,
+                                 MachineInstr &InsertBefore,
+                                 MachineInstr &Store,
+                                 const MachineOperand &Base,
+                                 const MachineOperand &Disp,
+                                 const MachineOperand &Src,
+                                 unsigned CondStoreOpc,
+                                 const TargetInstrInfo &TII) {
+  MachineInstrBuilder MIB =
+      BuildMI(MBB, InsertBefore, Store.getDebugLoc(), TII.get(CondStoreOpc))
+          .addReg(Base.getReg(), getKillRegState(Base.isKill()))
+          .addImm(Disp.getImm())
+          .addReg(Src.getReg(), getKillRegState(Src.isKill()));
+  MIB->copyImplicitOps(MF, Store);
+  MIB.setMIFlags(Store.getFlags());
+  MIB.setMemRefs(Store.memoperands());
 }
 
 bool AVR32Peephole::foldTwoAddressALU(MachineInstr &MI, unsigned CompactOpc,
@@ -1650,59 +1749,84 @@ bool AVR32Peephole::foldPredicatedStores(MachineFunction &MF,
     if (Prev == MBB.end() || !isCompareOpcode(Prev->getOpcode()))
       continue;
 
-    MachineBasicBlock *SkipBB = Branch->getOperand(0).getMBB();
-    MachineFunction::iterator StoreIt = std::next(MBB.getIterator());
-    if (StoreIt == MF.end())
+    {
+      MachineBasicBlock *SkipBB = Branch->getOperand(0).getMBB();
+      MachineFunction::iterator StoreIt = std::next(MBB.getIterator());
+      if (StoreIt != MF.end()) {
+        MachineBasicBlock *StoreBB = &*StoreIt;
+        if (std::next(StoreIt) != MF.end() &&
+            &*std::next(StoreIt) == SkipBB && StoreBB->succ_size() == 1 &&
+            *StoreBB->succ_begin() == SkipBB && MBB.isSuccessor(StoreBB) &&
+            MBB.isSuccessor(SkipBB) &&
+            (SkipBB->empty() || !SkipBB->begin()->isPHI())) {
+          MachineInstr *Store = getOnlyNonDebugInstr(*StoreBB);
+          const MachineOperand *Base = nullptr;
+          const MachineOperand *Disp = nullptr;
+          const MachineOperand *Src = nullptr;
+          std::optional<unsigned> CondStoreOpc;
+          if (Store &&
+              getPredicatedStoreOperands(*Store, Base, Disp, Src) &&
+              (CondStoreOpc =
+                   getPredicatedStoreOpcode(Store->getOpcode(), *StoreCond))) {
+            buildPredicatedStore(MF, MBB, *Branch, *Store, *Base, *Disp, *Src,
+                                 *CondStoreOpc, TII);
+
+            Branch->eraseFromParent();
+            MBB.removeSuccessor(StoreBB);
+            StoreBB->removeSuccessor(SkipBB);
+            StoreBB->eraseFromParent();
+
+            ++NumPredicatedStores;
+            return true;
+          }
+        }
+      }
+    }
+
+    StoreCond = getStoreConditionForTakenBranch(Branch->getOpcode());
+    if (!StoreCond)
       continue;
-    MachineBasicBlock *StoreBB = &*StoreIt;
-    if (std::next(StoreIt) == MF.end() || &*std::next(StoreIt) != SkipBB)
+
+    MachineFunction::iterator FallthroughIt = std::next(MBB.getIterator());
+    if (FallthroughIt == MF.end())
       continue;
-    if (StoreBB->succ_size() != 1 || *StoreBB->succ_begin() != SkipBB)
+    MachineBasicBlock *FallthroughBB = &*FallthroughIt;
+    MachineBasicBlock *StoreBB = Branch->getOperand(0).getMBB();
+    if (StoreBB == FallthroughBB || !MBB.isSuccessor(StoreBB) ||
+        !MBB.isSuccessor(FallthroughBB) || StoreBB->pred_size() != 1 ||
+        *StoreBB->pred_begin() != &MBB || StoreBB->hasAddressTaken() ||
+        StoreBB->isEHPad())
       continue;
-    if (!MBB.isSuccessor(StoreBB) || !MBB.isSuccessor(SkipBB))
+    if ((!StoreBB->empty() && StoreBB->begin()->isPHI()) ||
+        (!FallthroughBB->empty() && FallthroughBB->begin()->isPHI()))
       continue;
-    if (!SkipBB->empty() && SkipBB->begin()->isPHI())
+
+    MachineInstr *FallthroughRet = getOnlyNonDebugInstr(*FallthroughBB);
+    if (!FallthroughRet || !FallthroughRet->isReturn())
       continue;
 
     MachineInstr *Store = nullptr;
-    bool HasOtherNonDebug = false;
-    for (MachineInstr &MI : *StoreBB) {
-      if (MI.isDebugInstr())
-        continue;
-      if (!Store)
-        Store = &MI;
-      else
-        HasOtherNonDebug = true;
-    }
-    if (!Store || HasOtherNonDebug || Store->getNumExplicitOperands() != 3)
+    MachineInstr *StoreRet = nullptr;
+    if (!getStoreAndReturn(*StoreBB, Store, StoreRet) ||
+        !StoreRet->isIdenticalTo(*FallthroughRet, MachineInstr::CheckDefs))
       continue;
 
-    const MachineOperand &Base = Store->getOperand(0);
-    const MachineOperand &Disp = Store->getOperand(1);
-    const MachineOperand &Src = Store->getOperand(2);
-    if (!isRegOperand(Base) || !Disp.isImm() || !isRegOperand(Src) ||
-        !fitsPredicatedStoreDisp(Store->getOpcode(), Disp.getImm()))
+    const MachineOperand *Base = nullptr;
+    const MachineOperand *Disp = nullptr;
+    const MachineOperand *Src = nullptr;
+    if (!getPredicatedStoreOperands(*Store, Base, Disp, Src))
       continue;
 
     std::optional<unsigned> CondStoreOpc =
         getPredicatedStoreOpcode(Store->getOpcode(), *StoreCond);
     if (!CondStoreOpc)
       continue;
-    if (!Store->mayStore() || Store->mayLoad())
-      continue;
 
-    MachineInstrBuilder MIB =
-        BuildMI(MBB, *Branch, Store->getDebugLoc(), TII.get(*CondStoreOpc))
-            .addReg(Base.getReg(), getKillRegState(Base.isKill()))
-            .addImm(Disp.getImm())
-            .addReg(Src.getReg(), getKillRegState(Src.isKill()));
-    MIB->copyImplicitOps(MF, *Store);
-    MIB.setMIFlags(Store->getFlags());
-    MIB.setMemRefs(Store->memoperands());
+    buildPredicatedStore(MF, MBB, *Branch, *Store, *Base, *Disp, *Src,
+                         *CondStoreOpc, TII);
 
     Branch->eraseFromParent();
     MBB.removeSuccessor(StoreBB);
-    StoreBB->removeSuccessor(SkipBB);
     StoreBB->eraseFromParent();
 
     ++NumPredicatedStores;
