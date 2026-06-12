@@ -22,6 +22,12 @@
 # RUN: llvm-readobj --hex-dump=.text noflag \
 # RUN:   | FileCheck %s --check-prefix=FULL
 
+# RUN: llvm-mc -triple=avr32 -mattr=+relax -filetype=obj mixed-call.s -o mixed-call.o
+# RUN: llvm-mc -triple=avr32 -filetype=obj mixed-runtime.s -o mixed-runtime.o
+# RUN: ld.lld --direct-data mixed-call.o mixed-runtime.o -o mixed
+# RUN: llvm-readobj --file-headers --hex-dump=.text mixed \
+# RUN:   | FileCheck %s --check-prefix=MIXED
+
 # RUN: llvm-mc -triple=avr32 -mattr=+relax -filetype=obj load-padded.s -o load-padded.o
 # RUN: ld.lld --direct-data load-padded.o -o load-padded
 # RUN: llvm-readobj --hex-dump=.text load-padded \
@@ -77,6 +83,11 @@
 # FULL:      Hex dump of section '.text':
 # FULL-NEXT: 0x{{[0-9a-f]+}} d703f01f 0003d703 d7030000 000110bc
 
+# MIXED:      Flags [ (0x0)
+# MIXED-NEXT: ]
+# MIXED:      Hex dump of section '.text':
+# MIXED-NEXT: 0x{{[0-9a-f]+}} e0a00004 d7030000 d703
+
 # LOAD-PADDED:      Hex dump of section '.text':
 # LOAD-PADDED-NEXT: 0x{{[0-9a-f]+}} e07010b8 d703
 
@@ -120,6 +131,19 @@ _start:
 target:
   nop
   .ltorg
+
+#--- mixed-call.s
+.text
+.globl _start
+_start:
+  call mixed_runtime_target
+  nop
+
+#--- mixed-runtime.s
+.text
+.globl mixed_runtime_target
+mixed_runtime_target:
+  nop
 
 #--- load-padded.s
 .text

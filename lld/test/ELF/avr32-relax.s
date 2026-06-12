@@ -16,6 +16,12 @@
 # RUN: llvm-readobj --file-headers --hex-dump=.text noflag \
 # RUN:   | FileCheck %s --check-prefixes=NOFLAG,FULL
 
+# RUN: llvm-mc -triple=avr32 -mattr=+relax -filetype=obj mixed-half-a.s -o mixed-half-a.o
+# RUN: llvm-mc -triple=avr32 -filetype=obj mixed-half-b.s -o mixed-half-b.o
+# RUN: ld.lld mixed-half-a.o mixed-half-b.o -o mixed-half
+# RUN: llvm-readobj --file-headers --hex-dump=.text mixed-half \
+# RUN:   | FileCheck %s --check-prefix=MIXED-HALF
+
 # RUN: ld.lld --emit-relocs a.o b.o -o emit-relocs
 # RUN: llvm-readobj --relocations emit-relocs \
 # RUN:   | FileCheck %s --check-prefix=EMITREL
@@ -46,6 +52,16 @@
 # RUN: llvm-readobj --hex-dump=.text align-code \
 # RUN:   | FileCheck %s --check-prefix=ALIGN-CODE
 
+# RUN: llvm-mc -triple=avr32 -mattr=+relax -filetype=obj wordpc-align.s -o wordpc-align.o
+# RUN: ld.lld wordpc-align.o -o wordpc-align
+# RUN: llvm-readobj --hex-dump=.text wordpc-align \
+# RUN:   | FileCheck %s --check-prefix=WORDPC-ALIGN
+
+# RUN: llvm-mc -triple=avr32 -mattr=+relax -filetype=obj wordpc-span.s -o wordpc-span.o
+# RUN: ld.lld wordpc-span.o -o wordpc-span
+# RUN: llvm-readobj --hex-dump=.text wordpc-span \
+# RUN:   | FileCheck %s --check-prefix=WORDPC-SPAN
+
 # RUN: llvm-mc -triple=avr32 -mattr=+relax -filetype=obj vector-org.s -o vector-org.o
 # RUN: echo 'SECTIONS { . = 0; .text : { *(.text) } }' > vector-org.script
 # RUN: ld.lld vector-org.script vector-org.o -o vector-org
@@ -67,6 +83,11 @@
 
 # NOFLAG:      Flags [ (0x0)
 # NOFLAG-NEXT: ]
+
+# MIXED-HALF:      Flags [ (0x0)
+# MIXED-HALF-NEXT: ]
+# MIXED-HALF:      Hex dump of section '.text':
+# MIXED-HALF-NEXT: 0x{{[0-9a-f]+}} e08f0004 d703d673 d703
 
 # FULL:      Hex dump of section '.text':
 # FULL-NEXT: 0x{{[0-9a-f]+}} e08f0016 e0800015 e0810014 e0820013
@@ -109,6 +130,12 @@
 
 # ALIGN-CODE:      Hex dump of section '.text':
 # ALIGN-CODE-NEXT: 0x{{[0-9a-f]+}} e08f0004 f8000003 d703
+
+# WORDPC-ALIGN:      Hex dump of section '.text':
+# WORDPC-ALIGN-NEXT: 0x{{[0-9a-f]+}} d703e08f {{.*}}
+
+# WORDPC-SPAN:      Hex dump of section '.text':
+# WORDPC-SPAN-NEXT: 0x{{[0-9a-f]+}} f01f{{.*}} e08f{{.*}}
 
 # VECTOR-ORG-DAG: 00000050 {{.*}} itlb_miss
 # VECTOR-ORG-DAG: 00000060 {{.*}} dtlb_miss_read
@@ -159,6 +186,19 @@ target_ls:
 target_gt:
   nop
 
+#--- mixed-half-a.s
+.text
+.globl _start
+_start:
+  bral mixed_half_target
+  nop
+
+#--- mixed-half-b.s
+.text
+.globl mixed_half_target
+mixed_half_target:
+  nop
+
 #--- call-a.s
 .text
 .globl _start
@@ -205,6 +245,32 @@ _start:
 .text
 .globl target_code
 target_code:
+  nop
+
+#--- wordpc-align.s
+.text
+.globl _start
+wordpc_target:
+  nop
+_start:
+  bral branch_target
+  mcall pc[wordpc_target]
+  .reloc ., R_AVR32_ALIGN, 2
+  .short 0
+branch_target:
+  nop
+
+#--- wordpc-span.s
+.text
+.globl _start
+_start:
+  mcall pc[wordpc_target]
+  bral branch_target
+  .reloc ., R_AVR32_ALIGN, 2
+  .short 0
+branch_target:
+  nop
+wordpc_target:
   nop
 
 #--- vector-org.s

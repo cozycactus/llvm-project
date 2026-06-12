@@ -140,6 +140,77 @@ verification fixes.
 - `popm ..., pc, r12=<imm>` is supported for immediate return values `-1`, `0`, and `1`. The special form cannot pop `lr` or `r12`; codegen folds a final `mov r12, -1/0/1` into `popm` when the epilogue is already returning through a saved `pc`.
 - Next code-size targets should be measured per SDR object/function before changing codegen. A good candidate from GCC comparisons is predicated stores.
 
+## AVR32 Linux/QEMU Validation
+
+Known local Linux/QEMU checkouts on this Mac:
+
+```sh
+/Users/cozy/cozycactus/linux-avr32
+/Users/cozy/cozycactus/linux-avr32-build-llvm-shell
+/Users/cozy/cozycactus/qemu-avr32-v11-sync
+```
+
+The Linux checkout can be dirty with unrelated user work. Do not reset it or
+revert files. Use the existing out-of-tree build directory when validating LLVM
+or lld changes.
+
+This checkout's `build-avr32` is a Unix Makefiles build, not Ninja. Rebuild LLVM
+tools with:
+
+```sh
+make -C /Users/cozy/cozycactus/llvm-project/build-avr32 -j"$(sysctl -n hw.ncpu)" \
+  lld llvm-mc llvm-readobj FileCheck
+```
+
+For the LLVM Linux shell build, the previous working link path used:
+
+```sh
+K=/Users/cozy/cozycactus/linux-avr32
+B=/Users/cozy/cozycactus/linux-avr32-build-llvm-shell
+LLVM=/Users/cozy/cozycactus/llvm-project/build-avr32
+AVR=/Users/cozy/cozycactus/avr32-toolchain-macos-arm64/avr32-tools-src/bin
+GNU=/usr/local/opt/coreutils/libexec/gnubin
+
+PATH="$GNU:$AVR:$PATH" LLVM_AVR32_LD_LLD="$LLVM/bin/ld.lld" AVR32_AS="$AVR/avr32-as" \
+make -C "$K" O="$B" ARCH=avr32 CROSS_COMPILE=avr32- \
+  HOSTCFLAGS="-fno-pie -I/Users/cozy/cozycactus/linux-avr32-host/include -I$B/arch/avr32/include/generated/uapi -I$B/arch/avr32/include/generated -I$B/include/generated/uapi -I$B/include/generated -I$K/arch/avr32/include/uapi -I$K/include/uapi -I$K/include" \
+  HOSTLDFLAGS="-Wl,-no_pie" \
+  CC="$LLVM/bin/clang --target=avr32 -fno-integrated-as -Wa,--linkrelax -B$AVR/" \
+  LD=/Users/cozy/cozycactus/llvm-project/utils/avr32-linux-ld-lld-wrapper.sh \
+  -j"$(sysctl -n hw.ncpu)" vmlinux
+```
+
+Why those host flags matter on macOS:
+
+- macOS has no system `<elf.h>`. Use
+  `/Users/cozy/cozycactus/linux-avr32-host/include/elf.h`, not Homebrew
+  `libelf/elf_repl.h`; the latter misses Linux `modpost` constants/macros.
+- Host `modpost` may fail with `Found illegal text-relocations` unless host
+  tools are built with `-fno-pie` and linked with `-Wl,-no_pie`.
+- `scripts/link-vmlinux.sh` uses GNU `stat -c`; put Homebrew coreutils
+  `/usr/local/opt/coreutils/libexec/gnubin` before `/usr/bin` in `PATH`.
+
+After a successful `vmlinux` link, boot it with QEMU and run at least `pwd`,
+`ps`, and `uname -a` at the initramfs shell:
+
+```sh
+QEMU=/Users/cozy/cozycactus/qemu-avr32-v11-sync/build/qemu-system-avr32
+VMLINUX=/Users/cozy/cozycactus/linux-avr32-build-llvm-shell/vmlinux
+"$QEMU" -M avr32example-board -kernel "$VMLINUX" -nographic -no-reboot \
+  -append 'console=ttyS0,115200n8 rdinit=/init lpj=100000 ignore_loglevel loglevel=8'
+```
+
+For lld relaxation changes, always include the Linux final link in validation.
+Mixed links are common: kernel objects may be link-relaxable while runtime or
+host-generated objects are not. It is safe to delete 4-byte call/data pool
+entries from relaxable input sections, but do not allow mixed-link 2-byte
+removals. If the final Linux link reports
+`improper alignment for relocation R_AVR32_18W_PCREL`, mixed-link halfword
+relaxation probably shifted a word-PC relocation by two bytes. Also check for
+non-paired halfword removals crossing same-section word-PC relocation sites and
+targets; this can show up only during the Linux `vmlinux` link, not in small
+unit tests.
+
 ## SDR-widget Benchmark
 
 Known local SDR-widget checkout used for measurements on this Mac:

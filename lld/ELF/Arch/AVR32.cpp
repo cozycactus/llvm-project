@@ -75,11 +75,20 @@ static uint32_t getEFlags(InputFile *file) {
 }
 
 static bool canRelaxControlTransfer(Ctx &ctx) {
-  return ctx.arg.relax && (ctx.arg.eflags & EF_AVR32_LINKRELAX);
+  return ctx.arg.relax;
 }
 
 static bool canRelaxDirectData(Ctx &ctx) {
   return canRelaxControlTransfer(ctx) && ctx.arg.directData;
+}
+
+static bool canRemoveHalfwords(Ctx &ctx) {
+  return ctx.arg.eflags & EF_AVR32_LINKRELAX;
+}
+
+static bool isLinkRelaxableSection(const InputSection &sec) {
+  return isa_and_nonnull<ObjFile<ELF32BE>>(sec.file) &&
+         (getEFlags(sec.file) & EF_AVR32_LINKRELAX);
 }
 
 static bool isFullBranch(uint32_t word) {
@@ -587,6 +596,23 @@ static bool hasWordPCRel(ArrayRef<Relocation> rels) {
                       [](const Relocation &r) { return isWordPCRel(r.type); });
 }
 
+static bool crossesSameSectionWordPCRel(ArrayRef<Relocation> rels,
+                                        const InputSection &sec, size_t index) {
+  uint64_t offset = rels[index].offset;
+  for (const Relocation &r : rels) {
+    if (!isWordPCRel(r.type) || r.type == R_AVR32_CPCALL)
+      continue;
+    std::optional<uint64_t> targetOffset =
+        getSameSectionSymbolOffset(r, sec, sec.content().size());
+    if (!targetOffset)
+      continue;
+    if ((r.offset < offset && offset < *targetOffset) ||
+        (*targetOffset < offset && offset < r.offset))
+      return true;
+  }
+  return false;
+}
+
 static SmallVector<char, 0>
 getPairedHalfwordRemovals(ArrayRef<Relocation> rels,
                           ArrayRef<char> halfwordRemovals) {
@@ -611,6 +637,9 @@ getPairedHalfwordRemovals(ArrayRef<Relocation> rels,
 static bool canRemoveHalfword(Ctx &ctx, const InputSection &sec,
                               ArrayRef<Relocation> rels, size_t index,
                               uint64_t delta, bool requireWordAlignment) {
+  if (requireWordAlignment && crossesSameSectionWordPCRel(rels, sec, index))
+    return false;
+
   for (size_t i = index + 1, e = rels.size(); i != e; ++i) {
     const Relocation &r = rels[i];
     if (r.type != R_AVR32_ALIGN)
@@ -621,6 +650,18 @@ static bool canRemoveHalfword(Ctx &ctx, const InputSection &sec,
       return false;
     if (*align < 4)
       continue;
+    if (requireWordAlignment) {
+      for (size_t j = index + 1; j != i; ++j) {
+        if (!isWordPCRel(rels[j].type))
+          continue;
+        if (rels[j].type == R_AVR32_CPCALL)
+          continue;
+        std::optional<uint64_t> targetOffset =
+            getSameSectionSymbolOffset(rels[j], sec, sec.content().size());
+        if (!targetOffset || *targetOffset < r.offset)
+          return false;
+      }
+    }
     uint64_t loc = sec.getVA() + r.offset - delta - 2;
     uint64_t needed = alignTo(loc, *align) - loc;
     return needed <= getAlignPaddingBytes(rels, sec, i, *align);
@@ -931,6 +972,12 @@ static bool relax(Ctx &ctx, InputSection &sec, int pass) {
     // relaxations toggle around an alignment boundary. After several passes,
     // keep only halfword removals that were already present in the previous
     // pass. Keeping an extra halfword of code or padding is always safe.
+    if (remove == 2 && !canRemoveHalfwords(ctx)) {
+      aux.relocTypes[i] = R_AVR32_NONE;
+      aux.writes.resize(oldWritesSize);
+      remove = 0;
+    }
+
     if (remove == 2) {
       uint64_t paddingBegin =
           r.type == R_AVR32_ALIGN ? r.offset : r.offset + 4;
@@ -997,7 +1044,8 @@ bool AVR32::relaxOnce(int pass) const {
     if (!(osec->flags & SHF_EXECINSTR))
       continue;
     for (InputSection *sec : getInputSections(*osec, storage))
-      if (sec->relaxAux && sec->relaxAux->relocDeltas)
+      if (isLinkRelaxableSection(*sec) && sec->relaxAux &&
+          sec->relaxAux->relocDeltas)
         changed |= relax(ctx, *sec, pass);
   }
   return changed;
@@ -1014,7 +1062,8 @@ void AVR32::finalizeRelax(int passes) const {
     if (!(osec->flags & SHF_EXECINSTR))
       continue;
     for (InputSection *sec : getInputSections(*osec, storage)) {
-      if (!sec->relaxAux || !sec->relaxAux->relocDeltas)
+      if (!isLinkRelaxableSection(*sec) || !sec->relaxAux ||
+          !sec->relaxAux->relocDeltas)
         continue;
 
       RelaxAux &aux = *sec->relaxAux;
