@@ -147,19 +147,31 @@ Known local Linux/QEMU checkouts on this Mac:
 ```sh
 /Users/cozy/cozycactus/linux-avr32
 /Users/cozy/cozycactus/linux-avr32-build-llvm-shell
+/Users/cozy/cozycactus/avr32-linux-rootfs
 /Users/cozy/cozycactus/qemu-avr32-v11-sync
 ```
 
 The Linux checkout can be dirty with unrelated user work. Do not reset it or
 revert files. Use the existing out-of-tree build directory when validating LLVM
-or lld changes.
+or lld changes. Do not start by rebuilding QEMU or recreating the kernel config
+from scratch; first check these existing paths and reuse the known-good build
+directory.
 
 This checkout's `build-avr32` is a Unix Makefiles build, not Ninja. Rebuild LLVM
 tools with:
 
 ```sh
 make -C /Users/cozy/cozycactus/llvm-project/build-avr32 -j"$(sysctl -n hw.ncpu)" \
-  lld llvm-mc llvm-readobj FileCheck
+  clang lld llvm-mc llvm-readobj FileCheck
+```
+
+Before comparing kernel or SDR-widget results, check both compiler and linker
+versions. A stale `clang` with a fresh `ld.lld` caused misleading measurements
+once:
+
+```sh
+/Users/cozy/cozycactus/llvm-project/build-avr32/bin/clang --version
+/Users/cozy/cozycactus/llvm-project/build-avr32/bin/ld.lld --version
 ```
 
 For the LLVM Linux shell build, the previous working link path used:
@@ -180,6 +192,10 @@ make -C "$K" O="$B" ARCH=avr32 CROSS_COMPILE=avr32- \
   -j"$(sysctl -n hw.ncpu)" vmlinux
 ```
 
+The `LD` wrapper is intentional. It adds `-m avr32elf` when the kernel does not
+pass an emulation, supplies an empty AVR32 object for empty partial links, and
+keeps partial links using `ld.lld` instead of GNU `ld`.
+
 Why those host flags matter on macOS:
 
 - macOS has no system `<elf.h>`. Use
@@ -189,6 +205,27 @@ Why those host flags matter on macOS:
   tools are built with `-fno-pie` and linked with `-Wl,-no_pie`.
 - `scripts/link-vmlinux.sh` uses GNU `stat -c`; put Homebrew coreutils
   `/usr/local/opt/coreutils/libexec/gnubin` before `/usr/bin` in `PATH`.
+- If host scripts need `strtonum`, use Homebrew `gawk` (`/usr/local/bin/gawk`)
+  rather than macOS `awk`.
+
+The current LLVM shell build config already has:
+
+```sh
+CONFIG_INITRAMFS_SOURCE="/Users/cozy/cozycactus/avr32-linux-rootfs/initramfs.list"
+```
+
+That rootfs is a tiny custom `/init`, not BusyBox. It is enough for smoke tests
+and basic syscall/performance checks. Rebuild it with:
+
+```sh
+make -C /Users/cozy/cozycactus/avr32-linux-rootfs
+```
+
+Then rebuild `vmlinux`; the kernel embeds the new `/init` through
+`initramfs.list`. The current shell builtins are `help`, `pwd`, `cd`, `ls`,
+`cat`, `ps`, `bench`, `uname`, `id`, `echo`, and `exit`. `/init` mounts `/proc`
+itself, so `ps`, `cat /proc/version`, and `bench` should work without extra
+boot-time setup.
 
 After a successful `vmlinux` link, boot it with QEMU and run at least `pwd`,
 `ps`, and `uname -a` at the initramfs shell:
@@ -199,6 +236,17 @@ VMLINUX=/Users/cozy/cozycactus/linux-avr32-build-llvm-shell/vmlinux
 "$QEMU" -M avr32example-board -kernel "$VMLINUX" -nographic -no-reboot \
   -append 'console=ttyS0,115200n8 rdinit=/init lpj=100000 ignore_loglevel loglevel=8'
 ```
+
+For manual shell work, this helper uses the same QEMU arguments:
+
+```sh
+/Users/cozy/cozycactus/avr32-linux-rootfs/run-shell.sh \
+  /Users/cozy/cozycactus/linux-avr32-build-llvm-shell/vmlinux
+```
+
+For automated smoke checks, prefer the rootfs `smoke-shell.py` helper when it
+matches the command set being tested. A real pass means QEMU reaches the `#`
+prompt and commands such as `pwd`, `ps`, and `uname` return sensible output.
 
 For lld relaxation changes, always include the Linux final link in validation.
 Mixed links are common: kernel objects may be link-relaxable while runtime or
