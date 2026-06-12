@@ -10,6 +10,7 @@
 #include "AVR32InstrInfo.h"
 #include "AVR32Subtarget.h"
 #include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Statistic.h"
@@ -32,6 +33,7 @@ using namespace llvm;
 
 STATISTIC(NumCompactForms, "Number of compact instruction forms selected");
 STATISTIC(NumPredicatedStores, "Number of predicated stores selected");
+STATISTIC(NumDoublewordMemOps, "Number of doubleword memory ops selected");
 
 namespace {
 
@@ -59,6 +61,8 @@ private:
                      unsigned Align, const TargetInstrInfo &TII);
   bool foldSPLoadDisp(MachineInstr &MI, const TargetInstrInfo &TII);
   bool foldSPStoreDisp(MachineInstr &MI, const TargetInstrInfo &TII);
+  bool foldDoublewordLoad(MachineInstr &MI, const TargetInstrInfo &TII);
+  bool foldDoublewordStore(MachineInstr &MI, const TargetInstrInfo &TII);
   bool foldMovhOr(MachineInstr &MI, const TargetInstrInfo &TII);
   bool foldBitImmediate(MachineInstr &MI, const TargetInstrInfo &TII);
   bool foldCompareImmediate(MachineInstr &MI, const TargetInstrInfo &TII);
@@ -121,6 +125,58 @@ prevNonDebug(MachineBasicBlock::iterator I) {
       return I;
   }
   return MBB.end();
+}
+
+static Register getDoublewordHighReg(Register Low) {
+  switch (Low) {
+  case AVR32::R0:
+    return AVR32::R1;
+  case AVR32::R2:
+    return AVR32::R3;
+  case AVR32::R4:
+    return AVR32::R5;
+  case AVR32::R6:
+    return AVR32::R7;
+  case AVR32::R8:
+    return AVR32::R9;
+  case AVR32::R10:
+    return AVR32::R11;
+  default:
+    return Register();
+  }
+}
+
+static bool hasOrderedMemOperand(const MachineInstr &MI) {
+  return llvm::any_of(MI.memoperands(), [](const MachineMemOperand *MMO) {
+    return MMO->isVolatile() || MMO->isAtomic();
+  });
+}
+
+static bool isDoublewordFoldableLoadOpcode(unsigned Opcode) {
+  return Opcode == AVR32::LD_W_Disp16 || Opcode == AVR32::LD_W_Disp5 ||
+         Opcode == AVR32::LDDSP;
+}
+
+static bool isDoublewordFoldableStoreOpcode(unsigned Opcode) {
+  return Opcode == AVR32::ST_W_Disp16 || Opcode == AVR32::ST_W_Disp4 ||
+         Opcode == AVR32::STDSP;
+}
+
+static bool hasSameBaseAndDisp(const MachineInstr &LowAddrMI,
+                               const MachineInstr &HighAddrMI, bool IsStore) {
+  unsigned BaseIdx = IsStore ? 0 : 1;
+  unsigned DispIdx = IsStore ? 1 : 2;
+  if (!isRegOperand(LowAddrMI.getOperand(BaseIdx)) ||
+      !isRegOperand(HighAddrMI.getOperand(BaseIdx)) ||
+      LowAddrMI.getOperand(BaseIdx).getReg() !=
+          HighAddrMI.getOperand(BaseIdx).getReg() ||
+      !LowAddrMI.getOperand(DispIdx).isImm() ||
+      !HighAddrMI.getOperand(DispIdx).isImm())
+    return false;
+
+  int64_t LowAddrDisp = LowAddrMI.getOperand(DispIdx).getImm();
+  int64_t HighAddrDisp = HighAddrMI.getOperand(DispIdx).getImm();
+  return isInt<16>(LowAddrDisp) && HighAddrDisp == LowAddrDisp + 4;
 }
 
 static StringRef getDirectCallTargetName(const MachineInstr &MI) {
@@ -1748,6 +1804,141 @@ bool AVR32Peephole::foldSPStoreDisp(MachineInstr &MI,
   return true;
 }
 
+bool AVR32Peephole::foldDoublewordLoad(MachineInstr &MI,
+                                       const TargetInstrInfo &TII) {
+  if (!isDoublewordFoldableLoadOpcode(MI.getOpcode()) ||
+      MI.getNumOperands() != 3 || hasOrderedMemOperand(MI))
+    return false;
+
+  MachineBasicBlock::iterator PrevIt = prevNonDebug(MI.getIterator());
+  if (PrevIt == MI.getParent()->end())
+    return false;
+  MachineInstr &PrevMI = *PrevIt;
+  if (!isDoublewordFoldableLoadOpcode(PrevMI.getOpcode()) ||
+      PrevMI.getNumOperands() != 3 || hasOrderedMemOperand(PrevMI))
+    return false;
+
+  const MachineInstr *LowAddrMI = nullptr;
+  const MachineOperand *LowDst = nullptr;
+  const MachineOperand *HighDst = nullptr;
+
+  const MachineOperand &PrevDst = PrevMI.getOperand(0);
+  const MachineOperand &CurDst = MI.getOperand(0);
+  if (!isRegOperand(PrevDst) || !isRegOperand(CurDst))
+    return false;
+
+  Register PrevReg = PrevDst.getReg();
+  Register CurReg = CurDst.getReg();
+  if (getDoublewordHighReg(CurReg) == PrevReg &&
+      hasSameBaseAndDisp(PrevMI, MI, false)) {
+    LowAddrMI = &PrevMI;
+    LowDst = &CurDst;
+    HighDst = &PrevDst;
+  } else if (getDoublewordHighReg(PrevReg) == CurReg &&
+             hasSameBaseAndDisp(MI, PrevMI, false)) {
+    LowAddrMI = &MI;
+    LowDst = &PrevDst;
+    HighDst = &CurDst;
+  } else {
+    return false;
+  }
+
+  Register LowReg = LowDst->getReg();
+  Register HighReg = HighDst->getReg();
+
+  MachineBasicBlock &MBB = *MI.getParent();
+  MachineFunction &MF = *MBB.getParent();
+  SmallVector<MachineMemOperand *, 2> MemRefs;
+  llvm::append_range(MemRefs, PrevMI.memoperands());
+  llvm::append_range(MemRefs, MI.memoperands());
+
+  MachineInstrBuilder MIB =
+      BuildMI(MBB, PrevMI, PrevMI.getDebugLoc(), TII.get(AVR32::LD_D_Disp16))
+          .addReg(LowReg,
+                  RegState::Define | getDeadRegState(LowDst->isDead()))
+          .addReg(LowAddrMI->getOperand(1).getReg(),
+                  getKillRegState(PrevMI.getOperand(1).isKill() ||
+                                  MI.getOperand(1).isKill()))
+          .addImm(LowAddrMI->getOperand(2).getImm())
+          .addReg(HighReg, RegState::Implicit | RegState::Define |
+                               getDeadRegState(HighDst->isDead()));
+  MIB.setMIFlags(PrevMI.getFlags());
+  MIB->copyImplicitOps(MF, PrevMI);
+  MIB.setMemRefs(MemRefs);
+
+  PrevMI.eraseFromParent();
+  MI.eraseFromParent();
+  ++NumDoublewordMemOps;
+  return true;
+}
+
+bool AVR32Peephole::foldDoublewordStore(MachineInstr &MI,
+                                        const TargetInstrInfo &TII) {
+  if (!isDoublewordFoldableStoreOpcode(MI.getOpcode()) ||
+      MI.getNumOperands() != 3 || hasOrderedMemOperand(MI))
+    return false;
+
+  MachineBasicBlock::iterator PrevIt = prevNonDebug(MI.getIterator());
+  if (PrevIt == MI.getParent()->end())
+    return false;
+  MachineInstr &PrevMI = *PrevIt;
+  if (!isDoublewordFoldableStoreOpcode(PrevMI.getOpcode()) ||
+      PrevMI.getNumOperands() != 3 || hasOrderedMemOperand(PrevMI))
+    return false;
+
+  const MachineInstr *LowAddrMI = nullptr;
+  const MachineOperand *LowSrc = nullptr;
+  const MachineOperand *HighSrc = nullptr;
+
+  const MachineOperand &PrevSrc = PrevMI.getOperand(2);
+  const MachineOperand &CurSrc = MI.getOperand(2);
+  if (!isRegOperand(PrevSrc) || !isRegOperand(CurSrc))
+    return false;
+
+  Register PrevReg = PrevSrc.getReg();
+  Register CurReg = CurSrc.getReg();
+  if (getDoublewordHighReg(CurReg) == PrevReg &&
+      hasSameBaseAndDisp(PrevMI, MI, true)) {
+    LowAddrMI = &PrevMI;
+    LowSrc = &CurSrc;
+    HighSrc = &PrevSrc;
+  } else if (getDoublewordHighReg(PrevReg) == CurReg &&
+             hasSameBaseAndDisp(MI, PrevMI, true)) {
+    LowAddrMI = &MI;
+    LowSrc = &PrevSrc;
+    HighSrc = &CurSrc;
+  } else {
+    return false;
+  }
+
+  Register LowReg = LowSrc->getReg();
+  Register HighReg = HighSrc->getReg();
+
+  MachineBasicBlock &MBB = *MI.getParent();
+  MachineFunction &MF = *MBB.getParent();
+  SmallVector<MachineMemOperand *, 2> MemRefs;
+  llvm::append_range(MemRefs, PrevMI.memoperands());
+  llvm::append_range(MemRefs, MI.memoperands());
+
+  MachineInstrBuilder MIB =
+      BuildMI(MBB, PrevMI, PrevMI.getDebugLoc(), TII.get(AVR32::ST_D_Disp16))
+          .addReg(LowAddrMI->getOperand(0).getReg(),
+                  getKillRegState(PrevMI.getOperand(0).isKill() ||
+                                  MI.getOperand(0).isKill()))
+          .addImm(LowAddrMI->getOperand(1).getImm())
+          .addReg(LowReg, getKillRegState(LowSrc->isKill()))
+          .addReg(HighReg,
+                  RegState::Implicit | getKillRegState(HighSrc->isKill()));
+  MIB.setMIFlags(PrevMI.getFlags());
+  MIB->copyImplicitOps(MF, PrevMI);
+  MIB.setMemRefs(MemRefs);
+
+  PrevMI.eraseFromParent();
+  MI.eraseFromParent();
+  ++NumDoublewordMemOps;
+  return true;
+}
+
 bool AVR32Peephole::repairCompareBranchFlagClobbers(
     MachineFunction &MF, const TargetRegisterInfo &TRI) {
   bool Changed = false;
@@ -1989,7 +2180,8 @@ bool AVR32Peephole::runOnMachineFunction(MachineFunction &MF) {
           LocalChanged |= foldShiftedMaskIndexLoad(MI, TII, TRI);
           break;
         case AVR32::LD_W_Disp16:
-          LocalChanged |= foldSPLoadDisp(MI, TII) ||
+          LocalChanged |= foldDoublewordLoad(MI, TII) ||
+                          foldSPLoadDisp(MI, TII) ||
                           foldLoadDisp(MI, AVR32::LD_W_Disp5, 124, 4, TII);
           break;
         case AVR32::ST_B_Disp16:
@@ -1999,7 +2191,8 @@ bool AVR32Peephole::runOnMachineFunction(MachineFunction &MF) {
           LocalChanged |= foldStoreDisp(MI, AVR32::ST_H_Disp3, 14, 2, TII);
           break;
         case AVR32::ST_W_Disp16:
-          LocalChanged |= foldSPStoreDisp(MI, TII) ||
+          LocalChanged |= foldDoublewordStore(MI, TII) ||
+                          foldSPStoreDisp(MI, TII) ||
                           foldStoreDisp(MI, AVR32::ST_W_Disp4, 60, 4, TII);
           break;
         case AVR32::SUBCrrr:

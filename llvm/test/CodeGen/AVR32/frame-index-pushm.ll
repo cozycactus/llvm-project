@@ -26,8 +26,7 @@ define i32 @stack_args_after_pushm(i32 %a, i32 %b, i32 %c, i32 %d,
 ; CHECK-LABEL: stack_args_after_pushm:
 ; CHECK: pushm r0-r3, r4-r7
 ; CHECK-NOT: lddsp {{r[0-9]+}}, sp[0]
-; CHECK: lddsp {{r[0-9]+}}, sp[40]
-; CHECK: lddsp {{r[0-9]+}}, sp[36]
+; CHECK: ld.d {{r[0-9]+}}, sp[36]
 ; CHECK: lddsp {{r[0-9]+}}, sp[32]
 ; CHECK: popm r0-r3, r4-r7
 entry:
