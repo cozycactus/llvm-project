@@ -10,6 +10,7 @@
 #include "AVR32TargetMachine.h"
 #include "llvm/CodeGen/SelectionDAGISel.h"
 #include "llvm/CodeGen/SelectionDAGNodes.h"
+#include "llvm/IR/Function.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/MathExtras.h"
 #include <limits>
@@ -409,6 +410,13 @@ public:
     if (isInt<21>(Signed)) {
       SDValue Imm = CurDAG->getSignedTargetConstant(Signed, DL, MVT::i32);
       return SDValue(CurDAG->getMachineNode(AVR32::MOVri21, DL, MVT::i32, Imm),
+                     0);
+    }
+
+    const Function &F = CurDAG->getMachineFunction().getFunction();
+    if (F.hasOptSize() || F.hasMinSize()) {
+      SDValue Imm = CurDAG->getTargetConstant(Bits, DL, MVT::i32);
+      return SDValue(CurDAG->getMachineNode(AVR32::LDA_W, DL, MVT::i32, Imm),
                      0);
     }
 
