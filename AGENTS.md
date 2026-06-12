@@ -320,6 +320,24 @@ Current GCC vs LLVM shell-kernel comparison reference from June 12, 2026:
   conditional moves can grow `-Oz`, so make this a measured heuristic rather
   than a blanket reversal.
 
+Post-`cpc` i64 compare update from commit `a5e7f792cc69`:
+
+- The useful kernel runtime bucket is `.init + .init.data + .text + .rodata +
+  .data`, not raw `avr32-size dec` and not the on-disk `vmlinux` size.
+- Lowering i64 compares to `cp` low word plus `cpc` high word reduced the LLVM
+  shell kernel runtime bucket from 3,002,912 to 2,989,120 bytes. The matching
+  GCC reference is 2,958,984 bytes, so the remaining LLVM gap is 30,136 bytes.
+- A one-object win can be misleading. The first `SETCC i64`-only attempt shrank
+  `kernel/time/timekeeping.o` but grew the full kernel because branch users
+  materialized boolean results. The fixed shape recognizes `BRCOND` of
+  AVR32 `SET_CC`/`SET_CC_64` and branches directly from the compare glue.
+- Always validate both a representative object/function and the full kernel.
+  The final `timekeeping.o` total went 15,222 -> 14,666 bytes, while the full
+  kernel runtime bucket improved by 13,792 bytes.
+- This milestone was accepted only after QEMU reached the initramfs shell and
+  `smoke-shell.py` passed `pwd`, `ls`, `/proc`, `ps`, `id`, `uname`, and
+  `bench`. Keep that as the correctness floor for size changes.
+
 For lld relaxation changes, always include the Linux final link in validation.
 Mixed links are common: kernel objects may be link-relaxable while runtime or
 host-generated objects are not. It is safe to delete 4-byte call/data pool
@@ -337,6 +355,7 @@ Known local SDR-widget checkout used for measurements on this Mac:
 
 ```sh
 /Users/ruslanmigirov/cozycactus/sdr-widget
+/Users/cozy/cozycactus/sdr-widget
 ```
 
 Other known locations that may exist:
@@ -380,6 +399,44 @@ and link with Clang/lld using `-nostartfiles -mrelax -Wl,--gc-sections
 `/Users/ruslanmigirov/cozycactus/sdr-widget/Release/src/newlib_compat.o`.
 The sysroot is also needed for assembly-with-cpp `.x` files that include
 `<avr32/io.h>`.
+
+On the `/Users/cozy` Mac, the current generated scratch tree is:
+
+```sh
+/Users/cozy/cozycactus/sdr-widget/Release-llvm-relax
+/tmp/sdr-llvm-relax-toolwrap/avr32-gcc
+/Users/cozy/cozycactus/avr32-toolchain-macos-arm64/avr32-tools-src/avr32
+```
+
+Rebuild it with all cores through the wrapper and force `-Oz` with:
+
+```sh
+CORES=$(sysctl -n hw.ncpu)
+AVR=/Users/cozy/cozycactus/avr32-toolchain-macos-arm64/avr32-tools-src/bin
+PATH="/tmp/sdr-llvm-relax-toolwrap:$AVR:$PATH" AVR32_LLVM_OPT=-Oz make clean
+PATH="/tmp/sdr-llvm-relax-toolwrap:$AVR:$PATH" AVR32_LLVM_OPT=-Oz make -j"$CORES" all
+```
+
+For the lld comparison from that scratch tree, let Clang's AVR32 driver supply
+the linker script, library paths, and `ld.lld`; in zsh split the make `OBJS`
+value before passing it to Clang:
+
+```sh
+CLANG=/Users/cozy/cozycactus/llvm-project/build-avr32/bin/clang
+SYSROOT=/Users/cozy/cozycactus/avr32-toolchain-macos-arm64/avr32-tools-src/avr32
+OBJS=$(make -pn all | awk '/^OBJS :=/ { sub(/^OBJS :=[[:space:]]*/, ""); print; exit }')
+objs=(${=OBJS})
+"$CLANG" --target=avr32 --sysroot="$SYSROOT" -mpart=uc3a3256 \
+  -nostartfiles -mrelax -Wl,--gc-sections -Wl,-e,_trampoline \
+  -Wl,--direct-data -o widget-llvm-current-Oz-mixedrelax-lld.elf $objs -lm
+```
+
+After commit `a5e7f792cc69`, this local lld-linked scratch artifact measured
+flash `.text + .rodata + .data = 108,368` bytes (`.text` 97,196, `.rodata`
+9,508, `.data` 1,664), versus the nearest saved local baseline
+`widget-llvm-asm-fallthrough-Oz-mixedrelax-lld.elf` at 108,392 bytes. Use the
+exact local artifact names in reports; this scratch tree has multiple historical
+ELFs with different branch states.
 
 Current practical compile reference:
 
