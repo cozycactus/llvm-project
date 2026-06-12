@@ -82,6 +82,19 @@
 // RUN:   -c %s 2>&1 | FileCheck --check-prefix=OPT-RELAX-CC1 %s
 // OPT-RELAX-CC1: "-target-feature" "+relax"
 
+// RUN: %clang -### --target=avr32 -mpart=uc3a3256 -O0 \
+// RUN:   -c %s 2>&1 | FileCheck --check-prefix=FP-O0 %s
+// FP-O0: "-mframe-pointer=all"
+
+// RUN: %clang -### --target=avr32 -mpart=uc3a3256 -O2 \
+// RUN:   -c %s 2>&1 | FileCheck --check-prefix=FP-O2 %s
+// FP-O2: "-mframe-pointer=none"
+
+// RUN: %clang -### --target=avr32 -mpart=uc3a3256 -O2 \
+// RUN:   -fno-omit-frame-pointer -c %s 2>&1 \
+// RUN:   | FileCheck --check-prefix=FP-FORCED %s
+// FP-FORCED: "-mframe-pointer=all"
+
 // RUN: %clang -### --target=avr32 -mpart=uc3a3256 -O2 \
 // RUN:   -c %s 2>&1 | FileCheck --check-prefix=O2-INLINE %s
 // O2-INLINE: "-mllvm" "-inline-threshold=10"

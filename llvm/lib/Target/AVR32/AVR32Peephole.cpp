@@ -409,13 +409,14 @@ static bool isMatchingHiLoPair(const MachineOperand &Low,
 }
 
 static bool isMovLowMaterialization(const MachineInstr &MI) {
-  return isMovLowImmOpcode(MI.getOpcode()) && MI.getNumOperands() == 2 &&
-         isRegOperand(MI.getOperand(0)) &&
+  return isMovLowImmOpcode(MI.getOpcode()) &&
+         MI.getNumExplicitOperands() == 2 && isRegOperand(MI.getOperand(0)) &&
          isLowMaterializationOperand(MI.getOperand(1));
 }
 
 static bool isMovhMaterialization(const MachineInstr &MI) {
-  return MI.getOpcode() == AVR32::MOVHri && MI.getNumOperands() == 2 &&
+  return MI.getOpcode() == AVR32::MOVHri &&
+         MI.getNumExplicitOperands() == 2 &&
          isRegOperand(MI.getOperand(0)) &&
          isHighMaterializationOperand(MI.getOperand(1));
 }
@@ -543,13 +544,15 @@ static bool isRegAlreadyExtendedBefore(MachineBasicBlock &MBB,
     if (!explicitlyDefinesReg(DefMI, Reg))
       return false;
 
-    if (DefMI.getOpcode() == AVR32::MOVrr && DefMI.getNumOperands() == 2 &&
+    if (DefMI.getOpcode() == AVR32::MOVrr &&
+        DefMI.getNumExplicitOperands() == 2 &&
         isRegOperand(DefMI.getOperand(0)) && isRegOperand(DefMI.getOperand(1)) &&
         DefMI.getOperand(0).getReg() == Reg)
       return isRegAlreadyExtendedBefore(I, DefMI.getOperand(1).getReg(),
                                         Signed, Width, TRI, Depth - 1);
 
-    if (isMovLowImmOpcode(DefMI.getOpcode()) && DefMI.getNumOperands() == 2 &&
+    if (isMovLowImmOpcode(DefMI.getOpcode()) &&
+        DefMI.getNumExplicitOperands() == 2 &&
         isRegOperand(DefMI.getOperand(0)) && DefMI.getOperand(0).getReg() == Reg &&
         DefMI.getOperand(1).isImm())
       return isImmediateAlreadyExtended(DefMI.getOperand(1).getImm(), Signed,
@@ -837,7 +840,8 @@ bool AVR32Peephole::foldMovhOr(MachineInstr &MI,
   Register HighReg = HighMI.getOperand(0).getReg();
 
   if (MI.getOpcode() == AVR32::ORALrrr) {
-    if (MI.getNumOperands() != 3 || !isRegOperand(MI.getOperand(0)) ||
+    if (MI.getNumExplicitOperands() != 3 ||
+        !isRegOperand(MI.getOperand(0)) ||
         !isRegOperand(MI.getOperand(1)) || !isRegOperand(MI.getOperand(2)))
       return false;
 
@@ -848,7 +852,8 @@ bool AVR32Peephole::foldMovhOr(MachineInstr &MI,
       return false;
     DstReg = MI.getOperand(0).getReg();
   } else if (MI.getOpcode() == AVR32::ORrr) {
-    if (MI.getNumOperands() != 2 || !isRegOperand(MI.getOperand(0)) ||
+    if (MI.getNumExplicitOperands() != 2 ||
+        !isRegOperand(MI.getOperand(0)) ||
         !isRegOperand(MI.getOperand(1)))
       return false;
 
@@ -883,8 +888,8 @@ bool AVR32Peephole::foldBitImmediate(MachineInstr &MI,
       Opcode == AVR32::ANDLri || Opcode == AVR32::ANDHri ||
       Opcode == AVR32::ORLcg || Opcode == AVR32::ORHcg ||
       Opcode == AVR32::ANDLcg || Opcode == AVR32::ANDHcg) {
-    bool IsCodeGenOnly = MI.getNumOperands() == 3;
-    if ((!IsCodeGenOnly && MI.getNumOperands() != 2) ||
+    bool IsCodeGenOnly = MI.getNumExplicitOperands() == 3;
+    if ((!IsCodeGenOnly && MI.getNumExplicitOperands() != 2) ||
         !isRegOperand(MI.getOperand(0)))
       return false;
 
@@ -918,7 +923,8 @@ bool AVR32Peephole::foldBitImmediate(MachineInstr &MI,
 
   if (Opcode != AVR32::ORrr && Opcode != AVR32::ANDrr)
     return false;
-  if (MI.getNumOperands() != 2 || !isRegOperand(MI.getOperand(0)) ||
+  if (MI.getNumExplicitOperands() != 2 ||
+      !isRegOperand(MI.getOperand(0)) ||
       !isRegOperand(MI.getOperand(1)) || !MI.getOperand(1).isKill())
     return false;
   if (MI.getIterator() == MI.getParent()->begin())
@@ -926,7 +932,8 @@ bool AVR32Peephole::foldBitImmediate(MachineInstr &MI,
 
   MachineBasicBlock::iterator ImmIt = std::prev(MI.getIterator());
   MachineInstr &ImmMI = *ImmIt;
-  if (!isMovLowImmOpcode(ImmMI.getOpcode()) || ImmMI.getNumOperands() != 2 ||
+  if (!isMovLowImmOpcode(ImmMI.getOpcode()) ||
+      ImmMI.getNumExplicitOperands() != 2 ||
       !isRegOperand(ImmMI.getOperand(0)) || !ImmMI.getOperand(1).isImm())
     return false;
 
@@ -958,7 +965,8 @@ bool AVR32Peephole::foldBitImmediate(MachineInstr &MI,
 bool AVR32Peephole::foldCompareImmediate(MachineInstr &MI,
                                          const TargetInstrInfo &TII) {
   std::optional<unsigned> ImmOpc = getCompareImmOpcode(MI.getOpcode());
-  if (!ImmOpc || MI.getNumOperands() != 2 || !isRegOperand(MI.getOperand(0)) ||
+  if (!ImmOpc || MI.getNumExplicitOperands() != 2 ||
+      !isRegOperand(MI.getOperand(0)) ||
       !isRegOperand(MI.getOperand(1)) || !MI.getOperand(1).isKill())
     return false;
   if (MI.getIterator() == MI.getParent()->begin())
@@ -966,7 +974,8 @@ bool AVR32Peephole::foldCompareImmediate(MachineInstr &MI,
 
   MachineBasicBlock::iterator ImmIt = std::prev(MI.getIterator());
   MachineInstr &ImmMI = *ImmIt;
-  if (!isMovLowImmOpcode(ImmMI.getOpcode()) || ImmMI.getNumOperands() != 2 ||
+  if (!isMovLowImmOpcode(ImmMI.getOpcode()) ||
+      ImmMI.getNumExplicitOperands() != 2 ||
       !isRegOperand(ImmMI.getOperand(0)) || !ImmMI.getOperand(1).isImm() ||
       ImmMI.getOperand(0).getReg() != MI.getOperand(1).getReg())
     return false;
@@ -1188,7 +1197,8 @@ bool AVR32Peephole::foldShiftedMaskIndexLoad(
     --I;
     if (I->isDebugInstr())
       continue;
-    if (I->getOpcode() == AVR32::ANDrr && I->getNumOperands() == 2 &&
+    if (I->getOpcode() == AVR32::ANDrr &&
+        I->getNumExplicitOperands() == 2 &&
         isRegOperand(I->getOperand(0)) &&
         I->getOperand(0).getReg() == IndexReg) {
       AndIt = I;
@@ -1208,7 +1218,8 @@ bool AVR32Peephole::foldShiftedMaskIndexLoad(
 
   MachineBasicBlock::iterator MaskIt = prevNonDebug(AndIt);
   if (MaskIt == MBB.end() || !isMovLowImmOpcode(MaskIt->getOpcode()) ||
-      MaskIt->getNumOperands() != 2 || !isRegOperand(MaskIt->getOperand(0)) ||
+      MaskIt->getNumExplicitOperands() != 2 ||
+      !isRegOperand(MaskIt->getOperand(0)) ||
       !MaskIt->getOperand(1).isImm() ||
       MaskIt->getOperand(0).getReg() != MaskReg)
     return false;
@@ -1228,7 +1239,7 @@ bool AVR32Peephole::foldShiftedMaskIndexLoad(
 
   MachineBasicBlock::iterator ShiftIt = prevNonDebug(LsrIt);
   if (ShiftIt == MBB.end() || !isMovLowImmOpcode(ShiftIt->getOpcode()) ||
-      ShiftIt->getNumOperands() != 2 ||
+      ShiftIt->getNumExplicitOperands() != 2 ||
       !isRegOperand(ShiftIt->getOperand(0)) ||
       !ShiftIt->getOperand(1).isImm() ||
       ShiftIt->getOperand(0).getReg() != ShiftReg)
@@ -1338,7 +1349,8 @@ bool AVR32Peephole::foldRotate16(MachineInstr &MI,
 
   MachineBasicBlock::iterator CopyIt = prevNonDebug(FirstShiftIt);
   if (CopyIt == MI.getParent()->end() ||
-      CopyIt->getOpcode() != AVR32::MOVrr || CopyIt->getNumOperands() < 2 ||
+      CopyIt->getOpcode() != AVR32::MOVrr ||
+      CopyIt->getNumExplicitOperands() < 2 ||
       !isRegOperand(CopyIt->getOperand(0)) ||
       !isRegOperand(CopyIt->getOperand(1)) ||
       CopyIt->getOperand(0).getReg() != TmpReg ||
@@ -1402,7 +1414,7 @@ static unsigned getMoveImmediateOpcode(int64_t Imm) {
 bool AVR32Peephole::foldNarrowCompare(MachineInstr &MI,
                                       const TargetInstrInfo &TII,
                                       const TargetRegisterInfo &TRI) {
-  if (!isCompareOpcode(MI.getOpcode()) || MI.getNumOperands() != 2 ||
+  if (!isCompareOpcode(MI.getOpcode()) || MI.getNumExplicitOperands() != 2 ||
       !isRegOperand(MI.getOperand(0)) || !MI.getOperand(0).isKill())
     return false;
   if (!hasCompatibleNarrowCompareUser(MI, /*Signed=*/false) &&
@@ -1443,7 +1455,8 @@ bool AVR32Peephole::foldNarrowCompare(MachineInstr &MI,
       return false;
     --CopyIt;
   }
-  if (CopyIt->getOpcode() != AVR32::MOVrr || CopyIt->getNumOperands() != 2 ||
+  if (CopyIt->getOpcode() != AVR32::MOVrr ||
+      CopyIt->getNumExplicitOperands() != 2 ||
       !isRegOperand(CopyIt->getOperand(0)) ||
       !isRegOperand(CopyIt->getOperand(1)) ||
       CopyIt->getOperand(0).getReg() != CastReg)
@@ -1999,7 +2012,7 @@ bool AVR32Peephole::repairCompareBranchFlagClobbers(
 bool AVR32Peephole::foldSignedImmediate(MachineInstr &MI, unsigned CompactOpc,
                                         unsigned Bits, bool HasDef,
                                         const TargetInstrInfo &TII) {
-  if (MI.getNumOperands() != 2)
+  if (MI.getNumExplicitOperands() != 2)
     return false;
 
   const MachineOperand &RegOp = MI.getOperand(0);

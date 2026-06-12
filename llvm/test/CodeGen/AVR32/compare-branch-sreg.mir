@@ -36,5 +36,5 @@ body: |
 
 # CHECK-LABEL: name: repair_flag_clobber
 # CHECK: $r3 = ADDALrrr $r2, $r5, implicit-def $sreg
-# CHECK-NEXT: CPri21 $r9, 0, implicit-def $sreg
+# CHECK-NEXT: CPri6 $r9, 0, implicit-def $sreg
 # CHECK-NEXT: BREQbb %bb.1, implicit $sreg

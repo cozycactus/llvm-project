@@ -88,8 +88,7 @@ body:             |
     liveins: $r12
 
     ; CHECK-LABEL: name: fold_compare_imm
-    ; CHECK: $r8 = MOVri21 7
-    ; CHECK-NEXT: CPrr $r12, killed $r8
+    ; CHECK: CPri6 $r12, 7
     $r8 = MOVri21 7, implicit-def dead $sreg
     CPrr $r12, killed $r8, implicit-def $sreg
     RETR12 implicit $r12
@@ -103,9 +102,8 @@ body:             |
     successors: %bb.1
 
     ; CHECK-LABEL: name: fold_narrow_compare_imm
-    ; CHECK: $r8 = MOVrr $r12
-    ; CHECK-NEXT: $r8 = CASTU_Bcg killed $r8
-    ; CHECK-NEXT: CP_Wri21 killed $r8, 32
+    ; CHECK: $r8 = MOVri8 32
+    ; CHECK-NEXT: CP_Brr $r12, killed $r8
     $r8 = MOVrr $r12, implicit-def dead $sreg
     $r8 = CASTU_Bcg killed $r8, implicit-def dead $sreg
     CP_Wri21 killed $r8, 32, implicit-def $sreg

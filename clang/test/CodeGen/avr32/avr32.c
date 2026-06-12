@@ -749,9 +749,9 @@ __attribute__((optnone, noinline)) int pick(int a, int b) {
 
 // ASM-LABEL: double_lt:
 // ASM: mcall pc
-// ASM: srlt r12
+// ASM: srne r12
 // ASM: popm r4-r7, pc
-// ASM: .long __ltdf2
+// ASM: .long __avr32_f64_cmp_lt
 
 // ASM-LABEL: log10_double:
 // ASM: mcall pc
@@ -759,13 +759,13 @@ __attribute__((optnone, noinline)) int pick(int a, int b) {
 // ASM: .long log10
 
 // ASM-LABEL: choose_lt:
-// ASM: cp r12, {{r[0-9]+}}
+// ASM: cp r12, 7
 // ASM: brcs
 // ASM-NOT: movcs
 // ASM: ret r12
 
 // ASM-LABEL: choose_nonzero:
-// ASM: cp r12, {{r[0-9]+}}
+// ASM: cp r12, 0
 // ASM: breq
 // ASM-NOT: moveq
 // ASM: ret r12
@@ -819,7 +819,7 @@ __attribute__((optnone, noinline)) int pick(int a, int b) {
 
 // ASM-LABEL: mmio_address:
 // ASM: mov r12, 68
-// ASM: orh r12, 16384
+// ASM: sbr r12, 30
 // ASM: ret r12
 
 // ASM-LABEL: store_global:

@@ -48,7 +48,7 @@ define i32 @setcc_call_result(i32 %a) minsize optsize {
 ; CHECK-LABEL: setcc_call_result:
 ; CHECK: pushm r4-r7, lr
 ; CHECK: mcall pc
-; CHECK: cp r12, r8
+; CHECK: cp r12, 0
 ; CHECK-NEXT: sreq r12
 ; CHECK-NEXT: popm r4-r7, pc{{$}}
 entry:
