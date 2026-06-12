@@ -75,8 +75,18 @@ if (( partial )); then
   set -- "$@" "$empty_obj"
 fi
 
+# Match GNU ld's final-link AVR32 relaxation behavior. Keep partial links
+# relocatable and let the final vmlinux link decide which call pools are in
+# direct-call range.
 if (( has_emulation )); then
-  exec "$ld_lld" "$@"
+  if (( partial )); then
+    exec "$ld_lld" "$@"
+  fi
+  exec "$ld_lld" --direct-data "$@"
 fi
 
-exec "$ld_lld" -m avr32elf "$@"
+if (( partial )); then
+  exec "$ld_lld" -m avr32elf "$@"
+fi
+
+exec "$ld_lld" -m avr32elf --direct-data "$@"
