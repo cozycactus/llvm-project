@@ -16,6 +16,12 @@ def SDT_AVR32SetCC : SDTypeProfile<1, 3, [SDTCisVT<0, i32>,
                                           SDTCisSameAs<0, 1>,
                                           SDTCisSameAs<1, 2>,
                                           SDTCisVT<3, i32>]>;
+def SDT_AVR32SetCC64 : SDTypeProfile<1, 5, [SDTCisVT<0, i32>,
+                                            SDTCisVT<1, i32>,
+                                            SDTCisVT<2, i32>,
+                                            SDTCisVT<3, i32>,
+                                            SDTCisVT<4, i32>,
+                                            SDTCisVT<5, i32>]>;
 def SDT_AVR32SelectCC : SDTypeProfile<1, 5, [SDTCisVT<0, i32>,
                                              SDTCisSameAs<1, 2>,
                                              SDTCisSameAs<0, 3>,
@@ -40,9 +46,12 @@ def AVR32callseq_end :
            SDCallSeqEnd<[SDTCisVT<0, i32>, SDTCisVT<1, i32>]>,
            [SDNPHasChain, SDNPOptInGlue, SDNPOutGlue]>;
 def AVR32cmp : SDNode<"AVR32ISD::CMP", SDT_AVR32Cmp, [SDNPOutGlue]>;
+def AVR32cmpc : SDNode<"AVR32ISD::CMP_CARRY", SDT_AVR32Cmp,
+                       [SDNPInGlue, SDNPOutGlue]>;
 def AVR32brcc : SDNode<"AVR32ISD::BR_CC", SDT_AVR32BrCC,
                        [SDNPHasChain, SDNPInGlue]>;
 def AVR32setcc : SDNode<"AVR32ISD::SET_CC", SDT_AVR32SetCC>;
+def AVR32setcc64 : SDNode<"AVR32ISD::SET_CC_64", SDT_AVR32SetCC64>;
 def AVR32selectcc : SDNode<"AVR32ISD::SELECT_CC", SDT_AVR32SelectCC>;
 def AVR32retflag : SDNode<"AVR32ISD::RET_FLAG", SDTNone,
                           [SDNPHasChain, SDNPOptInGlue, SDNPVariadic]>;
@@ -3571,8 +3580,10 @@ def PICOMV_D_ToReg : PicoMoveCopRegToRegD<"picomv.d">;
 def PICOMV_W_FromReg : PicoMoveRegToCopRegW<"picomv.w">;
 def PICOMV_W_ToReg : PicoMoveCopRegToRegW<"picomv.w">;
 let hasSideEffects = 1 in {
+let Uses = [SREG], Defs = [SREG] in {
 def CPCr : CompactRegNoOut<0b010111000010, "cpc">;
 def CPCrr : FullRegRegNoOut<0b0001001100000000, "cpc">;
+}
 def CP_Brr : FullRegRegNoOut<0b0001100000000000, "cp.b">;
 def CP_Hrr : FullRegRegNoOut<0b0001100100000000, "cp.h">;
 def CPri21 : FullRegImmNoOut<0b0010, "cp">;
@@ -4240,6 +4251,15 @@ def SETCCrr : AVR32Inst<0, (outs GPR:$Rd),
                           (AVR32setcc GPR:$LHS, GPR:$RHS, timm:$Cond))]>;
 
 let usesCustomInserter = 1, isCodeGenOnly = 1 in
+def SETCC64rr : AVR32Inst<0, (outs GPR:$Rd),
+                          (ins GPR:$LHSLo, GPR:$LHSHi, GPR:$RHSLo,
+                               GPR:$RHSHi, i32imm:$Cond),
+                          "# SETCC64rr",
+                          [(set GPR:$Rd,
+                            (AVR32setcc64 GPR:$LHSLo, GPR:$LHSHi, GPR:$RHSLo,
+                                            GPR:$RHSHi, timm:$Cond))]>;
+
+let usesCustomInserter = 1, isCodeGenOnly = 1 in
 def SELECTCCrr : AVR32Inst<0, (outs GPR:$Rd),
                            (ins GPR:$LHS, GPR:$RHS, GPR:$True, GPR:$False,
                                 i32imm:$Cond),
@@ -4279,6 +4299,7 @@ def : Pat<(sext_inreg GPR:$Src, i16),
 
 def : Pat<(AVR32cmp GPR:$LHS, GPR:$RHS), (CPrr GPR:$LHS, GPR:$RHS)>;
 def : Pat<(AVR32cmp GPR:$LHS, simm21:$RHS), (CPri21 GPR:$LHS, simm21:$RHS)>;
+def : Pat<(AVR32cmpc GPR:$LHS, GPR:$RHS), (CPCrr GPR:$LHS, GPR:$RHS)>;
 
 def : Pat<(AVR32brcc bb:$dst, AVR32_COND_EQ), (BREQbb bb:$dst)>;
 def : Pat<(AVR32brcc bb:$dst, AVR32_COND_NE), (BRNEbb bb:$dst)>;

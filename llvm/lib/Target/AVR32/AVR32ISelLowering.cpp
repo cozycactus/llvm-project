@@ -34,8 +34,9 @@ AVR32TargetLowering::AVR32TargetLowering(const TargetMachine &TM,
   // before isel, while source scheduling keeps the tuple/extract shape stable.
   setSchedulingPreference(Sched::Source);
   setOperationAction(ISD::BR_CC, MVT::i32, Custom);
+  setOperationAction(ISD::BR_CC, MVT::i64, Custom);
   setOperationAction(ISD::BR_JT, MVT::Other, Legal);
-  setOperationAction(ISD::BRCOND, MVT::Other, Expand);
+  setOperationAction(ISD::BRCOND, MVT::Other, Custom);
   setOperationAction({ISD::ADDC, ISD::ADDE, ISD::SUBC, ISD::SUBE}, MVT::i32,
                      Legal);
   setOperationAction(ISD::BSWAP, MVT::i32, Legal);
@@ -68,6 +69,7 @@ AVR32TargetLowering::AVR32TargetLowering(const TargetMachine &TM,
   setOperationAction(ISD::UREM, MVT::i32, Expand);
   setOperationAction(ISD::SELECT_CC, MVT::i32, Custom);
   setOperationAction(ISD::SETCC, MVT::i32, Custom);
+  setOperationAction(ISD::SETCC, MVT::i64, Custom);
   setOperationAction(ISD::SIGN_EXTEND_INREG, MVT::i1, Expand);
   setOperationAction(ISD::SHL_PARTS, MVT::i32, Expand);
   setOperationAction(ISD::SRA_PARTS, MVT::i32, Expand);
@@ -282,6 +284,54 @@ static bool isAlwaysFalseCondCode(ISD::CondCode CC) {
   return CC == ISD::SETFALSE || CC == ISD::SETFALSE2;
 }
 
+static SDValue extractI64Word(SDValue Value, unsigned Word, const SDLoc &DL,
+                              SelectionDAG &DAG) {
+  return DAG.getNode(ISD::EXTRACT_ELEMENT, DL, MVT::i32, Value,
+                     DAG.getConstant(Word, DL, MVT::i32));
+}
+
+static SDValue lowerI64BR_CC(SDValue Chain, SDValue Dest, ISD::CondCode CC,
+                             SDValue LHS, SDValue RHS, const SDLoc &DL,
+                             SelectionDAG &DAG) {
+  if (!isa<ConstantSDNode>(RHS) && commuteCondCodeForCompactBranch(CC))
+    std::swap(LHS, RHS);
+
+  AVR32CC::CondCodes TargetCC = intCondCodeToAVR32CC(CC);
+  if (TargetCC == AVR32CC::COND_INVALID) {
+    diagnoseUnsupported(DAG, DL, "AVR32 condition code is not implemented yet");
+    return Chain;
+  }
+
+  SDValue LHSLo = extractI64Word(LHS, 0, DL, DAG);
+  SDValue LHSHi = extractI64Word(LHS, 1, DL, DAG);
+  SDValue RHSLo = extractI64Word(RHS, 0, DL, DAG);
+  SDValue RHSHi = extractI64Word(RHS, 1, DL, DAG);
+  SDValue LowFlag = DAG.getNode(AVR32ISD::CMP, DL, MVT::Glue, LHSLo, RHSLo);
+  SDValue HighFlag =
+      DAG.getNode(AVR32ISD::CMP_CARRY, DL, MVT::Glue, LHSHi, RHSHi, LowFlag);
+  return DAG.getNode(AVR32ISD::BR_CC, DL, MVT::Other, Chain, Dest,
+                     DAG.getConstant(TargetCC, DL, MVT::i32), HighFlag);
+}
+
+static SDValue lowerI64SET_CC(ISD::CondCode CC, SDValue LHS, SDValue RHS,
+                              const SDLoc &DL, SelectionDAG &DAG) {
+  if (commuteCondCodeForCompactBranch(CC))
+    std::swap(LHS, RHS);
+
+  AVR32CC::CondCodes TargetCC = intCondCodeToAVR32CC(CC);
+  if (TargetCC == AVR32CC::COND_INVALID) {
+    diagnoseUnsupported(DAG, DL, "AVR32 condition code is not implemented yet");
+    return DAG.getUNDEF(MVT::i32);
+  }
+
+  SDValue LHSLo = extractI64Word(LHS, 0, DL, DAG);
+  SDValue LHSHi = extractI64Word(LHS, 1, DL, DAG);
+  SDValue RHSLo = extractI64Word(RHS, 0, DL, DAG);
+  SDValue RHSHi = extractI64Word(RHS, 1, DL, DAG);
+  return DAG.getNode(AVR32ISD::SET_CC_64, DL, MVT::i32, LHSLo, LHSHi, RHSLo,
+                     RHSHi, DAG.getTargetConstant(TargetCC, DL, MVT::i32));
+}
+
 static SDValue lowerFRAMEADDR(SDValue Op, SelectionDAG &DAG) {
   MachineFunction &MF = DAG.getMachineFunction();
   MachineFrameInfo &MFI = MF.getFrameInfo();
@@ -347,8 +397,9 @@ SDValue AVR32TargetLowering::LowerOperation(SDValue Op,
   if (Op.getOpcode() == ISD::UMUL_LOHI)
     return lowerUMulLoHi(Op, DAG);
 
-  if (Op.getOpcode() != ISD::BR_CC && Op.getOpcode() != ISD::SELECT &&
-      Op.getOpcode() != ISD::SETCC && Op.getOpcode() != ISD::SELECT_CC)
+  if (Op.getOpcode() != ISD::BR_CC && Op.getOpcode() != ISD::BRCOND &&
+      Op.getOpcode() != ISD::SELECT && Op.getOpcode() != ISD::SETCC &&
+      Op.getOpcode() != ISD::SELECT_CC)
     llvm_unreachable("Unsupported AVR32 custom lowering");
 
   if (Op.getOpcode() == ISD::SELECT) {
@@ -379,6 +430,10 @@ SDValue AVR32TargetLowering::LowerOperation(SDValue Op,
 
     SDValue LHS = Op.getOperand(0);
     SDValue RHS = Op.getOperand(1);
+    if (Op.getOpcode() == ISD::SETCC && LHS.getValueType() == MVT::i64 &&
+        RHS.getValueType() == MVT::i64)
+      return lowerI64SET_CC(CC, LHS, RHS, DL, DAG);
+
     if (commuteCondCodeForCompactBranch(CC))
       std::swap(LHS, RHS);
     AVR32CC::CondCodes TargetCC = intCondCodeToAVR32CC(CC);
@@ -397,6 +452,86 @@ SDValue AVR32TargetLowering::LowerOperation(SDValue Op,
                        DAG.getTargetConstant(TargetCC, DL, MVT::i32));
   }
 
+  if (Op.getOpcode() == ISD::BRCOND) {
+    SDValue Chain = Op.getOperand(0);
+    SDValue Cond = Op.getOperand(1);
+    SDValue Dest = Op.getOperand(2);
+    SDLoc DL(Op);
+
+    if (Cond.getOpcode() == ISD::AND) {
+      if (auto *Mask = dyn_cast<ConstantSDNode>(Cond.getOperand(1));
+          Mask && Mask->getZExtValue() == 1)
+        Cond = Cond.getOperand(0);
+      else if (auto *Mask = dyn_cast<ConstantSDNode>(Cond.getOperand(0));
+               Mask && Mask->getZExtValue() == 1)
+        Cond = Cond.getOperand(1);
+    }
+
+    if (Cond.getOpcode() == AVR32ISD::SET_CC) {
+      const auto *CCNode = dyn_cast<ConstantSDNode>(Cond.getOperand(2));
+      if (!CCNode)
+        return Chain;
+      SDValue Flag = DAG.getNode(AVR32ISD::CMP, DL, MVT::Glue,
+                                 Cond.getOperand(0), Cond.getOperand(1));
+      return DAG.getNode(AVR32ISD::BR_CC, DL, MVT::Other, Chain, Dest,
+                         DAG.getConstant(CCNode->getZExtValue(), DL, MVT::i32),
+                         Flag);
+    }
+
+    if (Cond.getOpcode() == AVR32ISD::SET_CC_64) {
+      const auto *CCNode = dyn_cast<ConstantSDNode>(Cond.getOperand(4));
+      if (!CCNode)
+        return Chain;
+      SDValue LowFlag =
+          DAG.getNode(AVR32ISD::CMP, DL, MVT::Glue, Cond.getOperand(0),
+                      Cond.getOperand(2));
+      SDValue HighFlag =
+          DAG.getNode(AVR32ISD::CMP_CARRY, DL, MVT::Glue, Cond.getOperand(1),
+                      Cond.getOperand(3), LowFlag);
+      return DAG.getNode(AVR32ISD::BR_CC, DL, MVT::Other, Chain, Dest,
+                         DAG.getConstant(CCNode->getZExtValue(), DL, MVT::i32),
+                         HighFlag);
+    }
+
+    if (Cond.getOpcode() == ISD::SETCC) {
+      const CondCodeSDNode *CCNode = getCondCodeNode(Cond, 2, DAG, DL);
+      if (!CCNode)
+        return Chain;
+      ISD::CondCode CC = CCNode->get();
+      SDValue LHS = Cond.getOperand(0);
+      SDValue RHS = Cond.getOperand(1);
+      if (isAlwaysTrueCondCode(CC))
+        return DAG.getNode(ISD::BR, DL, MVT::Other, Chain, Dest);
+      if (isAlwaysFalseCondCode(CC))
+        return Chain;
+      if (LHS.getValueType() == MVT::i64 && RHS.getValueType() == MVT::i64)
+        return lowerI64BR_CC(Chain, Dest, CC, LHS, RHS, DL, DAG);
+
+      // Keep register-immediate branches in their original order so CPri can
+      // match.
+      if (!isa<ConstantSDNode>(RHS) && commuteCondCodeForCompactBranch(CC))
+        std::swap(LHS, RHS);
+
+      AVR32CC::CondCodes TargetCC = intCondCodeToAVR32CC(CC);
+      if (TargetCC == AVR32CC::COND_INVALID) {
+        diagnoseUnsupported(DAG, DL,
+                            "AVR32 condition code is not implemented yet");
+        return Chain;
+      }
+
+      SDValue Flag = DAG.getNode(AVR32ISD::CMP, DL, MVT::Glue, LHS, RHS);
+      return DAG.getNode(AVR32ISD::BR_CC, DL, MVT::Other, Chain, Dest,
+                         DAG.getConstant(TargetCC, DL, MVT::i32), Flag);
+    }
+
+    if (Cond.getValueType() != MVT::i32)
+      Cond = DAG.getNode(ISD::ZERO_EXTEND, DL, MVT::i32, Cond);
+    SDValue Flag = DAG.getNode(AVR32ISD::CMP, DL, MVT::Glue, Cond,
+                               DAG.getConstant(0, DL, MVT::i32));
+    return DAG.getNode(AVR32ISD::BR_CC, DL, MVT::Other, Chain, Dest,
+                       DAG.getConstant(AVR32CC::COND_NE, DL, MVT::i32), Flag);
+  }
+
   SDValue Chain = Op.getOperand(0);
   SDLoc DL(Op);
   const CondCodeSDNode *CCNode = getCondCodeNode(Op, 1, DAG, DL);
@@ -410,6 +545,8 @@ SDValue AVR32TargetLowering::LowerOperation(SDValue Op,
     return DAG.getNode(ISD::BR, DL, MVT::Other, Chain, Dest);
   if (isAlwaysFalseCondCode(CC))
     return Chain;
+  if (LHS.getValueType() == MVT::i64 && RHS.getValueType() == MVT::i64)
+    return lowerI64BR_CC(Chain, Dest, CC, LHS, RHS, DL, DAG);
 
   // Keep register-immediate branches in their original order so CPri can match.
   if (!isa<ConstantSDNode>(RHS) && commuteCondCodeForCompactBranch(CC))
@@ -511,6 +648,7 @@ static unsigned getMoveRegOpcodeForCC(AVR32CC::CondCodes CC) {
 MachineBasicBlock *AVR32TargetLowering::EmitInstrWithCustomInserter(
     MachineInstr &MI, MachineBasicBlock *BB) const {
   assert((MI.getOpcode() == AVR32::SETCCrr ||
+          MI.getOpcode() == AVR32::SETCC64rr ||
           MI.getOpcode() == AVR32::SELECTCCrr) &&
          "Unexpected custom inserter");
 
@@ -519,21 +657,34 @@ MachineBasicBlock *AVR32TargetLowering::EmitInstrWithCustomInserter(
   const DebugLoc &DL = MI.getDebugLoc();
 
   Register Dst = MI.getOperand(0).getReg();
-  Register LHS = MI.getOperand(1).getReg();
-  Register RHS = MI.getOperand(2).getReg();
   unsigned CondOperand = MI.getOpcode() == AVR32::SETCCrr ? 3 : 5;
   auto CC = static_cast<AVR32CC::CondCodes>(MI.getOperand(CondOperand).getImm());
 
-  if (MI.getOpcode() == AVR32::SETCCrr) {
+  if (MI.getOpcode() == AVR32::SETCCrr ||
+      MI.getOpcode() == AVR32::SETCC64rr) {
     unsigned SrOpc = getSetRegOpcodeForCC(CC);
     if (!SrOpc)
       report_fatal_error("AVR32 condition code is not implemented yet");
 
-    BuildMI(*BB, MI, DL, TII.get(AVR32::CPrr)).addReg(LHS).addReg(RHS);
+    if (MI.getOpcode() == AVR32::SETCCrr) {
+      BuildMI(*BB, MI, DL, TII.get(AVR32::CPrr))
+          .addReg(MI.getOperand(1).getReg())
+          .addReg(MI.getOperand(2).getReg());
+    } else {
+      BuildMI(*BB, MI, DL, TII.get(AVR32::CPrr))
+          .addReg(MI.getOperand(1).getReg())
+          .addReg(MI.getOperand(3).getReg());
+      BuildMI(*BB, MI, DL, TII.get(AVR32::CPCrr))
+          .addReg(MI.getOperand(2).getReg())
+          .addReg(MI.getOperand(4).getReg());
+    }
     BuildMI(*BB, MI, DL, TII.get(SrOpc), Dst);
     MI.eraseFromParent();
     return BB;
   }
+
+  Register LHS = MI.getOperand(1).getReg();
+  Register RHS = MI.getOperand(2).getReg();
 
   // AVR32 compact branches are often smaller than full conditional moves after
   // relaxation, especially when register allocation needs an extra copy. Keep
