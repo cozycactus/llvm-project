@@ -3,8 +3,7 @@
 define i32 @select_ugt(i32 %a, i32 %b, i32 %x) {
 ; CHECK-LABEL: select_ugt:
 ; CHECK: cp r11, r12
-; CHECK-NEXT: brcs
-; CHECK-NOT: movcs
+; CHECK-NEXT: movcs r12, r10
 ; CHECK: ret r12
   %cond = icmp ugt i32 %a, %b
   %ret = select i1 %cond, i32 %x, i32 %a
@@ -14,8 +13,7 @@ define i32 @select_ugt(i32 %a, i32 %b, i32 %x) {
 define i32 @select_ugt_optsize(i32 %a, i32 %b, i32 %x) optsize {
 ; CHECK-LABEL: select_ugt_optsize:
 ; CHECK: cp r11, r12
-; CHECK-NEXT: brcs
-; CHECK-NOT: movcs
+; CHECK-NEXT: movcs r12, r10
 ; CHECK: ret r12
   %cond = icmp ugt i32 %a, %b
   %ret = select i1 %cond, i32 %x, i32 %a
