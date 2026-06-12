@@ -22,6 +22,7 @@ defm : RemapAllTargetPseudoPointerOperands<GPR>;
 def AVR32InstrInfo : InstrInfo;
 
 def : Processor<"generic", NoItineraries, []>;
+def : Processor<"ap", NoItineraries, []>;
 def : Processor<"uc3a3128", NoItineraries, [FeatureCondStore]>;
 def : Processor<"uc3a3256", NoItineraries, [FeatureCondStore]>;
 def : Processor<"uc3a3256s", NoItineraries, [FeatureCondStore]>;

@@ -87,6 +87,7 @@ protected:
   std::string CPU;
   const char *DefineName = nullptr;
   bool IsUC = false;
+  bool IsAP = false;
   bool HasNoMul = false;
 };
 

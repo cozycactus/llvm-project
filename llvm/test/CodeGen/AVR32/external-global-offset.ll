@@ -8,8 +8,7 @@ target triple = "avr32"
 define i32 @external_minus_one() {
 ; CHECK-LABEL: external_minus_one:
 ; CHECK: lddpc [[BASE:r[0-9]+]], pc[.Ltmp
-; CHECK: mov [[OFF:r[0-9]+]], -1
-; CHECK: add r12, [[BASE]], [[OFF]]
+; CHECK: sub r12, [[BASE]], 1
 ; CHECK: .long g
   ret i32 ptrtoint (ptr getelementptr (i8, ptr @g, i32 -1) to i32)
 }

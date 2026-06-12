@@ -26,6 +26,44 @@
   define i32 @keep_signed_user_for_unsigned_cast(i32 %x) {
     ret i32 %x
   }
+
+  define i32 @fold_cond_move_compare_imm(i32 %x) {
+    ret i32 %x
+  }
+
+  define i32 @fold_redundant_zero_compare(i32 %x) {
+    ret i32 %x
+  }
+
+  define i32 @fold_add_imm(i32 %x) {
+    ret i32 %x
+  }
+
+  define i32 @fold_sub_imm(i32 %x) {
+    ret i32 %x
+  }
+
+  define i32 @fold_setreg_and_one(i32 %x) #0 {
+    ret i32 %x
+  }
+
+  define i32 @fold_setreg_and_one_compact(i32 %x) #0 {
+    ret i32 %x
+  }
+
+  define i32 @fold_setreg_and_one_keep_one(i32 %x) #0 {
+    ret i32 %x
+  }
+
+  define i32 @keep_setreg_and_one_without_optsize(i32 %x) {
+    ret i32 %x
+  }
+
+  define i32 @fold_pc_load_disp(i32 %x) {
+    ret i32 %x
+  }
+
+  attributes #0 = { optsize }
 ...
 ---
 name:            fold_redundant_cast
@@ -115,7 +153,6 @@ body:             |
 
     RETR12 implicit $r12
 ...
----
 name:            keep_signed_user_for_unsigned_cast
 tracksRegLiveness: true
 body:             |
@@ -136,5 +173,156 @@ body:             |
   bb.1:
     liveins: $r12
 
+    RETR12 implicit $r12
+...
+---
+name:            fold_cond_move_compare_imm
+tracksRegLiveness: true
+body:             |
+  bb.0:
+    liveins: $r12, $r8
+
+    ; CHECK-LABEL: name: fold_cond_move_compare_imm
+    ; CHECK: CPri6 $r12, 0
+    ; CHECK-NEXT: $r8 = MOVEQriCG $r8, 0
+    $r9 = MOVri8 0, implicit-def dead $sreg
+    CPrr $r12, $r9, implicit-def $sreg
+    $r8 = MOVEQrrCG $r8, killed $r9, implicit $sreg
+    RETR12 implicit $r12
+...
+---
+name:            fold_redundant_zero_compare
+tracksRegLiveness: true
+body:             |
+  bb.0:
+    liveins: $r8, $r9, $r12
+    successors: %bb.1
+
+    ; CHECK-LABEL: name: fold_redundant_zero_compare
+    ; CHECK: $r8 = ANDrrCG $r8, killed $r9, implicit-def $sreg
+    ; CHECK-NEXT: BREQbb %bb.1, implicit $sreg
+    ; CHECK-NOT: CPri6
+    $r8 = ANDrrCG $r8, killed $r9, implicit-def dead $sreg
+    CPri6 killed $r8, 0, implicit-def $sreg
+    BREQbb %bb.1, implicit $sreg
+    RETR12 implicit $r12
+
+  bb.1:
+    liveins: $r12
+
+    RETR12 implicit $r12
+...
+---
+name:            fold_add_imm
+tracksRegLiveness: true
+body:             |
+  bb.0:
+    liveins: $r12
+
+    ; CHECK-LABEL: name: fold_add_imm
+    ; CHECK: $r12 = SUBrri16 $r12, -12
+    ; CHECK-NOT: MOVri8 12
+    ; CHECK-NOT: ADDALrrr
+    $r8 = MOVri8 12, implicit-def dead $sreg
+    $r12 = ADDALrrr $r12, killed $r8, implicit-def dead $sreg
+    RETR12 implicit $r12
+...
+---
+name:            fold_sub_imm
+tracksRegLiveness: true
+body:             |
+  bb.0:
+    liveins: $r12, $r11
+
+    ; CHECK-LABEL: name: fold_sub_imm
+    ; CHECK: $r12 = SUBrri16 $r11, 1024
+    ; CHECK-NOT: MOVri21 1024
+    ; CHECK-NOT: SUBALrrr
+    $r8 = MOVri21 1024, implicit-def dead $sreg
+    $r12 = SUBALrrr $r11, killed $r8, implicit-def dead $sreg
+    RETR12 implicit $r12
+...
+---
+name:            fold_setreg_and_one
+tracksRegLiveness: true
+body:             |
+  bb.0:
+    liveins: $r12
+
+    ; CHECK-LABEL: name: fold_setreg_and_one
+    ; CHECK: CPri6 $r12, 0
+    ; CHECK-NEXT: $r12 = SREQr
+    ; CHECK-NOT: MOVri8 1
+    ; CHECK-NOT: ANDALrrr
+    CPri6 $r12, 0, implicit-def $sreg
+    $r8 = SREQr implicit $sreg
+    $r9 = MOVri8 1, implicit-def dead $sreg
+    $r12 = ANDALrrr killed $r8, killed $r9, implicit-def dead $sreg
+    RETR12 implicit $r12
+...
+---
+name:            fold_setreg_and_one_compact
+tracksRegLiveness: true
+body:             |
+  bb.0:
+    liveins: $r12
+
+    ; CHECK-LABEL: name: fold_setreg_and_one_compact
+    ; CHECK: CPri6 $r12, 0
+    ; CHECK-NEXT: $r8 = SREQr
+    ; CHECK-NOT: MOVri8 1
+    ; CHECK-NOT: ANDrrCG
+    CPri6 $r12, 0, implicit-def $sreg
+    $r8 = SREQr implicit $sreg
+    $r9 = MOVri8 1, implicit-def dead $sreg
+    $r8 = ANDrrCG $r8, killed $r9, implicit-def dead $sreg
+    RETR12 implicit $r12
+...
+---
+name:            fold_setreg_and_one_keep_one
+tracksRegLiveness: true
+body:             |
+  bb.0:
+    liveins: $r12
+
+    ; CHECK-LABEL: name: fold_setreg_and_one_keep_one
+    ; CHECK: $r8 = SREQr
+    ; CHECK-NEXT: $r6 = MOVri8 1
+    ; CHECK-NEXT: $r12 = MOVrr killed $r6
+    ; CHECK-NOT: ANDrrCG
+    CPri6 $r12, 0, implicit-def $sreg
+    $r8 = SREQr implicit $sreg
+    $r6 = MOVri8 1, implicit-def dead $sreg
+    $r8 = ANDrrCG killed $r8, $r6, implicit-def dead $sreg
+    $r12 = MOVrr killed $r6, implicit-def dead $sreg
+    RETR12 implicit $r12
+...
+---
+name:            keep_setreg_and_one_without_optsize
+tracksRegLiveness: true
+body:             |
+  bb.0:
+    liveins: $r12
+
+    ; CHECK-LABEL: name: keep_setreg_and_one_without_optsize
+    ; CHECK: $r8 = SREQr
+    ; CHECK-NEXT: $r9 = MOVri8 1
+    ; CHECK-NEXT: $r12 = ANDALrrr
+    CPri6 $r12, 0, implicit-def $sreg
+    $r8 = SREQr implicit $sreg
+    $r9 = MOVri8 1, implicit-def dead $sreg
+    $r12 = ANDALrrr killed $r8, killed $r9, implicit-def dead $sreg
+    RETR12 implicit $r12
+...
+---
+name:            fold_pc_load_disp
+tracksRegLiveness: true
+body:             |
+  bb.0:
+
+    ; CHECK-LABEL: name: fold_pc_load_disp
+    ; CHECK: $r12 = LDDPC $pc, 12
+    ; CHECK-NOT: LD_W_Disp16
+    $r12 = LD_W_Disp16 $pc, 12
     RETR12 implicit $r12
 ...

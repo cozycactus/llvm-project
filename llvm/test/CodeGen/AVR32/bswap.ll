@@ -37,8 +37,7 @@ entry:
 define i32 @load_zext_bswap16(ptr %p) {
 ; CHECK-LABEL: load_zext_bswap16:
 ; CHECK: ld.uh r12, r12[0]
-; CHECK-NEXT: swap.b r12
-; CHECK-NEXT: lsr r12, 16
+; CHECK-NEXT: swap.bh r12
 ; CHECK-NEXT: ret r12
 entry:
   %x = load i16, ptr %p, align 2

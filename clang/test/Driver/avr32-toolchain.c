@@ -82,6 +82,11 @@
 // RUN:   -c %s 2>&1 | FileCheck --check-prefix=OPT-RELAX-CC1 %s
 // OPT-RELAX-CC1: "-target-feature" "+relax"
 
+// RUN: %clang -### --target=avr32 -march=ap \
+// RUN:   -c %s 2>&1 | FileCheck --check-prefix=AP-CPU %s
+// AP-CPU-NOT: warning: argument unused during compilation
+// AP-CPU: "-target-cpu" "ap"
+
 // RUN: %clang -### --target=avr32 -mpart=uc3a3256 -O0 \
 // RUN:   -c %s 2>&1 | FileCheck --check-prefix=FP-O0 %s
 // FP-O0: "-mframe-pointer=all"

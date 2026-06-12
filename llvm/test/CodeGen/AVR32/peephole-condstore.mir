@@ -1,0 +1,35 @@
+# RUN: llc -mtriple=avr32 -mattr=+cond-store -run-pass=avr32-peephole -verify-machineinstrs %s -o - | FileCheck %s
+
+--- |
+  target triple = "avr32"
+
+  define void @fold_skipped_store_after_tst(ptr %p, i32 %x, i32 %y) {
+    ret void
+  }
+...
+---
+name:            fold_skipped_store_after_tst
+tracksRegLiveness: true
+body:             |
+  bb.0:
+    liveins: $r12, $r11, $r10
+    successors: %bb.1, %bb.2
+
+    ; CHECK-LABEL: name: fold_skipped_store_after_tst
+    ; CHECK: TSTrr $r11, $r11
+    ; CHECK-NEXT: ST_W_NE_Disp9 $r12, 0, $r10
+    ; CHECK-NOT: BREQbb
+    TSTrr $r11, $r11, implicit-def $sreg
+    BREQbb %bb.2, implicit $sreg
+
+  bb.1:
+    liveins: $r12, $r10
+    successors: %bb.2
+
+    ST_W_Disp4 $r12, 0, $r10
+
+  bb.2:
+    liveins: $r12
+
+    RETR12 implicit $r12
+...

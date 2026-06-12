@@ -3365,6 +3365,7 @@ class SrCond<bits<4> Cond, string Mnemonic>
   let Inst{15-8} = 0b01011111;
   let Inst{7-4} = Cond;
   let Inst{3-0} = Rd;
+  let Uses = [SREG];
 }
 
 let Uses = [SREG] in
@@ -3453,6 +3454,7 @@ def BFINScg : AVR32Inst32<(outs GPR:$Rd),
   let Inst{9-5} = Bp;
   let Inst{4-0} = Width;
 }
+let Defs = [SREG] in
 def BLDri : FullRegUImm5NoOut<0b111011011011, "bld">;
 def BREVr : CompactReg<0b010111001001, "brev">;
 let isCodeGenOnly = 1, Constraints = "$Rd = $Old" in
@@ -3584,6 +3586,7 @@ let Uses = [SREG], Defs = [SREG] in {
 def CPCr : CompactRegNoOut<0b010111000010, "cpc">;
 def CPCrr : FullRegRegNoOut<0b0001001100000000, "cpc">;
 }
+let Defs = [SREG] in {
 def CP_Brr : FullRegRegNoOut<0b0001100000000000, "cp.b">;
 def CP_Hrr : FullRegRegNoOut<0b0001100100000000, "cp.h">;
 def CPri21 : FullRegImmNoOut<0b0010, "cp">;
@@ -3592,6 +3595,7 @@ def CPrr : CompactRegRegNoOut<0b00011, "cp">;
 def CP_Wri21 : FullRegImmNoOut<0b0010, "cp.w">;
 def CP_Wri6 : CompactRegImmNoOut<0b010110, "cp.w">;
 def CP_Wrr : CompactRegRegNoOut<0b00011, "cp.w">;
+}
 }
 def CSRFCZi : CompactImm<0b1101000, "csrfcz">;
 def CSRFi : CompactImm<0b1101010, "csrf">;
@@ -4235,7 +4239,7 @@ def TLBR : AVR32Inst<0b1101011001000011, (outs), (ins), "tlbr">;
 def TLBS : AVR32Inst<0b1101011001010011, (outs), (ins), "tlbs">;
 def TLBW : AVR32Inst<0b1101011001100011, (outs), (ins), "tlbw">;
 def TNBZr : CompactRegNoOut<0b010111001110, "tnbz">;
-let hasSideEffects = 1 in
+let hasSideEffects = 1, Defs = [SREG] in
 def TSTrr : CompactRegRegNoOut<0b00111, "tst">;
 def XCHGrrr : FullRegRegReg<0b000010110100, "xchg">;
 
@@ -4304,7 +4308,6 @@ def : Pat<(sext_inreg GPR:$Src, i16),
 def : Pat<(AVR32cmp GPR:$LHS, GPR:$RHS), (CPrr GPR:$LHS, GPR:$RHS)>;
 def : Pat<(AVR32cmp GPR:$LHS, simm21:$RHS), (CPri21 GPR:$LHS, simm21:$RHS)>;
 def : Pat<(AVR32cmpc GPR:$LHS, GPR:$RHS), (CPCrr GPR:$LHS, GPR:$RHS)>;
-
 def : Pat<(AVR32brcc bb:$dst, AVR32_COND_EQ), (BREQbb bb:$dst)>;
 def : Pat<(AVR32brcc bb:$dst, AVR32_COND_NE), (BRNEbb bb:$dst)>;
 def : Pat<(AVR32brcc bb:$dst, AVR32_COND_CC), (BRCCbb bb:$dst)>;

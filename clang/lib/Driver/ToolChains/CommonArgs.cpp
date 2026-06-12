@@ -756,6 +756,9 @@ std::string tools::getCPUName(const Driver &D, const ArgList &Args,
       return A->getValue();
     if (const Arg *A = Args.getLastArg(options::OPT_mmcu_EQ))
       return A->getValue();
+    if (const Arg *A = Args.getLastArg(options::OPT_march_EQ))
+      if (StringRef Arch = A->getValue(); Arch == "ap")
+        return std::string(Arch);
     return "";
 
   case llvm::Triple::m68k:

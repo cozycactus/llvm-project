@@ -37,15 +37,17 @@ struct AVR32CPUInfo {
   const char *Name;
   const char *DefineName;
   bool IsUC;
+  bool IsAP;
   bool HasNoMul;
 };
 
 static constexpr AVR32CPUInfo AVR32CPUs[] = {
-    {"generic", nullptr, false, false},
-    {"uc3a3128", "__AVR32_UC3A3128__", true, false},
-    {"uc3a3256", "__AVR32_UC3A3256__", true, false},
-    {"uc3a3256s", "__AVR32_UC3A3256S__", true, false},
-    {"uc3a3revd", "__AVR32_UC3A3256S__", true, true},
+    {"generic", nullptr, false, false, false},
+    {"ap", "__AVR32_AP__", false, true, false},
+    {"uc3a3128", "__AVR32_UC3A3128__", true, false, false},
+    {"uc3a3256", "__AVR32_UC3A3256__", true, false, false},
+    {"uc3a3256s", "__AVR32_UC3A3256S__", true, false, false},
+    {"uc3a3revd", "__AVR32_UC3A3256S__", true, false, true},
 };
 
 const AVR32CPUInfo *getAVR32CPUInfo(StringRef Name) {
@@ -88,6 +90,13 @@ void AVR32TargetInfo::getTargetDefines(const LangOptions &Opts,
     Builder.defineMacro("__AVR32_HAS_DSP__");
     Builder.defineMacro("__AVR32_HAS_RMW__");
   }
+  if (IsAP) {
+    Builder.defineMacro("__AVR32_AVR32B__");
+    Builder.defineMacro("__AVR32_HAS_BRANCH_PRED__");
+    Builder.defineMacro("__AVR32_HAS_DSP__");
+    Builder.defineMacro("__AVR32_HAS_SIMD__");
+    Builder.defineMacro("__AVR32_HAS_UNALIGNED_WORD__");
+  }
 
   if (DefineName)
     Builder.defineMacro(DefineName);
@@ -118,6 +127,7 @@ bool AVR32TargetInfo::setCPU(const std::string &Name) {
   CPU = Name;
   DefineName = Info->DefineName;
   IsUC = Info->IsUC;
+  IsAP = Info->IsAP;
   HasNoMul = Info->HasNoMul;
   return true;
 }
