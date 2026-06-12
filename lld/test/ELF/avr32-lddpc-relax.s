@@ -22,6 +22,11 @@
 # RUN: llvm-readobj --relocations --hex-dump=.text pair-cpcall \
 # RUN:   | FileCheck %s --check-prefix=PAIR-CPCALL
 
+# RUN: llvm-mc -triple=avr32 -mattr=+relax -filetype=obj adjacent-pool.s -o adjacent-pool.o
+# RUN: ld.lld --emit-relocs adjacent-pool.o -o adjacent-pool
+# RUN: llvm-readobj --relocations --hex-dump=.text adjacent-pool \
+# RUN:   | FileCheck %s --check-prefix=ADJACENT-POOL
+
 # SINGLE:      Hex dump of section '.text':
 # SINGLE-NEXT: 0x{{[0-9a-f]+}} fef80004 000110bc d703
 
@@ -62,6 +67,15 @@
 # PAIR-CPCALL:      Hex dump of section '.text':
 # PAIR-CPCALL-NEXT: 0x{{[0-9a-f]+}} 48284829 f01f0002 000110c4 000110c6
 # PAIR-CPCALL-NEXT: 0x{{[0-9a-f]+}} d703d703
+
+# ADJACENT-POOL:      Relocations [
+# ADJACENT-POOL-NEXT:   Section ({{.*}}) .rela.text {
+# ADJACENT-POOL-NEXT:     0x110B4 R_AVR32_9W_CP .text 0x8
+# ADJACENT-POOL-NEXT:     0x110B6 R_AVR32_9W_CP .text 0xC
+# ADJACENT-POOL-NEXT:   }
+# ADJACENT-POOL-NEXT: ]
+# ADJACENT-POOL:      Hex dump of section '.text':
+# ADJACENT-POOL-NEXT: 0x{{[0-9a-f]+}} 48284839 d7030000 11111111 22222222
 
 #--- single.s
 .text
@@ -105,3 +119,16 @@ _start:
   .reloc .Lpool, R_AVR32_32_CPENT, target
 target:
   nop
+
+#--- adjacent-pool.s
+.text
+.globl _start
+_start:
+  lddpc r8, pc[.Lpool0]
+  lddpc r9, pc[.Lpool1]
+  nop
+  .p2align 2, 0
+.Lpool0:
+  .long 0x11111111
+.Lpool1:
+  .long 0x22222222

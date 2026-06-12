@@ -550,6 +550,15 @@ static uint64_t getConstantPoolStart(ArrayRef<uint64_t> cpOffsets,
   return *it;
 }
 
+static uint64_t getDirectDataPoolStart(ArrayRef<uint64_t> targetOffsets,
+                                       uint64_t offset) {
+  auto it = llvm::lower_bound(targetOffsets, offset);
+  assert(it != targetOffsets.end() && *it == offset);
+  while (it != targetOffsets.begin() && *(it - 1) + 4 == *it)
+    --it;
+  return *it;
+}
+
 static uint64_t getAlignPaddingBytes(ArrayRef<Relocation> rels,
                                      const InputSection &sec, size_t index,
                                      uint64_t align) {
@@ -679,6 +688,27 @@ getRelaxableFullLddpcRelocs(Ctx &ctx, const InputSection &sec,
       cpOffsets.push_back(r.offset);
   llvm::sort(cpOffsets);
 
+  SmallVector<uint64_t, 0> directDataTargetOffsets;
+  for (const Relocation &r : rels) {
+    if (r.type != R_AVR32_16B_PCREL || r.expr != R_PC ||
+        r.offset + 4 > sec.content().size())
+      continue;
+    if (!isFullLddpc(read32be(sec.content().data() + r.offset)))
+      continue;
+
+    std::optional<uint64_t> targetOffset =
+        getSameSectionSymbolOffset(r, sec, sec.content().size());
+    if (!targetOffset)
+      continue;
+
+    auto cpIt = llvm::lower_bound(cpOffsets, *targetOffset);
+    if (cpIt == cpOffsets.end() || *cpIt != *targetOffset)
+      directDataTargetOffsets.push_back(*targetOffset);
+  }
+  llvm::sort(directDataTargetOffsets);
+  directDataTargetOffsets.erase(llvm::unique(directDataTargetOffsets),
+                                directDataTargetOffsets.end());
+
   DenseMap<uint64_t, SmallVector<size_t, 0>> sameSectionGroups;
   for (auto [i, r] : llvm::enumerate(rels)) {
     if (r.type != R_AVR32_16B_PCREL || r.expr != R_PC ||
@@ -717,7 +747,11 @@ getRelaxableFullLddpcRelocs(Ctx &ctx, const InputSection &sec,
       continue;
     }
 
-    sameSectionGroups[*targetOffset].push_back(i);
+    uint64_t groupOffset = *targetOffset;
+    if (r.offset < *targetOffset)
+      groupOffset = getDirectDataPoolStart(directDataTargetOffsets,
+                                           *targetOffset);
+    sameSectionGroups[groupOffset].push_back(i);
   }
 
   for (auto &it : sameSectionGroups) {
