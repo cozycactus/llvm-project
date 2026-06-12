@@ -52,6 +52,7 @@ public:
 private:
   bool foldTwoAddressALU(MachineInstr &MI, unsigned CompactOpc,
                          bool Commutable, const TargetInstrInfo &TII);
+  bool foldReverseSub(MachineInstr &MI, const TargetInstrInfo &TII);
   bool foldSignedImmediate(MachineInstr &MI, unsigned CompactOpc,
                            unsigned Bits, bool HasDef,
                            const TargetInstrInfo &TII);
@@ -794,6 +795,34 @@ bool AVR32Peephole::foldTwoAddressALU(MachineInstr &MI, unsigned CompactOpc,
       BuildMI(MBB, MI, MI.getDebugLoc(), TII.get(CompactOpc), DstReg)
           .addReg(DstReg, getKillRegState(Old.isKill()))
           .addReg(Src.getReg(), getKillRegState(Src.isKill()));
+  MIB.setMIFlags(MI.getFlags());
+  MIB->copyImplicitOps(MF, MI);
+  MI.eraseFromParent();
+  ++NumCompactForms;
+  return true;
+}
+
+bool AVR32Peephole::foldReverseSub(MachineInstr &MI,
+                                   const TargetInstrInfo &TII) {
+  if (MI.getNumExplicitOperands() != 3)
+    return false;
+
+  const MachineOperand &Dst = MI.getOperand(0);
+  const MachineOperand &LHS = MI.getOperand(1);
+  const MachineOperand &RHS = MI.getOperand(2);
+  if (!isRegOperand(Dst) || !isRegOperand(LHS) || !isRegOperand(RHS))
+    return false;
+
+  Register DstReg = Dst.getReg();
+  if (DstReg != RHS.getReg())
+    return false;
+
+  MachineBasicBlock &MBB = *MI.getParent();
+  MachineFunction &MF = *MBB.getParent();
+  MachineInstrBuilder MIB =
+      BuildMI(MBB, MI, MI.getDebugLoc(), TII.get(AVR32::RSUBrrCG), DstReg)
+          .addReg(DstReg, getKillRegState(RHS.isKill()))
+          .addReg(LHS.getReg(), getKillRegState(LHS.isKill()));
   MIB.setMIFlags(MI.getFlags());
   MIB->copyImplicitOps(MF, MI);
   MI.eraseFromParent();
@@ -2182,8 +2211,11 @@ bool AVR32Peephole::runOnMachineFunction(MachineFunction &MF) {
                           foldSPStoreDisp(MI, TII) ||
                           foldStoreDisp(MI, AVR32::ST_W_Disp4, 60, 4, TII);
           break;
-        case AVR32::SUBCrrr:
         case AVR32::SUBALrrr:
+          LocalChanged |= foldTwoAddressALU(MI, AVR32::SUBrrCG, false, TII) ||
+                          foldReverseSub(MI, TII);
+          break;
+        case AVR32::SUBCrrr:
           LocalChanged |= foldTwoAddressALU(MI, AVR32::SUBrrCG, false, TII);
           break;
         default:

@@ -3975,6 +3975,8 @@ def RSUBVSri : CondRegImm8<0b111110111011, 0b1100, "rsubvs">;
 def RSUBVCri : CondRegImm8<0b111110111011, 0b1101, "rsubvc">;
 def RSUBQSri : CondRegImm8<0b111110111011, 0b1110, "rsubqs">;
 def RSUBrr : CompactRegReg<0b00010, "rsub">;
+let isCodeGenOnly = 1, Constraints = "$Rd = $Old" in
+def RSUBrrCG : CompactRegRegCG<0b00010, "rsub">;
 def SATADD_Hrrr : FullRegRegReg<0b000000101100, "satadd.h">;
 def SATADD_Wrrr : FullRegRegReg<0b000000001100, "satadd.w">;
 def SATRNDSri : FullRegShiftBits<0b111100111011, 0b000000, "satrnds">;
@@ -4292,6 +4294,8 @@ def : Pat<(ctlz_zero_undef GPR:$Src), (CLZrr GPR:$Src)>;
 def : Pat<(cttz GPR:$Src), (CLZrr (BREVcg GPR:$Src))>;
 def : Pat<(cttz_zero_undef GPR:$Src), (CLZrr (BREVcg GPR:$Src))>;
 def : Pat<(mul GPR:$LHS, GPR:$RHS), (MULrrr GPR:$LHS, GPR:$RHS)>;
+def : Pat<(smax GPR:$LHS, GPR:$RHS), (MAXrrr GPR:$LHS, GPR:$RHS)>;
+def : Pat<(smin GPR:$LHS, GPR:$RHS), (MINrrr GPR:$LHS, GPR:$RHS)>;
 def : Pat<(sext_inreg GPR:$Src, i8),
           (CASTS_Bcg GPR:$Src)>;
 def : Pat<(sext_inreg GPR:$Src, i16),

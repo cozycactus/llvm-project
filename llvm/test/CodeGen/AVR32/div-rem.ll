@@ -23,8 +23,8 @@ define i32 @sdiv_plus_srem(i32 %a, i32 %b) {
 ; CHECK-LABEL: sdiv_plus_srem:
 ; CHECK: divs [[Q:r([02468]|10)]], r12, r11
 ; CHECK-NEXT: mul [[PRODUCT:r[0-9]+]], [[Q]], r11
-; CHECK-NEXT: sub [[REM:r[0-9]+]], r12, [[PRODUCT]]
-; CHECK: add r12, [[Q]], [[REM]]
+; CHECK-NEXT: rsub [[PRODUCT]], r12
+; CHECK: add r12, [[Q]], [[PRODUCT]]
 ; CHECK-NEXT: ret r12
   %q = sdiv i32 %a, %b
   %r = srem i32 %a, %b

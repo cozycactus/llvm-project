@@ -61,6 +61,7 @@ AVR32TargetLowering::AVR32TargetLowering(const TargetMachine &TM,
   setOperationAction(ISD::SELECT, MVT::i32, Custom);
   setOperationAction(ISD::SDIV, MVT::i32, Expand);
   setOperationAction(ISD::SDIVREM, MVT::i32, Custom);
+  setOperationAction({ISD::SMAX, ISD::SMIN}, MVT::i32, Legal);
   setOperationAction(ISD::SREM, MVT::i32, Expand);
   setOperationAction(ISD::SMUL_LOHI, MVT::i32, Expand);
   setOperationAction(ISD::UDIV, MVT::i32, Expand);
