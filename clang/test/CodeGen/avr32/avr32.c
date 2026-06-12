@@ -850,8 +850,8 @@ __attribute__((optnone, noinline)) int pick(int a, int b) {
 // O0ASM-LABEL: pick:
 // O0ASM: cp {{r[0-9]+}}, {{r[0-9]+}}
 // O0ASM: brne .LBB
-// O0ASM: rjmp .LBB
 // O0ASM: mov {{r[0-9]+}}, 1
+// O0ASM: rjmp .LBB
 // O0ASM: mov {{r[0-9]+}}, 0
 // O0ASM: ret r12
 

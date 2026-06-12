@@ -1,0 +1,163 @@
+# RUN: llc -mtriple=avr32 -filetype=obj -o /dev/null %s
+
+# A pool after bb.0 would make the compact conditional branch to bb.2
+# overflow. The pool planner must account for the branch's implicit SREG
+# operand when deciding whether it is safe to place a pool before bb.1.
+
+--- |
+  target triple = "avr32"
+
+  @g0 = external global i32
+  @g1 = external global i32
+  @g2 = external global i32
+  @g3 = external global i32
+
+  define i32 @compact_branch_blocks_pool() {
+    ret i32 0
+  }
+...
+---
+name: compact_branch_blocks_pool
+tracksRegLiveness: true
+body: |
+  bb.0:
+    liveins: $sreg
+
+    $r12 = LDA_W @g0
+    $r11 = LDA_W @g1
+    $r10 = LDA_W @g2
+    $r9 = LDA_W @g3
+    BREQcbb %bb.2, implicit $sreg
+    RJMPbb %bb.3
+
+  bb.1:
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+
+  bb.2:
+    liveins: $r12
+
+    RETR12 implicit $r12
+
+  bb.3:
+    liveins: $r12
+
+    RETR12 implicit $r12
+...

@@ -583,25 +583,6 @@ static unsigned getInstSize(const MachineInstr &MI) {
   return MI.getDesc().getSize();
 }
 
-static std::optional<unsigned> getCompactBranchOpcode(unsigned Opcode) {
-  switch (Opcode) {
-  case AVR32::BREQbb:
-    return AVR32::BREQcbb;
-  case AVR32::BRNEbb:
-    return AVR32::BRNEcbb;
-  case AVR32::BRCCbb:
-    return AVR32::BRCCcbb;
-  case AVR32::BRCSbb:
-    return AVR32::BRCScbb;
-  case AVR32::BRGEbb:
-    return AVR32::BRGEcbb;
-  case AVR32::BRLTbb:
-    return AVR32::BRLTcbb;
-  default:
-    return std::nullopt;
-  }
-}
-
 enum class AVR32Cond {
   EQ,
   NE,
@@ -1586,20 +1567,13 @@ bool AVR32Peephole::foldNearBranches(MachineFunction &MF,
       int64_t MinDisp = 0;
       int64_t MaxDisp = 0;
 
-      if (MI.getOpcode() == AVR32::BRALbb) {
-        CompactOpc = AVR32::RJMPbb;
-        MinDisp = -1000;
-        MaxDisp = 998;
-      } else if (std::optional<unsigned> Opc =
-                     getCompactBranchOpcode(MI.getOpcode())) {
-        CompactOpc = *Opc;
-        MinDisp = -248;
-        MaxDisp = 246;
-      } else {
+      if (MI.getOpcode() != AVR32::BRALbb)
         continue;
-      }
+      CompactOpc = AVR32::RJMPbb;
+      MinDisp = -1000;
+      MaxDisp = 998;
 
-      if (MI.getNumOperands() != 1 || !MI.getOperand(0).isMBB())
+      if (MI.getNumExplicitOperands() != 1 || !MI.getOperand(0).isMBB())
         continue;
 
       const MachineBasicBlock *Target = MI.getOperand(0).getMBB();
@@ -1634,7 +1608,7 @@ bool AVR32Peephole::foldPredicatedStores(MachineFunction &MF,
       Branch = &MI;
       break;
     }
-    if (!Branch || Branch->getNumOperands() != 1 ||
+    if (!Branch || Branch->getNumExplicitOperands() != 1 ||
         !Branch->getOperand(0).isMBB())
       continue;
 
@@ -1671,7 +1645,7 @@ bool AVR32Peephole::foldPredicatedStores(MachineFunction &MF,
       else
         HasOtherNonDebug = true;
     }
-    if (!Store || HasOtherNonDebug || Store->getNumOperands() != 3)
+    if (!Store || HasOtherNonDebug || Store->getNumExplicitOperands() != 3)
       continue;
 
     const MachineOperand &Base = Store->getOperand(0);
@@ -2225,6 +2199,11 @@ bool AVR32Peephole::runOnMachineFunction(MachineFunction &MF) {
 
   if (repairDivRemainderClobbers(MF, TII, TRI))
     Changed = true;
+
+  if (STI.hasCondStore()) {
+    while (foldPredicatedStores(MF, TII))
+      Changed = true;
+  }
 
   while (foldNearBranches(MF, TII))
     Changed = true;

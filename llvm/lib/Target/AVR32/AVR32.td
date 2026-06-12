@@ -13,16 +13,19 @@ include "AVR32InstrInfo.td"
 
 def FeatureRelax : SubtargetFeature<"relax", "EnableLinkerRelax", "true",
                                     "Enable linker relaxation">;
+def FeatureCondStore
+    : SubtargetFeature<"cond-store", "HasCondStore", "true",
+                       "Enable conditional store instructions">;
 
 defm : RemapAllTargetPseudoPointerOperands<GPR>;
 
 def AVR32InstrInfo : InstrInfo;
 
 def : Processor<"generic", NoItineraries, []>;
-def : Processor<"uc3a3128", NoItineraries, []>;
-def : Processor<"uc3a3256", NoItineraries, []>;
-def : Processor<"uc3a3256s", NoItineraries, []>;
-def : Processor<"uc3a3revd", NoItineraries, []>;
+def : Processor<"uc3a3128", NoItineraries, [FeatureCondStore]>;
+def : Processor<"uc3a3256", NoItineraries, [FeatureCondStore]>;
+def : Processor<"uc3a3256s", NoItineraries, [FeatureCondStore]>;
+def : Processor<"uc3a3revd", NoItineraries, [FeatureCondStore]>;
 
 def AVR32InstPrinter : AsmWriter {
   string AsmWriterClassName = "InstPrinter";

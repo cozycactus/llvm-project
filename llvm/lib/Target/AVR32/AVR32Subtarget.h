@@ -28,6 +28,7 @@ class AVR32Subtarget : public AVR32GenSubtargetInfo {
   virtual void anchor();
 
   bool EnableLinkerRelax = false;
+  bool HasCondStore = false;
 
   AVR32InstrInfo InstrInfo;
   AVR32FrameLowering FrameLowering;
@@ -56,6 +57,7 @@ public:
   const AVR32RegisterInfo *getRegisterInfo() const override {
     return &InstrInfo.getRegisterInfo();
   }
+  bool hasCondStore() const { return HasCondStore; }
 };
 } // namespace llvm
 

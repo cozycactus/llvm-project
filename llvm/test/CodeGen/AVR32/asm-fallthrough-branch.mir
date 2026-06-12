@@ -1,0 +1,50 @@
+# RUN: llc -mtriple=avr32 %s -o - | FileCheck %s
+
+--- |
+  target triple = "avr32"
+
+  define i32 @drop_uncond_fallthrough() {
+    ret i32 0
+  }
+
+  define i32 @drop_cond_fallthrough() {
+    ret i32 0
+  }
+...
+---
+name: drop_uncond_fallthrough
+tracksRegLiveness: true
+body: |
+  bb.0:
+    liveins: $r12
+
+    ; CHECK-LABEL: drop_uncond_fallthrough:
+    ; CHECK-NOT: bral
+    ; CHECK-NOT: rjmp
+    ; CHECK: ret r12
+    BRALbb %bb.1
+
+  bb.1:
+    liveins: $r12
+
+    RETR12 implicit $r12
+...
+---
+name: drop_cond_fallthrough
+tracksRegLiveness: true
+body: |
+  bb.0:
+    liveins: $r12
+
+    ; CHECK-LABEL: drop_cond_fallthrough:
+    ; CHECK: cp r12, r12
+    ; CHECK-NOT: breq
+    ; CHECK: ret r12
+    CPrr $r12, $r12, implicit-def $sreg
+    BREQbb %bb.1, implicit $sreg
+
+  bb.1:
+    liveins: $r12
+
+    RETR12 implicit $r12
+...

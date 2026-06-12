@@ -69,6 +69,7 @@ public:
   void emitCallPseudo(const MachineInstr *MI);
   void emitLdaWPseudo(const MachineInstr *MI);
   void emitPendingConstantPool();
+  bool shouldOmitFallthroughBranch(const MachineInstr *MI) const;
 
   static char ID;
 };
@@ -260,11 +261,51 @@ void AVR32AsmPrinter::emitCallPseudo(const MachineInstr *MI) {
   EmitToStreamer(*OutStreamer, Call);
 }
 
+static bool isMBBBranchOpcode(unsigned Opcode) {
+  switch (Opcode) {
+  case AVR32::BRALbb:
+  case AVR32::RJMPbb:
+  case AVR32::BREQbb:
+  case AVR32::BRNEbb:
+  case AVR32::BRCCbb:
+  case AVR32::BRCSbb:
+  case AVR32::BRGEbb:
+  case AVR32::BRLTbb:
+  case AVR32::BREQcbb:
+  case AVR32::BRNEcbb:
+  case AVR32::BRCCcbb:
+  case AVR32::BRCScbb:
+  case AVR32::BRGEcbb:
+  case AVR32::BRLTcbb:
+    return true;
+  default:
+    return false;
+  }
+}
+
+bool AVR32AsmPrinter::shouldOmitFallthroughBranch(
+    const MachineInstr *MI) const {
+  if (!isMBBBranchOpcode(MI->getOpcode()) ||
+      MI->getNumExplicitOperands() != 1 || !MI->getOperand(0).isMBB())
+    return false;
+
+  const MachineBasicBlock *MBB = MI->getParent();
+  const MachineBasicBlock *Target = MI->getOperand(0).getMBB();
+  auto NextMBB = MBB->getIterator();
+  ++NextMBB;
+  if (NextMBB == MBB->getParent()->end() || &*NextMBB != Target)
+    return false;
+
+  return !HasLdaWPoolPlan || !PoolBeforeBlocks.contains(Target);
+}
+
 void AVR32AsmPrinter::emitInstruction(const MachineInstr *MI) {
   if (MI->getOpcode() == AVR32::CALLp)
     return emitCallPseudo(MI);
   if (MI->getOpcode() == AVR32::LDA_W)
     return emitLdaWPseudo(MI);
+  if (shouldOmitFallthroughBranch(MI))
+    return;
 
   MCInst Inst;
   Inst.setOpcode(MI->getOpcode());
@@ -367,7 +408,7 @@ static bool compactBranchOutOfRangeWithPools(
       int64_t MinDisp = 0;
       int64_t MaxDisp = 0;
       if (!getCompactBranchRange(MI.getOpcode(), MinDisp, MaxDisp) ||
-          MI.getNumOperands() != 1 || !MI.getOperand(0).isMBB())
+          MI.getNumExplicitOperands() != 1 || !MI.getOperand(0).isMBB())
         continue;
 
       uint64_t BranchOffset = InstrOffsets.lookup(&MI);
