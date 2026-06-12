@@ -157,6 +157,21 @@ or lld changes. Do not start by rebuilding QEMU or recreating the kernel config
 from scratch; first check these existing paths and reuse the known-good build
 directory.
 
+Fast path for a new Linux validation run:
+
+1. Confirm the four paths above still exist and check `git status` in
+   `linux-avr32`; do not fetch or reset unless the user asks.
+2. Rebuild the local LLVM tools from `build-avr32` with all CPU cores.
+3. Rebuild `/Users/cozy/cozycactus/avr32-linux-rootfs` only if `/init` or its
+   command set changed.
+4. Rebuild only `vmlinux` in `linux-avr32-build-llvm-shell`.
+5. Run `smoke-shell.py` and keep the log under `/tmp`.
+
+This path is much faster than rediscovering the port: the current useful
+correctness signal is "kernel links, QEMU reaches the initramfs `#` prompt, and
+`pwd`, `ps`, `uname`, and `bench` run". Do not count a build-only result as a
+Linux regression pass.
+
 This checkout's `build-avr32` is a Unix Makefiles build, not Ninja. Rebuild LLVM
 tools with:
 
@@ -196,6 +211,12 @@ The `LD` wrapper is intentional. It adds `-m avr32elf` when the kernel does not
 pass an emulation, supplies an empty AVR32 object for empty partial links, and
 keeps partial links using `ld.lld` instead of GNU `ld`.
 
+Do not replace the wrapper with raw `ld.lld` just to simplify the command: the
+kernel build has empty partial links and missing-emulation partial links that
+worked only after the wrapper handled them. If `ld.lld` fails before the final
+link, first check whether the failing command bypassed
+`utils/avr32-linux-ld-lld-wrapper.sh`.
+
 Why those host flags matter on macOS:
 
 - macOS has no system `<elf.h>`. Use
@@ -207,6 +228,20 @@ Why those host flags matter on macOS:
   `/usr/local/opt/coreutils/libexec/gnubin` before `/usr/bin` in `PATH`.
 - If host scripts need `strtonum`, use Homebrew `gawk` (`/usr/local/bin/gawk`)
   rather than macOS `awk`.
+
+Common failure signatures and the known fix:
+
+- `fatal error: 'elf.h' file not found`: the host include path is missing
+  `/Users/cozy/cozycactus/linux-avr32-host/include`.
+- missing `R_AVR32_*` constants during `modpost`: the wrong replacement
+  `elf.h` was used; use the project-local Linux-oriented header above.
+- `Found illegal text-relocations`: rebuild host tools with `-fno-pie` and
+  link them with `-Wl,-no_pie`.
+- `stat: illegal option -- c`: GNU coreutils is not first in `PATH`.
+- `function strtonum never defined` from awk scripts: use Homebrew `gawk`.
+- `improper alignment for relocation R_AVR32_18W_PCREL`: suspect AVR32 lld
+  relaxation in a mixed relaxable/non-relaxable Linux link before changing the
+  kernel.
 
 The current LLVM shell build config already has:
 
@@ -247,6 +282,9 @@ For manual shell work, this helper uses the same QEMU arguments:
 For automated smoke checks, prefer the rootfs `smoke-shell.py` helper when it
 matches the command set being tested. A real pass means QEMU reaches the `#`
 prompt and commands such as `pwd`, `ps`, and `uname` return sensible output.
+The benchmark lines from `bench` are useful for same-machine before/after
+comparisons, but they are QEMU/user-shell timings rather than AVR32 hardware
+cycle measurements.
 
 For lld relaxation changes, always include the Linux final link in validation.
 Mixed links are common: kernel objects may be link-relaxable while runtime or
