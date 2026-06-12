@@ -286,6 +286,40 @@ The benchmark lines from `bench` are useful for same-machine before/after
 comparisons, but they are QEMU/user-shell timings rather than AVR32 hardware
 cycle measurements.
 
+Current GCC vs LLVM shell-kernel comparison reference from June 12, 2026:
+
+- Both builds used identical `linux-avr32-build-gcc-shell` and
+  `linux-avr32-build-llvm-shell` configs with
+  `CONFIG_INITRAMFS_SOURCE="/Users/cozy/cozycactus/avr32-linux-rootfs/initramfs.list"`,
+  `CONFIG_CC_OPTIMIZE_FOR_SIZE=y`, and `CONFIG_FRAME_POINTER=y`.
+- Rebuilt compilers before measuring; stale `clang`/`ld.lld` versions are a
+  known source of false results.
+- `avr32-size vmlinux` runtime totals:
+  - GCC: text 2,348,472; data 649,780; bss 80,632; dec 3,078,884
+  - LLVM/lld: text 2,429,036; data 799,680; bss 80,900; dec 3,309,616
+  - LLVM delta: +230,732 bytes in text+data+bss, even though the raw `vmlinux`
+    file is smaller because GCC carries a large `.debug_frame` section.
+- Section deltas show the gap is mostly `.rodata` (+154,288) and `.text`
+  (+64,184). Be careful interpreting this: GCC places many constant tables in
+  text-like regions, so compare combined runtime sections and object/function
+  deltas, not `.rodata` alone.
+- Five-run QEMU smoke/bench medians showed both kernels boot and pass `pwd`,
+  `ps`, `uname`, and `bench`. LLVM was slightly faster on `checksum` and
+  `getdents`, roughly even on `openclose`, and slower on `getcwd`, `getpid`,
+  and `readproc`. Treat this as a QEMU smoke/perf trend, not hardware timing.
+- Largest matched object runtime deltas, LLVM minus GCC, included
+  `fs/ext4/ext4.o` +7,773, `drivers/ata/libata.o` +3,647,
+  `kernel/time/timekeeping.o` +2,971, `fs/ext4/super.o` +2,728,
+  `fs/ext2/ext2.o` +2,330, `fs/fuse/fuse.o` +2,067, and
+  `drivers/mmc/core/mmc_core.o` +1,993.
+- Predicated stores are already implemented in the current branch, so do not
+  restart there. The next Linux-size experiment should measure conditional
+  select/move heuristics: GCC emits thousands of `mov*` conditional moves in
+  the shell kernel, while the current LLVM size path usually lowers `select` to
+  compact branch/PHI form. SDR-widget previously showed that unconditional
+  conditional moves can grow `-Oz`, so make this a measured heuristic rather
+  than a blanket reversal.
+
 For lld relaxation changes, always include the Linux final link in validation.
 Mixed links are common: kernel objects may be link-relaxable while runtime or
 host-generated objects are not. It is safe to delete 4-byte call/data pool
