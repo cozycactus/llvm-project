@@ -710,6 +710,8 @@ getRelaxableFullLddpcRelocs(Ctx &ctx, const InputSection &sec,
                                 directDataTargetOffsets.end());
 
   DenseMap<uint64_t, SmallVector<size_t, 0>> sameSectionGroups;
+  SmallVector<std::optional<uint64_t>, 0> compactSameSectionTargets(
+      rels.size());
   for (auto [i, r] : llvm::enumerate(rels)) {
     if (r.type != R_AVR32_16B_PCREL || r.expr != R_PC ||
         r.offset + 4 > sec.content().size())
@@ -734,6 +736,7 @@ getRelaxableFullLddpcRelocs(Ctx &ctx, const InputSection &sec,
       relaxable[i] = true;
       continue;
     }
+    compactSameSectionTargets[i] = *targetOffset;
 
     auto cpIt = llvm::lower_bound(cpOffsets, *targetOffset);
     if (cpIt != cpOffsets.end() && *cpIt == *targetOffset) {
@@ -759,6 +762,32 @@ getRelaxableFullLddpcRelocs(Ctx &ctx, const InputSection &sec,
     size_t count = group.size() & ~size_t(1);
     for (size_t i = 0; i != count; ++i)
       relaxable[group[i]] = true;
+  }
+
+  std::optional<std::pair<size_t, uint64_t>> pending;
+  for (auto [i, r] : llvm::enumerate(rels)) {
+    if (isWordPCRel(r.type)) {
+      pending.reset();
+      continue;
+    }
+
+    std::optional<uint64_t> targetOffset = compactSameSectionTargets[i];
+    if (!targetOffset)
+      continue;
+
+    if (pending) {
+      // Pair full lddpc relaxations across different literal-pool entries when
+      // both targets are after the second load. Then both targets move by the
+      // same four bytes, preserving the word-PC alignment rule.
+      if (pending->second > r.offset && *targetOffset > r.offset) {
+        relaxable[pending->first] = true;
+        relaxable[i] = true;
+        pending.reset();
+        continue;
+      }
+      pending.reset();
+    }
+    pending = std::make_pair(i, *targetOffset);
   }
   return relaxable;
 }
