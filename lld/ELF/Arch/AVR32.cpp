@@ -601,8 +601,9 @@ static bool isWordPCRel(RelType type) {
 }
 
 static bool hasWordPCRel(ArrayRef<Relocation> rels) {
-  return llvm::any_of(rels,
-                      [](const Relocation &r) { return isWordPCRel(r.type); });
+  return llvm::any_of(rels, [](const Relocation &r) {
+    return isWordPCRel(r.type) && r.type != R_AVR32_CPCALL;
+  });
 }
 
 static bool crossesSameSectionWordPCRel(ArrayRef<Relocation> rels,
@@ -1061,7 +1062,7 @@ static bool relax(Ctx &ctx, InputSection &sec, int pass) {
     }
 
     if (r.type != R_AVR32_ALIGN && remove == 2 &&
-        !pairedHalfwordRemovals[i] &&
+        (hasWordPCRelocs || !pairedHalfwordRemovals[i]) &&
         !canRemoveHalfword(ctx, sec, relocs, i, delta, hasWordPCRelocs)) {
       aux.relocTypes[i] = R_AVR32_NONE;
       aux.writes.resize(oldWritesSize);

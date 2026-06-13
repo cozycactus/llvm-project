@@ -91,6 +91,19 @@ Use this subset after AVR32 target, Clang, MC, object, or lld changes:
 Last known result for this subset: 77/77 passed after the LLVM 22.1.7 sync
 verification fixes.
 
+## GitHub AVR32 CI
+
+The fork-specific AVR32 workflow is `.github/workflows/avr32.yml`. It runs on
+`ubuntu-latest`, `macos-15-intel`, and `macos-15`; GitHub documents
+`macos-15-intel` as the current standard Intel macOS label and `macos-15` as
+Apple Silicon arm64.
+
+The workflow is intentionally a smoke build, not the full AVR32 validation
+suite: configure an AVR32-only `clang;lld` build, build the small tool set, and
+run AVR32 MC/object/lld tests. Keep it green before widening it. The broader
+local focused subset above is still the better pre-commit signal for CodeGen or
+Clang target changes when the local build is known to match the source tree.
+
 ## AVR32 Code Map
 
 - LLVM target backend: `llvm/lib/Target/AVR32`

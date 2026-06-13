@@ -62,6 +62,11 @@
 # RUN: llvm-readobj --hex-dump=.text wordpc-span \
 # RUN:   | FileCheck %s --check-prefix=WORDPC-SPAN
 
+# RUN: llvm-mc -triple=avr32 -mattr=+relax -filetype=obj wordpc-paired-lddpc.s -o wordpc-paired-lddpc.o
+# RUN: ld.lld wordpc-paired-lddpc.o -o wordpc-paired-lddpc
+# RUN: llvm-readobj --hex-dump=.text wordpc-paired-lddpc \
+# RUN:   | FileCheck %s --check-prefix=WORDPC-PAIRED-LDDPC
+
 # RUN: llvm-mc -triple=avr32 -mattr=+relax -filetype=obj vector-org.s -o vector-org.o
 # RUN: echo 'SECTIONS { . = 0; .text : { *(.text) } }' > vector-org.script
 # RUN: ld.lld vector-org.script vector-org.o -o vector-org
@@ -136,6 +141,10 @@
 
 # WORDPC-SPAN:      Hex dump of section '.text':
 # WORDPC-SPAN-NEXT: 0x{{[0-9a-f]+}} f01f{{.*}} e08f{{.*}}
+
+# WORDPC-PAIRED-LDDPC:      Hex dump of section '.text':
+# WORDPC-PAIRED-LDDPC-NEXT: 0x{{[0-9a-f]+}} f01f0002 fef8000c d703fef9 00060000
+# WORDPC-PAIRED-LDDPC-NEXT: 0x{{[0-9a-f]+}} 00000000
 
 # VECTOR-ORG-DAG: 00000050 {{.*}} itlb_miss
 # VECTOR-ORG-DAG: 00000060 {{.*}} dtlb_miss_read
@@ -272,6 +281,21 @@ branch_target:
   nop
 wordpc_target:
   nop
+
+#--- wordpc-paired-lddpc.s
+.text
+.globl _start
+_start:
+.Lcall:
+  .long 0xf01f0000
+  .reloc .Lcall, R_AVR32_18W_PCREL, .text + 8
+  lddpc r8, pc[.Lpool]
+wordpc_paired_target:
+  nop
+  lddpc r9, pc[.Lpool]
+  .p2align 2, 0
+.Lpool:
+  .long 0
 
 #--- vector-org.s
 .text

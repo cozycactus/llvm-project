@@ -1,0 +1,105 @@
+name: AVR32 LLVM
+
+permissions:
+  contents: read
+
+on:
+  push:
+    branches:
+      - codex/add-avr32-support
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  avr32-smoke:
+    name: AVR32 smoke (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Linux x64
+            os: ubuntu-latest
+          - name: macOS Intel
+            os: macos-15-intel
+          - name: macOS Apple Silicon
+            os: macos-15
+    env:
+      BUILD_DIR: ${{ runner.temp }}/llvm-avr32-build
+    steps:
+      - name: Checkout LLVM
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Install build tools
+        shell: bash
+        run: |
+          set -euxo pipefail
+          if [[ "${RUNNER_OS}" == "Linux" ]]; then
+            sudo apt-get update
+            sudo apt-get install -y ninja-build
+          elif ! command -v ninja >/dev/null 2>&1; then
+            brew install ninja
+          fi
+          cmake --version
+          ninja --version
+
+      - name: Configure AVR32 build
+        shell: bash
+        run: |
+          set -euxo pipefail
+          cmake -S llvm -B "${BUILD_DIR}" -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DLLVM_ENABLE_ASSERTIONS=ON \
+            -DLLVM_ENABLE_PROJECTS='clang;lld' \
+            -DLLVM_TARGETS_TO_BUILD='' \
+            -DLLVM_EXPERIMENTAL_TARGETS_TO_BUILD=AVR32 \
+            -DLLVM_INCLUDE_BENCHMARKS=OFF \
+            -DLLVM_INCLUDE_EXAMPLES=OFF \
+            -DLLVM_INCLUDE_DOCS=OFF \
+            -DLLVM_ENABLE_ZLIB=OFF \
+            -DLLVM_ENABLE_ZSTD=OFF \
+            -DLLVM_ENABLE_LIBXML2=OFF \
+            -DLLVM_ENABLE_TERMINFO=OFF
+
+      - name: Build AVR32 tools
+        shell: bash
+        run: |
+          set -euxo pipefail
+          cmake --build "${BUILD_DIR}" --parallel 2 --target \
+            clang \
+            lld \
+            llc \
+            llvm-mc \
+            llvm-readobj \
+            llvm-readelf \
+            llvm-objdump \
+            yaml2obj \
+            obj2yaml \
+            FileCheck \
+            count \
+            not \
+            split-file
+
+      - name: Run AVR32 smoke tests
+        shell: bash
+        run: |
+          set -euxo pipefail
+          "${BUILD_DIR}/bin/llvm-lit" -sv \
+            llvm/test/MC/AVR32 \
+            llvm/test/tools/llvm-objdump/ELF/AVR32 \
+            llvm/test/tools/llvm-readobj/ELF/avr32-elf-headers.test \
+            llvm/test/tools/llvm-readobj/ELF/reloc-types-avr32.test \
+            llvm/test/tools/obj2yaml/ELF/avr32-relocs-and-flags.yaml \
+            lld/test/ELF/avr32.test \
+            lld/test/ELF/avr32-relax.s \
+            lld/test/ELF/avr32-direct-data.s \
+            lld/test/ELF/avr32-lddpc-relax.s
