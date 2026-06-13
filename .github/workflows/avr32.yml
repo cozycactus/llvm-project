@@ -59,7 +59,7 @@ jobs:
           cmake -S llvm -B "${BUILD_DIR}" -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
             -DLLVM_ENABLE_ASSERTIONS=ON \
-            -DLLVM_ENABLE_PROJECTS='clang;lld' \
+            -DLLVM_ENABLE_PROJECTS='lld' \
             -DLLVM_TARGETS_TO_BUILD='' \
             -DLLVM_EXPERIMENTAL_TARGETS_TO_BUILD=AVR32 \
             -DLLVM_INCLUDE_BENCHMARKS=OFF \
@@ -75,9 +75,7 @@ jobs:
         run: |
           set -euxo pipefail
           cmake --build "${BUILD_DIR}" --parallel 2 --target \
-            clang \
             lld \
-            llc \
             llvm-mc \
             llvm-readobj \
             llvm-readelf \

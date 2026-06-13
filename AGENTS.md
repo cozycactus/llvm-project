@@ -99,10 +99,14 @@ The fork-specific AVR32 workflow is `.github/workflows/avr32.yml`. It runs on
 Apple Silicon arm64.
 
 The workflow is intentionally a smoke build, not the full AVR32 validation
-suite: configure an AVR32-only `clang;lld` build, build the small tool set, and
-run AVR32 MC/object/lld tests. Keep it green before widening it. The broader
+suite: configure an AVR32-only `lld` build, build the small tool set, and run
+AVR32 MC/object/lld tests. Keep it green before widening it. The broader
 local focused subset above is still the better pre-commit signal for CodeGen or
 Clang target changes when the local build is known to match the source tree.
+Do not use `${{ runner.* }}` in job-level `env`; set runner-derived paths inside
+a step or use `${{ github.workspace }}`. If GitHub shows a failed workflow with
+zero jobs/logs, run `gh workflow run <id> --ref <branch>` to expose parse
+errors.
 
 ## AVR32 Code Map
 
