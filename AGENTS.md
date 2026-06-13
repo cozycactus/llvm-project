@@ -189,6 +189,25 @@ correctness signal is "kernel links, QEMU reaches the initramfs `#` prompt, and
 `pwd`, `ps`, `uname`, and `bench` run". Do not count a build-only result as a
 Linux regression pass.
 
+For reproducing the same measurement on another Mac, use the portable local
+runner from this repository instead of copying terminal history. It detects the
+checkout root, sibling project paths, Homebrew prefix (`/opt/homebrew` on Apple
+Silicon or `/usr/local` on Intel), AVR32 tools, and whether `build-avr32` is
+Ninja or Makefiles:
+
+```sh
+utils/avr32-measure-local.sh status
+utils/avr32-measure-local.sh build-tools
+utils/avr32-measure-local.sh lit-core
+utils/avr32-measure-local.sh sdr-relink
+utils/avr32-measure-local.sh linux-relink
+utils/avr32-measure-local.sh smoke-both
+```
+
+On machines with different sibling checkout locations, set `BASE`,
+`SDR_WIDGET_ROOT`, `AVR32_TOOLS`, `AVR32_SYSROOT`, `LINUX_SRC`,
+`LINUX_LLVM_BUILD`, `LINUX_GCC_BUILD`, `ROOTFS`, or `QEMU` explicitly.
+
 This checkout's `build-avr32` is a Unix Makefiles build, not Ninja. Rebuild LLVM
 tools with:
 
