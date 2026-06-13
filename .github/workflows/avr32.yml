@@ -80,6 +80,7 @@ jobs:
             llvm-readobj \
             llvm-readelf \
             llvm-objdump \
+            llvm-dwarfdump \
             llvm-config \
             yaml2obj \
             obj2yaml \
