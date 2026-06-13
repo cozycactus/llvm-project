@@ -162,9 +162,11 @@ errors.
 Known local Linux/QEMU checkouts on this Mac:
 
 ```sh
-/Users/cozy/cozycactus/linux-avr32
-/Users/cozy/cozycactus/linux-avr32-build-llvm-shell
-/Users/cozy/cozycactus/avr32-linux-rootfs
+/Users/cozy/cozycactus/linux
+/Users/cozy/Library/Caches/avr32-linux/build-llvm-shell
+/Users/cozy/Library/Caches/avr32-linux/build-gcc-shell
+/Users/cozy/cozycactus/linux/tools/avr32-rootfs
+/Users/cozy/cozycactus/linux/tools/macos-host/include
 /Users/cozy/cozycactus/qemu-avr32-v11-sync
 ```
 
@@ -176,12 +178,13 @@ directory.
 
 Fast path for a new Linux validation run:
 
-1. Confirm the four paths above still exist and check `git status` in
-   `linux-avr32`; do not fetch or reset unless the user asks.
+1. Confirm the paths above still exist and check `git status` in `linux`; do
+   not fetch or reset unless the user asks.
 2. Rebuild the local LLVM tools from `build-avr32` with all CPU cores.
-3. Rebuild `/Users/cozy/cozycactus/avr32-linux-rootfs` only if `/init` or its
-   command set changed.
-4. Rebuild only `vmlinux` in `linux-avr32-build-llvm-shell`.
+3. Rebuild `/Users/cozy/cozycactus/linux/tools/avr32-rootfs` only if `/init`
+   or its command set changed.
+4. Rebuild only `vmlinux` in
+   `/Users/cozy/Library/Caches/avr32-linux/build-llvm-shell`.
 5. Run `smoke-shell.py` and keep the log under `/tmp`.
 
 This path is much faster than rediscovering the port: the current useful
@@ -228,15 +231,15 @@ once:
 For the LLVM Linux shell build, the previous working link path used:
 
 ```sh
-K=/Users/cozy/cozycactus/linux-avr32
-B=/Users/cozy/cozycactus/linux-avr32-build-llvm-shell
+K=/Users/cozy/cozycactus/linux
+B=/Users/cozy/Library/Caches/avr32-linux/build-llvm-shell
 LLVM=/Users/cozy/cozycactus/llvm-project/build-avr32
 AVR=/Users/cozy/cozycactus/avr32-toolchain-macos-arm64/avr32-tools-src/bin
 GNU=/usr/local/opt/coreutils/libexec/gnubin
 
 PATH="$GNU:$AVR:$PATH" LLVM_AVR32_LD_LLD="$LLVM/bin/ld.lld" AVR32_AS="$AVR/avr32-as" \
 make -C "$K" O="$B" ARCH=avr32 CROSS_COMPILE=avr32- \
-  HOSTCFLAGS="-fno-pie -I/Users/cozy/cozycactus/linux-avr32-host/include -I$B/arch/avr32/include/generated/uapi -I$B/arch/avr32/include/generated -I$B/include/generated/uapi -I$B/include/generated -I$K/arch/avr32/include/uapi -I$K/include/uapi -I$K/include" \
+  HOSTCFLAGS="-fno-pie -I/Users/cozy/cozycactus/linux/tools/macos-host/include -I$B/arch/avr32/include/generated/uapi -I$B/arch/avr32/include/generated -I$B/include/generated/uapi -I$B/include/generated -I$K/arch/avr32/include/uapi -I$K/include/uapi -I$K/include" \
   HOSTLDFLAGS="-Wl,-no_pie" \
   CC="$LLVM/bin/clang --target=avr32 -fno-integrated-as -Wa,--linkrelax -B$AVR/" \
   LD=/Users/cozy/cozycactus/llvm-project/utils/avr32-linux-ld-lld-wrapper.sh \
@@ -256,7 +259,7 @@ link, first check whether the failing command bypassed
 Why those host flags matter on macOS:
 
 - macOS has no system `<elf.h>`. Use
-  `/Users/cozy/cozycactus/linux-avr32-host/include/elf.h`, not Homebrew
+  `/Users/cozy/cozycactus/linux/tools/macos-host/include/elf.h`, not Homebrew
   `libelf/elf_repl.h`; the latter misses Linux `modpost` constants/macros.
 - Host `modpost` may fail with `Found illegal text-relocations` unless host
   tools are built with `-fno-pie` and linked with `-Wl,-no_pie`.
@@ -268,7 +271,7 @@ Why those host flags matter on macOS:
 Common failure signatures and the known fix:
 
 - `fatal error: 'elf.h' file not found`: the host include path is missing
-  `/Users/cozy/cozycactus/linux-avr32-host/include`.
+  `/Users/cozy/cozycactus/linux/tools/macos-host/include`.
 - missing `R_AVR32_*` constants during `modpost`: the wrong replacement
   `elf.h` was used; use the project-local Linux-oriented header above.
 - `Found illegal text-relocations`: rebuild host tools with `-fno-pie` and
@@ -282,14 +285,14 @@ Common failure signatures and the known fix:
 The current LLVM shell build config already has:
 
 ```sh
-CONFIG_INITRAMFS_SOURCE="/Users/cozy/cozycactus/avr32-linux-rootfs/initramfs.list"
+CONFIG_INITRAMFS_SOURCE="/Users/cozy/cozycactus/linux/tools/avr32-rootfs/build/initramfs.list"
 ```
 
 That rootfs is a tiny custom `/init`, not BusyBox. It is enough for smoke tests
 and basic syscall/performance checks. Rebuild it with:
 
 ```sh
-make -C /Users/cozy/cozycactus/avr32-linux-rootfs
+make -C /Users/cozy/cozycactus/linux/tools/avr32-rootfs
 ```
 
 Then rebuild `vmlinux`; the kernel embeds the new `/init` through
@@ -303,7 +306,7 @@ After a successful `vmlinux` link, boot it with QEMU and run at least `pwd`,
 
 ```sh
 QEMU=/Users/cozy/cozycactus/qemu-avr32-v11-sync/build/qemu-system-avr32
-VMLINUX=/Users/cozy/cozycactus/linux-avr32-build-llvm-shell/vmlinux
+VMLINUX=/Users/cozy/Library/Caches/avr32-linux/build-llvm-shell/vmlinux
 "$QEMU" -M avr32example-board -kernel "$VMLINUX" -nographic -no-reboot \
   -append 'console=ttyS0,115200n8 rdinit=/init lpj=100000 ignore_loglevel loglevel=8'
 ```
@@ -311,8 +314,8 @@ VMLINUX=/Users/cozy/cozycactus/linux-avr32-build-llvm-shell/vmlinux
 For manual shell work, this helper uses the same QEMU arguments:
 
 ```sh
-/Users/cozy/cozycactus/avr32-linux-rootfs/run-shell.sh \
-  /Users/cozy/cozycactus/linux-avr32-build-llvm-shell/vmlinux
+/Users/cozy/cozycactus/linux/tools/avr32-rootfs/run-shell.sh \
+  /Users/cozy/Library/Caches/avr32-linux/build-llvm-shell/vmlinux
 ```
 
 For automated smoke checks, prefer the rootfs `smoke-shell.py` helper when it
@@ -324,9 +327,9 @@ cycle measurements.
 
 Current GCC vs LLVM shell-kernel comparison reference from June 12, 2026:
 
-- Both builds used identical `linux-avr32-build-gcc-shell` and
-  `linux-avr32-build-llvm-shell` configs with
-  `CONFIG_INITRAMFS_SOURCE="/Users/cozy/cozycactus/avr32-linux-rootfs/initramfs.list"`,
+- Both builds used identical `build-gcc-shell` and `build-llvm-shell` configs
+  with
+  `CONFIG_INITRAMFS_SOURCE="/Users/cozy/cozycactus/linux/tools/avr32-rootfs/build/initramfs.list"`,
   `CONFIG_CC_OPTIMIZE_FOR_SIZE=y`, and `CONFIG_FRAME_POINTER=y`.
 - Rebuilt compilers before measuring; stale `clang`/`ld.lld` versions are a
   known source of false results.
